@@ -1,511 +1,162 @@
 {
-  "schema_version": 2,
-  "tables": [
+  "schema_version": 3,
+  "no_town_by_stage": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
+  "promotion_item_by_unit": [89, 93, 255, 93, 205, 205, 205, 205, 92, 88, 88, 88, 91, 92, 88, 91, 255, 255],
+  "notice_origins_by_portrait": [4283, 1707, 3939, 1398, 3644],
+  "promotions": {
+    "32": {"movement_profile": 9, "movement_bonus": 1},
+    "33": {"movement_profile": 10, "movement_bonus": 0},
+    "34": {"movement_profile": 9, "movement_bonus": 1},
+    "35": {"movement_profile": 10, "movement_bonus": 0},
+    "36": {"movement_profile": 11, "movement_bonus": 1},
+    "37": {"movement_profile": 11, "movement_bonus": 1},
+    "38": {"movement_profile": 11, "movement_bonus": 1},
+    "39": {"movement_profile": 11, "movement_bonus": 1},
+    "40": {"movement_profile": 12, "movement_bonus": 1},
+    "41": {"movement_profile": 13, "movement_bonus": 1},
+    "42": {"movement_profile": 14, "movement_bonus": 1},
+    "43": {"movement_profile": 14, "movement_bonus": 1},
+    "44": {"movement_profile": 16, "movement_bonus": 0},
+    "45": {"movement_profile": 12, "movement_bonus": 1},
+    "46": {"movement_profile": 13, "movement_bonus": 1},
+    "47": {"movement_profile": 16, "movement_bonus": 0},
+    "48": {"movement_profile": 10, "movement_bonus": 0},
+    "49": {"movement_profile": 15, "movement_bonus": 1},
+    "50": {"movement_profile": 17, "movement_bonus": 2},
+    "51": {"movement_profile": 18, "movement_bonus": 0},
+    "52": {"movement_profile": 21, "movement_bonus": 2},
+    "53": {"movement_profile": 18, "movement_bonus": 0},
+    "54": {"movement_profile": 19, "movement_bonus": 2},
+    "55": {"movement_profile": 19, "movement_bonus": 2},
+    "56": {"movement_profile": 19, "movement_bonus": 2},
+    "57": {"movement_profile": 19, "movement_bonus": 2},
+    "58": {"movement_profile": 20, "movement_bonus": 1},
+    "59": {"movement_profile": 22, "movement_bonus": 1},
+    "60": {"movement_profile": 22, "movement_bonus": 1},
+    "61": {"movement_profile": 22, "movement_bonus": 1},
+    "62": {"movement_profile": 24, "movement_bonus": 1},
+    "63": {"movement_profile": 20, "movement_bonus": 1},
+    "64": {"movement_profile": 22, "movement_bonus": 1},
+    "65": {"movement_profile": 24, "movement_bonus": 1},
+    "66": {"movement_profile": 18, "movement_bonus": 0},
+    "67": {"movement_profile": 23, "movement_bonus": 1}
+  },
+  "deployment_roster_rules": [
+    {"first_stage": 0, "last_stage": 12, "active_slot": 6, "required_text_id": 2}
+  ],
+  "towns": [
     {
-      "name": "k_prepare_no_town",
-      "c_type": "uint8_t",
-      "dimensions": [
-        30
-      ],
-      "values": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        0,
-        0,
-        1,
-        1,
-        1
+      "background_entry": 11,
+      "service_positions": [
+        {"x": 29, "y": 46},
+        {"x": 41, "y": 109},
+        {"x": 59, "y": 163},
+        {"x": 154, "y": 139},
+        {"x": 182, "y": 65},
+        {"x": 10, "y": 10}
       ]
     },
     {
-      "name": "k_prepare_revive_coefficients",
-      "c_type": "uint16_t",
-      "dimensions": [
-        29
-      ],
-      "values": [
-        506,
-        100,
-        150,
-        100,
-        100,
-        100,
-        100,
-        100,
-        100,
-        1200,
-        1600,
-        1000,
-        1000,
-        1200,
-        1400,
-        1200,
-        1600,
-        100,
-        1800,
-        1200,
-        1000,
-        3000,
-        1000,
-        1000,
-        1400,
-        350,
-        100,
-        100,
-        100
+      "background_entry": 61,
+      "service_positions": [
+        {"x": 90, "y": 30},
+        {"x": 33, "y": 105},
+        {"x": 53, "y": 163},
+        {"x": 148, "y": 139},
+        {"x": 222, "y": 85},
+        {"x": 196, "y": 8}
       ]
     },
     {
-      "name": "k_prepare_promotion_records",
-      "c_type": "uint8_t",
-      "dimensions": [
-        36,
-        2
-      ],
-      "values": [
-        [
-          9,
-          1
-        ],
-        [
-          10,
-          0
-        ],
-        [
-          9,
-          1
-        ],
-        [
-          10,
-          0
-        ],
-        [
-          11,
-          1
-        ],
-        [
-          11,
-          1
-        ],
-        [
-          11,
-          1
-        ],
-        [
-          11,
-          1
-        ],
-        [
-          12,
-          1
-        ],
-        [
-          13,
-          1
-        ],
-        [
-          14,
-          1
-        ],
-        [
-          14,
-          1
-        ],
-        [
-          16,
-          0
-        ],
-        [
-          12,
-          1
-        ],
-        [
-          13,
-          1
-        ],
-        [
-          16,
-          0
-        ],
-        [
-          10,
-          0
-        ],
-        [
-          15,
-          1
-        ],
-        [
-          17,
-          2
-        ],
-        [
-          18,
-          0
-        ],
-        [
-          21,
-          2
-        ],
-        [
-          18,
-          0
-        ],
-        [
-          19,
-          2
-        ],
-        [
-          19,
-          2
-        ],
-        [
-          19,
-          2
-        ],
-        [
-          19,
-          2
-        ],
-        [
-          20,
-          1
-        ],
-        [
-          22,
-          1
-        ],
-        [
-          22,
-          1
-        ],
-        [
-          22,
-          1
-        ],
-        [
-          24,
-          1
-        ],
-        [
-          20,
-          1
-        ],
-        [
-          22,
-          1
-        ],
-        [
-          24,
-          1
-        ],
-        [
-          18,
-          0
-        ],
-        [
-          23,
-          1
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_special_items",
-      "c_type": "uint8_t",
-      "dimensions": [
-        18
-      ],
-      "values": [
-        89,
-        93,
-        255,
-        93,
-        205,
-        205,
-        205,
-        205,
-        92,
-        88,
-        88,
-        88,
-        91,
-        92,
-        88,
-        91,
-        255,
-        255
-      ]
-    },
-    {
-      "name": "k_prepare_town_x",
-      "c_type": "uint8_t",
-      "dimensions": [
-        3,
-        6
-      ],
-      "values": [
-        [
-          29,
-          41,
-          59,
-          154,
-          182,
-          10
-        ],
-        [
-          90,
-          33,
-          53,
-          148,
-          222,
-          196
-        ],
-        [
-          59,
-          10,
-          59,
-          130,
-          242,
-          136
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_town_y",
-      "c_type": "uint8_t",
-      "dimensions": [
-        3,
-        6
-      ],
-      "values": [
-        [
-          46,
-          109,
-          163,
-          139,
-          65,
-          10
-        ],
-        [
-          30,
-          105,
-          163,
-          139,
-          85,
-          8
-        ],
-        [
-          26,
-          144,
-          163,
-          150,
-          31,
-          20
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_town_portraits",
-      "c_type": "uint8_t",
-      "dimensions": [
-        6
-      ],
-      "values": [
-        129,
-        128,
-        0,
-        130,
-        131,
-        132
-      ]
-    },
-    {
-      "name": "k_prepare_town_background_entries",
-      "c_type": "uint8_t",
-      "dimensions": [
-        3
-      ],
-      "values": [
-        11,
-        61,
-        62
-      ]
-    },
-    {
-      "name": "k_prepare_service_return_prefix",
-      "c_type": "uint16_t",
-      "dimensions": [
-        5
-      ],
-      "values": [
-        1,
-        506,
-        1,
-        506,
-        506
-      ]
-    },
-    {
-      "name": "k_prepare_menu_slide_offsets",
-      "c_type": "int32_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        -39,
-        -13,
-        13,
-        39
-      ]
-    },
-    {
-      "name": "k_prepare_menu_cursor_offsets",
-      "c_type": "int32_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        -39,
-        -13,
-        13,
-        39
-      ]
-    },
-    {
-      "name": "k_prepare_buy_messages",
-      "c_type": "uint16_t",
-      "dimensions": [
-        4,
-        6
-      ],
-      "values": [
-        [
-          1,
-          502,
-          1,
-          439,
-          1,
-          439
-        ],
-        [
-          1,
-          504,
-          1,
-          438,
-          1,
-          438
-        ],
-        [
-          1,
-          505,
-          1,
-          437,
-          1,
-          437
-        ],
-        [
-          1,
-          507,
-          1,
-          507,
-          1,
-          507
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_sell_messages",
-      "c_type": "uint16_t",
-      "dimensions": [
-        2,
-        6
-      ],
-      "values": [
-        [
-          508,
-          508,
-          508,
-          659,
-          508,
-          508
-        ],
-        [
-          509,
-          509,
-          509,
-          509,
-          509,
-          509
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_town_service_entries",
-      "c_type": "uint8_t",
-      "dimensions": [
-        6
-      ],
-      "values": [
-        13,
-        12,
-        255,
-        29,
-        14,
-        63
-      ]
-    },
-    {
-      "name": "k_prepare_deployment_roster_gate",
-      "c_type": "uint8_t",
-      "dimensions": [
-        1,
-        4
-      ],
-      "values": [
-        [
-          0,
-          12,
-          6,
-          2
-        ]
-      ]
-    },
-    {
-      "name": "k_prepare_notice_portrait_origins",
-      "c_type": "uint16_t",
-      "dimensions": [
-        5
-      ],
-      "values": [
-        4283,
-        1707,
-        3939,
-        1398,
-        3644
+      "background_entry": 62,
+      "service_positions": [
+        {"x": 59, "y": 26},
+        {"x": 10, "y": 144},
+        {"x": 59, "y": 163},
+        {"x": 130, "y": 150},
+        {"x": 242, "y": 31},
+        {"x": 136, "y": 20}
       ]
     }
+  ],
+  "services": [
+    {
+      "portrait_id": 129,
+      "fdother_entry": 13,
+      "buy_fragments": [1, 1, 1, 1],
+      "sell_fragments": [508, 509],
+      "return_fragment": 1
+    },
+    {
+      "portrait_id": 128,
+      "fdother_entry": 12,
+      "buy_fragments": [502, 504, 505, 507],
+      "sell_fragments": [508, 509],
+      "return_fragment": 506
+    },
+    {
+      "portrait_id": 0,
+      "fdother_entry": 255,
+      "buy_fragments": [1, 1, 1, 1],
+      "sell_fragments": [508, 509],
+      "return_fragment": 1
+    },
+    {
+      "portrait_id": 130,
+      "fdother_entry": 29,
+      "buy_fragments": [439, 438, 437, 507],
+      "sell_fragments": [659, 509],
+      "return_fragment": 506
+    },
+    {
+      "portrait_id": 131,
+      "fdother_entry": 14,
+      "buy_fragments": [1, 1, 1, 1],
+      "sell_fragments": [508, 509],
+      "return_fragment": 506
+    },
+    {
+      "portrait_id": 132,
+      "fdother_entry": 63,
+      "buy_fragments": [439, 438, 437, 507],
+      "sell_fragments": [508, 509],
+      "return_fragment": 506
+    }
+  ],
+  "revive_coefficient_by_profile": [
+    100,
+    150,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    1200,
+    1600,
+    1000,
+    1000,
+    1200,
+    1400,
+    1200,
+    1600,
+    100,
+    1800,
+    1200,
+    1000,
+    3000,
+    1000,
+    1000,
+    1400,
+    350,
+    100,
+    100,
+    100
+  ],
+  "menu_offsets": [
+    {"slide": -39, "cursor": -39},
+    {"slide": -13, "cursor": -13},
+    {"slide": 13, "cursor": 13},
+    {"slide": 39, "cursor": 39}
   ]
 }

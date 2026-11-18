@@ -36,6 +36,12 @@
 #include "portrait.h"
 #include "static_data.h"
 
+typedef struct {
+    uint16_t short_sfx_bank, recovery_sfx_bank, short_sprite_stride;
+    uint16_t panel_first_frame, panel_frame_count, panel_delay_ms;
+    uint16_t effect_delay_ms, bar_delay_ms, counter_top_bar_width;
+} fd2_battle_map_action_parameters;
+
 #include "static_data/battle_animation.inc"
 
 uint8_t fd2_battle_animation_map_solid_color(void) {
@@ -617,11 +623,6 @@ static int strike(const fd2_field_game *game, const fd2_field_physical_event *ev
     return 0;
 }
 
-enum {
-    SHORT_BANK, RECOVERY_BANK, SHORT_SPRITE_STRIDE, SHORT_PANEL_FIRST,
-    SHORT_PANEL_COUNT, SHORT_PANEL_MS, SHORT_FX_MS, SHORT_BAR_MS, SHORT_COUNTER_WIDTH
-};
-
 /* sub_4E87D @0x4e87d（原同名）：装备item[0]选择视觉序列，
  * 与决定二击/暴击的item[9]分属不同字段。 */
 static int short_weapon_offset(const fd2_field_unit *unit,uint8_t *offset) {
@@ -679,7 +680,8 @@ static int map_physical_prepare(const fd2_field_game *game,
     e->recovery_with_info=recovery && game->option_values[3]!=0 &&
         game->active_side==2u && game->selected_unit==(int)event->actor_index &&
         game->interaction==FD2_FIELD_INTERACTION_COMMAND && e->units[0].side==2u;
-    size_t bank=k_battle_map_action_parameters[recovery ? RECOVERY_BANK:SHORT_BANK];
+    size_t bank=recovery ? k_battle_map_action_parameters.recovery_sfx_bank:
+        k_battle_map_action_parameters.short_sfx_bank;
     if (fd2_pcm_bank_open(&e->map_sound,ctx->fdother,bank)!=0 ||
         !bank_sample_valid(&e->map_sound,4)) goto fail;
     if (!recovery) {
@@ -694,14 +696,14 @@ static int map_physical_prepare(const fd2_field_game *game,
             for (size_t j=0;j<count;j++,at+=2) {
                 size_t frame=k_battle_short_fx_sequences[at];
                 uint8_t sample=k_battle_short_fx_sequences[at+1];
-                if (frame>=k_battle_map_action_parameters[SHORT_PANEL_FIRST] ||
+                if (frame>=k_battle_map_action_parameters.panel_first_frame ||
                     (!e->map_fx[frame].image.pixels &&
                      lmi_image(&e->map_fx[frame],ctx->fdother,6,frame)!=0) ||
                     (sample!=255 && !bank_sample_valid(&e->map_sound,sample))) goto fail;
             }
         }
-        size_t first=k_battle_map_action_parameters[SHORT_PANEL_FIRST];
-        size_t end=first+k_battle_map_action_parameters[SHORT_PANEL_COUNT];
+        size_t first=k_battle_map_action_parameters.panel_first_frame;
+        size_t end=first+k_battle_map_action_parameters.panel_frame_count;
         if (end>49 || end<=first) goto fail;
         for (size_t i=first;i<end;i++)
             if (lmi_image(&e->map_fx[i],ctx->fdother,6,i)!=0) goto fail;
@@ -764,7 +766,7 @@ static int map_physical_actor(const fd2_field_game *game,fd2_battle_animation_ex
     /* 已证FDICON所有1680帧无opaque0，decoded0恰为RLE SKIP。 */
     battle_image image={{24,24,source},source};
     int tint=solid ? (viewport ? fd2_battle_animation_map_solid_color():
-        (int)(k_battle_map_action_parameters[SHORT_SPRITE_STRIDE]&255u)):-1;
+        (int)(k_battle_map_action_parameters.short_sprite_stride&255u)):-1;
     if (viewport) blit(pixels+1284,312,192,320,&image,x,y,tint);
     else blit(pixels,320,200,320,&image,x+4,y+4,tint);
     return 0;
@@ -864,8 +866,8 @@ static int short_begin(const fd2_field_game *game,fd2_battle_animation *ctx) {
         short_panel_position(game,&e->units[i],&e->panel_x[i],&e->panel_y[i]);
     }
     if (stopped(ctx)) return 0;
-    size_t first=k_battle_map_action_parameters[SHORT_PANEL_FIRST];
-    size_t count=k_battle_map_action_parameters[SHORT_PANEL_COUNT];
+    size_t first=k_battle_map_action_parameters.panel_first_frame;
+    size_t count=k_battle_map_action_parameters.panel_frame_count;
     for (size_t frame=0;frame<count && !stopped(ctx);frame++) {
         const battle_image *image=&e->map_fx[first+frame];
         memcpy(e->work,ctx->vga->framebuffer,64000);
@@ -874,7 +876,7 @@ static int short_begin(const fd2_field_game *game,fd2_battle_animation *ctx) {
             memcpy(e->work+64000,ctx->vga->framebuffer,64000);
             blit(ctx->vga->framebuffer,320,200,320,image,e->panel_x[0],e->panel_y[0],-1);
         }
-        {if(map_present_ms(ctx,k_battle_map_action_parameters[SHORT_PANEL_MS])<0){return -1;}}
+        {if(map_present_ms(ctx,k_battle_map_action_parameters.panel_delay_ms)<0){return -1;}}
         if (frame+1<count) {
             restore_image_rect(ctx->vga->framebuffer,e->work,image,e->panel_x[1],e->panel_y[1]);
             if (e->counter_ready)
@@ -954,10 +956,10 @@ static int short_counter_refresh(const fd2_field_game *game,fd2_battle_animation
         memset(e->board.framebuffer,0,64000);
         if (battle_field_render(game,ctx,&e->board,0)!=0) return -1;
     }
-    size_t last=k_battle_map_action_parameters[SHORT_PANEL_FIRST]+
-        k_battle_map_action_parameters[SHORT_PANEL_COUNT]-1u;
+    size_t last=k_battle_map_action_parameters.panel_first_frame+
+        k_battle_map_action_parameters.panel_frame_count-1u;
     if(short_counter_panel(game,ctx,&e->map_fx[last],1,
-        k_battle_map_action_parameters[SHORT_COUNTER_WIDTH])!=0)return -1;
+        k_battle_map_action_parameters.counter_top_bar_width)!=0)return -1;
     /* 1548e @155f3..15600只需三个实参。1e6a8/1e6fc在先PUSH
      * descriptor后分别读ESP+14h/10h，按实际SP为target/actor，
      * 不能把IDA伪参数名arg_C当作缺第四参。首目标55底条后直接覆比例条，
@@ -997,14 +999,14 @@ static int short_strike(const fd2_field_game *game,const fd2_field_physical_even
                 ctx->vga->field_visual.cursor_phase)!=0) return -1;
         memcpy(e->work,ctx->vga->framebuffer,64000);
         blit(ctx->vga->framebuffer,320,200,320,image,x,y,-1);
-        {if(map_present_ms(ctx,k_battle_map_action_parameters[SHORT_FX_MS])<0){return -1;}}
+        {if(map_present_ms(ctx,k_battle_map_action_parameters.effect_delay_ms)<0){return -1;}}
         restore_image_rect(ctx->vga->framebuffer,e->work,image,x,y);
     }
     int width=(int)(70u*(uint32_t)event->target_before->hp/event->target_before->hp_max);
     int after=(int)(69u*(uint32_t)event->result->hp_after/event->target_before->hp_max+1u);
     while (width>=after && !stopped(ctx)) {
         if(short_bar(game,ctx->vga->framebuffer,e->panel_x[target]+7,e->panel_y[target]+6,width))return -1;
-        {if(map_present_ms(ctx,k_battle_map_action_parameters[SHORT_BAR_MS])<0){return -1;}}width--;
+        {if(map_present_ms(ctx,k_battle_map_action_parameters.bar_delay_ms)<0){return -1;}}width--;
     }
     if (!stopped(ctx)) {if(present(ctx,0)<0){return -1;}}
     return 0;

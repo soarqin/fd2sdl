@@ -15,15 +15,14 @@ import struct
 import sys
 
 from verify_unit_tables import ROOT, EXE_SHA256, source_range
+from table_schema import load_json, TABLE_SCHEMA_VERSION
 sys.path.insert(0, str(ROOT / "tools"))
 from dump_fd2_fixup_table import collect_internal_offset_fixups
 
-NAMES = ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS", "MAGIC_MAP_TARGET_LIMITS", "MAGIC_MAP_COST_BEFORE_CAST")
+MAP_FIELDS = ("effect_id", "cost_record_id", "target_limit", "cost_before_cast")
 
 
-def check(document, executable):
-    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
-        raise ValueError("magic table schema differs")
+def source_map_profiles(executable):
     data = executable.read_bytes()
     source_range(data, 0x51d01, 28 * 4)  # strict identity/page validation before fixups
     fixups = collect_internal_offset_fixups(executable)
@@ -57,11 +56,19 @@ def check(document, executable):
     effects, costs, limits = list(range(28)), list(range(28)), [0] * 28
     effects[24] = costs[24] = 16; costs[17] = 18; limits[9] = limits[23] = 1
     before = [int(index in range(9, 13) or index in range(17, 24) or index in range(25, 28)) for index in range(28)]
-    by_name = {t["name"]: t for t in document["tables"]}
-    for name, values in zip(NAMES, (effects, costs, limits, before)):
-        table = by_name[name]
-        if (table.get("c_type"), table.get("dimensions"), table.get("values")) != ("uint8_t", [28], values):
-            raise ValueError(f"{name}: reviewed original map projection differs")
+    return [dict(zip(MAP_FIELDS, values)) for values in zip(effects, costs, limits, before)]
+
+
+def check(document, executable):
+    if type(document.get("schema_version")) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION:
+        raise ValueError("magic table schema differs")
+    expected = source_map_profiles(executable)
+    for identity, profile in enumerate(expected):
+        spell = document["spells"][str(identity)]
+        if json.dumps(spell.get("map"), sort_keys=True) != json.dumps(profile, sort_keys=True):
+            raise ValueError(f"spells.{identity}.map: reviewed original map projection differs")
+    if any("map" in document["spells"][str(identity)] for identity in range(28, 36)):
+        raise ValueError("map projection supplied outside original dispatch slots")
     return {"ok": True, "tables": 4, "dispatch_fixups": 28, "executable_sha256": EXE_SHA256,
             "scope": "map aliases, scalar/call/jump anchors and independently reviewed wrapper-order projections",
             "original_runtime_executed": False, "all_wrapper_control_flow_automatically_proven": False}
@@ -73,13 +80,13 @@ def main():
     parser.add_argument("--tables", type=Path, default=ROOT / "data/static/tables/magic.json")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
-    document = json.loads(args.tables.read_text(encoding="utf-8"))
+    document = load_json(args.tables)
     report = check(document, args.executable)
     if args.self_test:
         rejected = 0
-        for name in NAMES:
+        for name in MAP_FIELDS:
             bad = copy.deepcopy(document)
-            next(t for t in bad["tables"] if t["name"] == name)["values"][24] ^= 1
+            bad["spells"]["24"]["map"][name] ^= 1
             try: check(bad, args.executable)
             except ValueError: rejected += 1
             else: raise ValueError("changed map contract was accepted")

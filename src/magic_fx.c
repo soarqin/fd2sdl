@@ -8,16 +8,28 @@
 #include <math.h>
 #include <string.h>
 
+typedef struct {
+    uint16_t hostile_clip, friendly_clip;
+    uint8_t sfx_bank, hp_denominator, minimum_sample_count;
+    uint16_t hit_frame_base, return_lut_base, minimum_part_count;
+} fd2_magic_fx_definition;
+
+typedef struct { int32_t x, y; } fd2_magic_fx_point;
+typedef struct { int32_t x, y; uint8_t front; } fd2_magic_rain_point;
+typedef struct { int32_t x; uint8_t y, parts; } fd2_magic_shower_point;
+
 #include "static_data/magic_fx.inc"
 
 int fd2_magic_fx_parameters_get(uint8_t id, uint8_t side,
         fd2_magic_fx_parameters *out) {
     if (!out || id >= 10u || (side && id == 9u)) return -1;
-    if (k_fx_hit_frame_bases[id]>UINT8_MAX || k_fx_return_lut_bases[id]>UINT8_MAX) return -1;
-    fd2_magic_fx_parameters value = {side ? k_fx_friendly_clips[id] : k_fx_hostile_clips[id],
-        k_fx_banks[id], k_fx_hp_denominators[id], k_fx_sample_counts[id], (uint8_t)k_fx_hit_frame_bases[id],
-        (uint8_t)k_fx_return_lut_bases[id], k_fx_minimum_parts[id]};
-    *out = value;
+    const fd2_magic_fx_definition *definition = &k_fx_definitions[id];
+    if (definition->hit_frame_base > UINT8_MAX || definition->return_lut_base > UINT8_MAX) return -1;
+    *out = (fd2_magic_fx_parameters){
+        side ? definition->friendly_clip : definition->hostile_clip,
+        definition->sfx_bank, definition->hp_denominator, definition->minimum_sample_count,
+        (uint8_t)definition->hit_frame_base, (uint8_t)definition->return_lut_base, definition->minimum_part_count
+    };
     return 0;
 }
 
@@ -78,13 +90,14 @@ static int rain(fx_call *c, int *out) {
             if (!fx->id && c->phase == 4u && age[i] == 3) PRIMARY(1);
             if (age[i] >= 0 && age[i] < (fx->id ? 15 : 16)) {
                 if (!fx->id) {
-                    if (k_fx_rain0_front[i] == (c->phase == 4u))
-                        DRAW(age[i], k_fx_rain0_x[i] + (fx->side ? 0 : 148), k_fx_rain0_y[i]);
+                    const fd2_magic_rain_point *point = &k_fx_rain0[i];
+                    if (point->front == (c->phase == 4u))
+                        DRAW(age[i], point->x + (fx->side ? 0 : 148), point->y);
                 } else {
                     int opposite = (c->phase == 4u ? i >= 4u : i < 4u);
                     size_t position = opposite ? (i + 4u) % 8u : i;
-                    DRAW(age[i] + (opposite ? 15 : 0),
-                        k_fx_rain1_x[position] + 80 + (fx->side ? 0 : 148), k_fx_rain1_y[position]);
+                    const fd2_magic_fx_point *point = &k_fx_rain1[position];
+                    DRAW(age[i] + (opposite ? 15 : 0), point->x + 80 + (fx->side ? 0 : 148), point->y);
                 }
             }
         }
@@ -158,11 +171,12 @@ static int shower(fx_call *c, int *out) {
         fx->state.particles.flip = (uint8_t)((fx->state.particles.flip + 1u) % 2u);
         for (size_t i = 0; i < 12u; i++) {
             int32_t at = slot[i]; if (at < 0 || at >= 12) return -1;
-            if (age[i] >= 0 && age[i] < 11) DRAW(age[i] + k_fx_shower_parts[at], k_fx_shower_x[at] + (fx->side ? 0 : 20), -(int32_t)k_fx_shower_y[at]);
+            const fd2_magic_shower_point *point = &k_fx_shower[at];
+            if (age[i] >= 0 && age[i] < 11) DRAW(age[i] + point->parts, point->x + (fx->side ? 0 : 20), -(int32_t)point->y);
             if (!fx->state.particles.flip) {
-                if (!age[i] && k_fx_shower_parts[at]) PRIMARY(2);
+                if (!age[i] && point->parts) PRIMARY(2);
                 age[i] = next_age(age[i]);
-                if (age[i] == 3) { if (!k_fx_shower_parts[at]) SECONDARY(1); *out = 1; }
+                if (age[i] == 3) { if (!point->parts) SECONDARY(1); *out = 1; }
                 if (age[i] == 11 && !fx->state.particles.stop) {
                     fx->state.particles.next = (uint8_t)((fx->state.particles.next + 1u) % 12u);
                     slot[i] = fx->state.particles.next; age[i] = 0;
@@ -247,8 +261,9 @@ static int orbit(fx_call *c, int *out) {
             if (part == 1u) fx->state.orbit.spark[i] = 5;
             int late = c->phase == 5u;
             if ((!fx->side && late) || (fx->side && ((late && i > 1u) || (!late && i < 2u)))) {
-                int32_t ox = !fx->side && part < 3u ? -k_fx_orbit_dx[part] : k_fx_orbit_dx[part];
-                int32_t oy = !fx->side && part < 3u ? 0 : k_fx_orbit_dy[part];
+                const fd2_magic_fx_point *point = &k_fx_orbit[part];
+                int32_t ox = !fx->side && part < 3u ? -point->x : point->x;
+                int32_t oy = !fx->side && part < 3u ? 0 : point->y;
                 DRAW(part, fx->state.orbit.x[i] + ox, fx->state.orbit.y[i] + oy);
             }
         }

@@ -10,6 +10,7 @@ import struct
 from pathlib import Path
 
 from verify_unit_tables import EXE_SHA256, ROOT, source_range
+from table_schema import TABLE_SCHEMA_VERSION, load_table_document
 
 IMAGE_SHA="8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"
 FUNCTION_SHA="cd800188db185e379bbf2b47c33e028ade7a42a70d7fcde7d2e4685a11113282"
@@ -76,7 +77,7 @@ def original_dispatch(image,stage):
 
 
 def check(document,executable,image):
-    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
+    if type(document.get("schema_version")) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION:
         raise ValueError("背景冷表版本不符")
     if hashlib.sha256(executable).hexdigest()!=EXE_SHA256 or hashlib.sha256(image).hexdigest()!=IMAGE_SHA:
         raise ValueError("原EXE/strict relocated镜像身份不同")
@@ -110,7 +111,7 @@ def main():
     parser.add_argument("--image",type=Path,default=ROOT/"tools/fd2_le_relocated_relbase.bin")
     parser.add_argument("--output",type=Path,required=True)
     args=parser.parse_args()
-    report=check(json.loads(args.document.read_text(encoding="utf8")),args.executable.read_bytes(),args.image.read_bytes())
+    report=check(load_table_document(args.document, "field_background"),args.executable.read_bytes(),args.image.read_bytes())
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf8")
     print(json.dumps({"ok":report["ok"],"original_dispatch_cases":report["original_dispatch_cases"]}))

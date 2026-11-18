@@ -1,111 +1,3224 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scripts": {
-    "0": [5, 6, 4, 0, 2, 1, 2, 2, 2, 3, 2, 136, 1, 0, 1, 136, 1, 0, 3, 136, 1, 0, 1, 132, 1, 0, 0],
-    "1": [1, 1, 4, 4, 0, 5, 0, 6, 0, 7, 0],
-    "2": [4, 1, 4, 8, 2, 9, 2, 10, 1, 11, 3, 2, 4, 8, 3, 9, 2, 10, 2, 11, 2, 2, 4, 8, 2, 9, 3, 10, 2, 11, 2, 132, 5, 9, 2, 0, 0, 1, 0, 2, 0, 3, 0],
-    "3": [3, 2, 4, 14, 1, 15, 2, 16, 2, 17, 2, 2, 4, 14, 1, 15, 1, 16, 1, 17, 1, 2, 4, 14, 2, 15, 1, 16, 2, 17, 1],
-    "4": [2, 1, 5, 18, 2, 19, 2, 20, 3, 21, 2, 22, 3, 1, 1, 18, 3],
-    "5": [1, 4, 1, 9, 0],
-    "6": [2, 5, 4, 23, 1, 24, 1, 25, 1, 26, 1, 1, 4, 23, 0, 24, 1, 25, 2, 26, 3],
-    "7": [5, 2, 1, 12, 0, 134, 1, 12, 1, 134, 1, 12, 3, 138, 1, 12, 1, 128, 1, 12, 1],
-    "8": [3, 1, 1, 13, 0, 136, 1, 13, 3, 136, 1, 13, 1],
-    "9": [6, 2, 5, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 1, 3, 0, 1, 1, 0, 2, 2, 1, 4, 0, 1, 1, 1, 2, 1, 3, 2, 1, 3, 0, 1, 2, 2, 3, 1, 1, 2, 0, 2, 2, 1, 136, 1, 0, 1],
-    "10": [6, 1, 1, 0, 1, 136, 1, 0, 2, 136, 1, 0, 1, 136, 1, 0, 0, 136, 1, 0, 1, 136, 1, 0, 3],
-    "11": [7, 1, 2, 5, 0, 6, 0, 1, 1, 5, 0, 136, 1, 5, 1, 136, 1, 5, 0, 136, 1, 5, 1, 136, 2, 5, 3, 0, 1, 128, 2, 5, 3, 0, 1],
-    "12": [3, 1, 6, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2, 16, 2, 1, 5, 11, 2, 12, 1, 13, 1, 14, 3, 15, 3, 1, 5, 11, 2, 12, 1, 13, 2, 14, 3, 15, 2],
-    "13": [4, 1, 6, 21, 0, 22, 0, 23, 0, 24, 0, 25, 0, 26, 0, 1, 5, 21, 0, 22, 1, 23, 1, 24, 3, 25, 3, 1, 5, 21, 0, 22, 1, 23, 0, 24, 3, 25, 0, 132, 2, 22, 0, 24, 0],
-    "14": [1, 2, 1, 27, 0],
-    "15": [1, 128, 5, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0],
-    "16": [6, 3, 1, 27, 1, 2, 1, 27, 2, 1, 1, 27, 1, 1, 1, 27, 2, 3, 1, 27, 1, 3, 1, 27, 2],
-    "17": [5, 6, 1, 6, 0, 143, 1, 6, 0, 143, 1, 6, 1, 143, 1, 6, 3, 143, 1, 6, 0],
-    "18": [1, 136, 6, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2],
-    "19": [3, 5, 8, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 128, 1, 6, 0, 143, 1, 6, 2],
-    "20": [4, 1, 7, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 1, 6, 0, 2, 1, 2, 2, 1, 3, 1, 4, 3, 5, 3, 1, 3, 0, 2, 2, 2, 4, 2, 129, 2, 3, 2, 5, 2],
-    "21": [3, 1, 7, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 1, 4, 0, 2, 1, 2, 2, 2, 3, 2, 1, 1, 0, 2],
-    "22": [2, 1, 1, 41, 0, 2, 1, 41, 3],
-    "23": [2, 1, 5, 43, 0, 44, 1, 45, 1, 46, 3, 47, 3, 1, 2, 44, 0, 46, 0],
-    "24": [1, 128, 5, 48, 0, 49, 0, 50, 0, 51, 0, 1, 5],
-    "25": [1, 5, 1, 33, 2],
-    "26": [1, 5, 1, 33, 0],
-    "27": [1, 3, 1, 34, 2],
-    "28": [15, 7, 8, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 1, 7, 18, 1, 19, 3, 20, 3, 21, 0, 22, 0, 23, 0, 24, 0, 1, 7, 18, 1, 19, 3, 20, 3, 21, 1, 22, 3, 23, 3, 24, 3, 2, 3, 20, 3, 23, 3, 24, 3, 2, 1, 24, 3, 129, 7, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 4, 8, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 1, 7, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 1, 7, 10, 1, 11, 1, 12, 3, 13, 3, 14, 0, 15, 0, 16, 0, 2, 4, 11, 1, 13, 3, 15, 1, 16, 3, 129, 6, 10, 0, 11, 0, 12, 0, 13, 0, 15, 0, 16, 0, 2, 4, 25, 0, 26, 0, 27, 0, 28, 0, 1, 4, 25, 1, 26, 3, 27, 0, 28, 0, 2, 4, 25, 1, 26, 3, 27, 1, 28, 3, 129, 4, 25, 0, 26, 0, 27, 0, 28, 0],
-    "29": [4, 2, 5, 29, 0, 30, 0, 31, 0, 32, 0, 33, 0, 1, 4, 29, 1, 30, 1, 31, 3, 32, 3, 1, 4, 29, 0, 30, 2, 31, 0, 32, 2, 129, 2, 30, 0, 32, 0],
-    "30": [8, 2, 1, 43, 1, 1, 2, 43, 1, 35, 1, 1, 4, 43, 1, 35, 1, 36, 1, 37, 1, 1, 7, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 1, 9, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 40, 1, 41, 1, 1, 10, 43, 1, 34, 1, 35, 1, 36, 1, 37, 1, 38, 1, 39, 1, 40, 1, 41, 1, 42, 1, 136, 1, 43, 1, 136, 1, 43, 3],
-    "31": [1, 5, 10, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2],
-    "32": [1, 4, 1, 28, 0],
-    "33": [4, 1, 2, 5, 2, 28, 1, 1, 1, 5, 2, 1, 2, 5, 2, 28, 3, 5, 2, 5, 2, 28, 2],
-    "34": [1, 7, 9, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 6, 2, 7, 2, 8, 2, 9, 2],
-    "35": [1, 3, 1, 5, 2],
-    "36": [1, 5, 1, 47, 0],
-    "37": [1, 1, 1, 5, 2],
-    "38": [4, 3, 1, 38, 0, 1, 1, 38, 1, 3, 1, 38, 0, 132, 1, 38, 0],
-    "39": [2, 136, 1, 8, 2, 128, 1, 8, 2],
-    "40": [8, 4, 1, 14, 0, 134, 1, 14, 1, 134, 1, 14, 3, 132, 1, 14, 2, 128, 1, 14, 2, 2, 10, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 1, 11, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 138, 1, 14, 0],
-    "41": [9, 1, 2, 13, 2, 0, 2, 1, 6, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 0, 2, 1, 9, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 0, 2, 1, 12, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 5, 2, 4, 2, 3, 2, 0, 2, 1, 14, 13, 2, 12, 2, 11, 2, 10, 2, 9, 2, 8, 2, 7, 2, 6, 2, 5, 2, 4, 2, 3, 2, 2, 2, 1, 2, 0, 2, 1, 4, 9, 2, 8, 1, 7, 3, 6, 3, 2, 6, 11, 3, 10, 3, 9, 3, 6, 3, 5, 1, 4, 3, 1, 5, 13, 3, 9, 3, 0, 1, 1, 1, 2, 3, 2, 1, 10, 3],
-    "42": [2, 1, 7, 25, 1, 26, 1, 27, 3, 28, 3, 30, 0, 31, 0, 32, 0, 1, 4, 25, 1, 27, 0, 30, 1, 31, 0],
-    "43": [2, 1, 5, 33, 1, 34, 1, 35, 3, 36, 3, 37, 0, 1, 2, 33, 0, 36, 0],
-    "44": [2, 1, 5, 39, 1, 44, 1, 41, 3, 42, 3, 43, 0, 1, 2, 39, 0, 41, 0],
-    "45": [2, 128, 1, 8, 2, 134, 1, 8, 2],
-    "46": [3, 1, 11, 61, 0, 62, 1, 63, 2, 64, 2, 65, 1, 66, 1, 67, 1, 68, 1, 69, 0, 70, 0, 71, 0, 1, 8, 62, 1, 63, 1, 66, 1, 67, 1, 68, 1, 69, 0, 70, 1, 71, 1, 1, 4, 62, 0, 66, 1, 68, 2, 70, 0],
-    "47": [1, 4, 1, 67, 2],
-    "48": [6, 134, 1, 64, 3, 134, 1, 64, 1, 134, 1, 64, 2, 134, 1, 64, 1, 134, 1, 64, 0, 128, 1, 64, 0],
-    "49": [1, 5, 1, 65, 0],
-    "50": [2, 5, 1, 52, 0, 143, 1, 52, 0],
-    "51": [2, 5, 1, 61, 0, 132, 1, 61, 0],
-    "52": [2, 5, 1, 60, 0, 132, 1, 60, 0],
-    "53": [1, 133, 16, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2],
-    "54": [6, 136, 2, 16, 2, 17, 2, 136, 2, 16, 0, 17, 0, 136, 2, 16, 2, 17, 2, 136, 2, 16, 3, 17, 3, 136, 2, 16, 1, 17, 1, 128, 2, 16, 1, 17, 1],
-    "55": [1, 143, 2, 16, 3, 17, 3],
-    "56": [3, 1, 1, 1, 3, 1, 1, 1, 2, 132, 1, 1, 3],
-    "57": [1, 136, 1, 16, 3],
-    "58": [1, 136, 1, 16, 1],
-    "59": [8, 1, 5, 53, 1, 54, 0, 55, 0, 56, 0, 57, 0, 1, 5, 53, 1, 54, 1, 55, 0, 56, 0, 57, 0, 1, 5, 53, 1, 54, 1, 55, 1, 56, 0, 57, 0, 1, 4, 54, 1, 55, 1, 56, 1, 57, 0, 1, 6, 55, 1, 56, 1, 57, 1, 58, 0, 59, 0, 60, 0, 1, 5, 56, 1, 57, 1, 58, 1, 59, 0, 60, 0, 1, 4, 57, 1, 58, 1, 59, 1, 60, 0, 4, 3, 58, 1, 59, 1, 60, 1],
-    "60": [1, 5, 1, 83, 3],
-    "61": [1, 1, 1, 1, 1],
-    "62": [1, 136, 1, 1, 3],
-    "63": [4, 1, 1, 0, 2, 134, 1, 0, 2, 128, 1, 16, 0, 132, 1, 16, 0],
-    "64": [5, 1, 1, 0, 0, 129, 1, 0, 2, 1, 1, 16, 0, 1, 1, 16, 1, 132, 1, 16, 0],
-    "65": [2, 2, 1, 1, 2, 134, 1, 1, 0],
-    "66": [50, 3, 1, 0, 2, 130, 1, 0, 0, 5, 1, 2, 2, 1, 1, 2, 3, 130, 1, 2, 0, 5, 1, 3, 2, 130, 1, 3, 0, 1, 1, 4, 2, 1, 1, 4, 3, 5, 1, 4, 2, 130, 1, 4, 0, 5, 1, 5, 2, 130, 1, 5, 0, 1, 1, 6, 1, 4, 1, 6, 2, 130, 1, 6, 0, 5, 1, 7, 2, 130, 1, 7, 0, 1, 1, 8, 1, 4, 1, 8, 2, 130, 1, 8, 0, 2, 1, 9, 2, 1, 1, 9, 3, 2, 1, 9, 2, 1, 1, 9, 1, 2, 1, 9, 2, 130, 1, 9, 0, 4, 1, 10, 2, 1, 1, 10, 1, 1, 1, 10, 2, 130, 1, 10, 0, 4, 1, 11, 2, 2, 1, 11, 1, 130, 1, 11, 0, 4, 1, 12, 2, 1, 1, 12, 3, 2, 1, 12, 2, 130, 1, 12, 0, 2, 1, 13, 2, 1, 1, 13, 1, 2, 1, 13, 2, 1, 1, 13, 3, 1, 1, 13, 2, 130, 1, 13, 0, 5, 1, 14, 2, 130, 1, 14, 0, 5, 1, 72, 2, 130, 1, 72, 0, 5, 1, 15, 2, 130, 1, 15, 0],
-    "67": [3, 1, 15, 1, 0, 2, 0, 3, 0, 4, 0, 5, 2, 6, 2, 7, 2, 8, 1, 9, 1, 10, 1, 11, 1, 12, 3, 13, 3, 14, 3, 15, 3, 1, 11, 2, 0, 3, 0, 4, 0, 6, 1, 7, 3, 9, 1, 10, 0, 11, 0, 13, 3, 14, 0, 15, 0, 1, 4, 3, 1, 4, 3, 11, 1, 15, 3],
-    "68": [3, 136, 2, 16, 2, 17, 2, 128, 1, 16, 2, 132, 1, 16, 0],
-    "69": [2, 128, 1, 17, 2, 132, 1, 17, 0],
-    "70": [1, 2, 2, 16, 0, 17, 0],
-    "71": [1, 4, 1, 16, 0],
-    "72": [1, 4, 1, 17, 0],
-    "73": [1, 143, 1, 0, 0],
-    "74": [1, 4, 8, 62, 2, 63, 2, 64, 2, 65, 2, 66, 2, 67, 2, 68, 2, 69, 2],
-    "75": [1, 4, 1, 70, 2],
-    "76": [5, 1, 15, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 3, 11, 3, 12, 3, 13, 3, 14, 3, 1, 12, 0, 2, 1, 2, 2, 1, 3, 3, 5, 1, 6, 1, 7, 1, 8, 1, 10, 3, 11, 3, 12, 3, 13, 3, 1, 8, 0, 1, 1, 3, 5, 1, 6, 2, 7, 2, 10, 3, 11, 2, 12, 2, 1, 2, 6, 2, 11, 2, 132, 11, 0, 2, 1, 2, 2, 2, 3, 2, 5, 2, 8, 2, 9, 2, 10, 2, 13, 2, 14, 2, 15, 2],
-    "77": [1, 1, 1, 1, 2],
-    "78": [3, 1, 1, 2, 2, 1, 1, 2, 1, 132, 1, 2, 0],
-    "79": [1, 132, 1, 0, 2],
-    "80": [3, 1, 1, 0, 3, 1, 1, 0, 2, 5, 2, 0, 2, 2, 2],
-    "81": [1, 143, 1, 0, 3],
-    "82": [1, 136, 1, 1, 0],
-    "83": [2, 1, 1, 0, 2, 132, 1, 0, 2],
-    "84": [1, 2, 1, 1, 2],
-    "85": [3, 136, 19, 0, 1, 2, 2, 3, 3, 4, 1, 5, 3, 6, 2, 7, 3, 8, 3, 9, 1, 10, 3, 11, 3, 12, 1, 13, 3, 14, 1, 15, 3, 16, 2, 17, 1, 18, 3, 19, 1, 136, 19, 0, 3, 2, 1, 3, 2, 4, 3, 5, 1, 6, 3, 7, 2, 8, 2, 9, 3, 10, 2, 11, 1, 12, 2, 13, 2, 14, 3, 15, 1, 16, 1, 17, 3, 18, 2, 19, 2, 136, 19, 0, 2, 2, 3, 3, 1, 4, 2, 5, 2, 6, 1, 7, 1, 8, 1, 9, 2, 10, 1, 11, 2, 12, 3, 13, 1, 14, 2, 15, 2, 16, 3, 17, 2, 18, 1, 19, 3],
-    "86": [5, 1, 19, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 1, 10, 1, 11, 1, 12, 1, 13, 1, 14, 3, 15, 3, 16, 3, 17, 3, 18, 3, 1, 16, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 10, 2, 11, 1, 12, 1, 13, 1, 15, 2, 16, 3, 17, 3, 18, 3, 1, 11, 0, 2, 1, 2, 2, 2, 3, 1, 4, 1, 5, 3, 6, 3, 12, 1, 13, 2, 17, 3, 18, 2, 1, 4, 0, 1, 2, 3, 4, 1, 6, 3, 136, 13, 0, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 9, 2, 11, 2, 12, 2, 14, 2, 16, 2, 17, 2, 19, 2],
-    "87": [1, 129, 20, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 14, 2, 15, 2, 16, 2, 17, 2, 18, 2, 19, 2],
-    "88": [2, 143, 1, 1, 2, 132, 1, 1, 0],
-    "89": [3, 143, 1, 0, 0, 143, 1, 0, 0, 5, 29, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0, 25, 0, 26, 0, 27, 0, 28, 0, 29, 0, 30, 0],
-    "90": [5, 1, 1, 0, 1, 1, 2, 0, 1, 1, 2, 4, 2, 0, 1, 1, 1, 136, 2, 0, 1, 1, 1, 136, 2, 0, 3, 1, 1],
-    "91": [4, 1, 1, 0, 0, 1, 1, 0, 3, 130, 1, 0, 3, 128, 1, 1, 1],
-    "92": [1, 1, 1, 0, 1],
-    "93": [8, 1, 2, 0, 2, 1, 1, 2, 2, 0, 1, 1, 1, 1, 2, 0, 2, 1, 1, 1, 2, 0, 2, 1, 2, 1, 3, 0, 1, 1, 2, 3, 3, 1, 3, 0, 1, 1, 1, 3, 3, 1, 3, 0, 1, 1, 1, 3, 0, 136, 1, 3, 3],
-    "94": [2, 1, 2, 0, 1, 3, 2, 132, 2, 3, 0, 4, 3],
-    "95": [2, 1, 2, 0, 3, 3, 0, 132, 2, 0, 1, 3, 1],
-    "96": [3, 143, 1, 3, 3, 143, 1, 3, 0, 143, 1, 3, 2],
-    "97": [3, 1, 1, 1, 0, 1, 1, 1, 1, 132, 2, 0, 0, 1, 2],
-    "98": [9, 1, 3, 0, 3, 3, 3, 4, 3, 1, 3, 0, 0, 3, 3, 4, 3, 1, 3, 0, 3, 1, 3, 4, 3, 1, 4, 0, 3, 1, 3, 3, 0, 4, 3, 1, 4, 0, 3, 1, 3, 3, 3, 4, 0, 1, 4, 0, 0, 1, 3, 3, 3, 4, 3, 1, 4, 0, 3, 1, 0, 3, 3, 4, 3, 1, 4, 0, 3, 1, 3, 3, 0, 4, 3, 1, 4, 0, 3, 1, 3, 3, 3, 4, 0],
-    "99": [1, 6, 1, 2, 2],
-    "100": [1, 10, 1, 2, 0],
-    "101": [1, 3, 1, 4, 1],
-    "102": [3, 2, 1, 4, 1, 1, 1, 4, 2, 1, 1, 4, 1],
-    "103": [1, 128, 1, 4, 1],
-    "104": [1, 130, 1, 3, 3],
-    "105": [5, 2, 1, 3, 3, 1, 1, 3, 0, 1, 1, 3, 3, 1, 2, 3, 3, 4, 0, 4, 2, 3, 3, 4, 3]
+    "0": {
+      "groups": [
+        {
+          "move_cells": 6,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "1": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 4, "direction": 0},
+            {"slot": 5, "direction": 0},
+            {"slot": 6, "direction": 0},
+            {"slot": 7, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "2": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 1},
+            {"slot": 11, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 8, "direction": 3},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 3},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 9, "direction": 2},
+            {"slot": 0, "direction": 0},
+            {"slot": 1, "direction": 0},
+            {"slot": 2, "direction": 0},
+            {"slot": 3, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "3": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 14, "direction": 1},
+            {"slot": 15, "direction": 2},
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 14, "direction": 1},
+            {"slot": 15, "direction": 1},
+            {"slot": 16, "direction": 1},
+            {"slot": 17, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 1},
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "4": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 18, "direction": 2},
+            {"slot": 19, "direction": 2},
+            {"slot": 20, "direction": 3},
+            {"slot": 21, "direction": 2},
+            {"slot": 22, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 18, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "5": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 9, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "6": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 23, "direction": 1},
+            {"slot": 24, "direction": 1},
+            {"slot": 25, "direction": 1},
+            {"slot": 26, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 1},
+            {"slot": 25, "direction": 2},
+            {"slot": 26, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "7": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 12, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 12, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 12, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 10,
+          "actors": [
+            {"slot": 12, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 12, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "8": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 13, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 13, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "9": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1},
+            {"slot": 2, "direction": 1},
+            {"slot": 3, "direction": 1},
+            {"slot": 4, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 0},
+            {"slot": 2, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1},
+            {"slot": 2, "direction": 1},
+            {"slot": 3, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 2, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "10": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "11": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 0},
+            {"slot": 6, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 5, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 5, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 5, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 5, "direction": 3},
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 5, "direction": 3},
+            {"slot": 0, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "12": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 2},
+            {"slot": 16, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 1},
+            {"slot": 14, "direction": 3},
+            {"slot": 15, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 3},
+            {"slot": 15, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "13": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0},
+            {"slot": 25, "direction": 0},
+            {"slot": 26, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 1},
+            {"slot": 23, "direction": 1},
+            {"slot": 24, "direction": 3},
+            {"slot": 25, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 1},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 3},
+            {"slot": 25, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 22, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "14": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 27, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "15": {
+      "groups": [
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 0, "direction": 0},
+            {"slot": 1, "direction": 0},
+            {"slot": 2, "direction": 0},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "16": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 27, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 27, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 27, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 27, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 27, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 27, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "17": {
+      "groups": [
+        {
+          "move_cells": 6,
+          "actors": [
+            {"slot": 6, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 6, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 6, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 6, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 6, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "18": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "19": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 7, "direction": 0},
+            {"slot": 8, "direction": 0},
+            {"slot": 9, "direction": 0},
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 12, "direction": 0},
+            {"slot": 13, "direction": 0},
+            {"slot": 14, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 6, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 6, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "20": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 1},
+            {"slot": 3, "direction": 1},
+            {"slot": 4, "direction": 3},
+            {"slot": 5, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 4, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 3, "direction": 2},
+            {"slot": 5, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "21": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "22": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 41, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 41, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "23": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 0},
+            {"slot": 44, "direction": 1},
+            {"slot": 45, "direction": 1},
+            {"slot": 46, "direction": 3},
+            {"slot": 47, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 44, "direction": 0},
+            {"slot": 46, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "24": {
+      "groups": [
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 48, "direction": 0},
+            {"slot": 49, "direction": 0},
+            {"slot": 50, "direction": 0},
+            {"slot": 51, "direction": 0},
+            {"slot": 1, "direction": 5}
+          ]
+        }
+      ]
+    },
+    "25": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 33, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "26": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 33, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "27": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 34, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "28": {
+      "groups": [
+        {
+          "move_cells": 7,
+          "actors": [
+            {"slot": 17, "direction": 0},
+            {"slot": 18, "direction": 0},
+            {"slot": 19, "direction": 0},
+            {"slot": 20, "direction": 0},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 18, "direction": 1},
+            {"slot": 19, "direction": 3},
+            {"slot": 20, "direction": 3},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 18, "direction": 1},
+            {"slot": 19, "direction": 3},
+            {"slot": 20, "direction": 3},
+            {"slot": 21, "direction": 1},
+            {"slot": 22, "direction": 3},
+            {"slot": 23, "direction": 3},
+            {"slot": 24, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 20, "direction": 3},
+            {"slot": 23, "direction": 3},
+            {"slot": 24, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 24, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 18, "direction": 0},
+            {"slot": 19, "direction": 0},
+            {"slot": 20, "direction": 0},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 9, "direction": 0},
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 12, "direction": 0},
+            {"slot": 13, "direction": 0},
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 12, "direction": 0},
+            {"slot": 13, "direction": 0},
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 10, "direction": 1},
+            {"slot": 11, "direction": 1},
+            {"slot": 12, "direction": 3},
+            {"slot": 13, "direction": 3},
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 11, "direction": 1},
+            {"slot": 13, "direction": 3},
+            {"slot": 15, "direction": 1},
+            {"slot": 16, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 12, "direction": 0},
+            {"slot": 13, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 25, "direction": 0},
+            {"slot": 26, "direction": 0},
+            {"slot": 27, "direction": 0},
+            {"slot": 28, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 25, "direction": 1},
+            {"slot": 26, "direction": 3},
+            {"slot": 27, "direction": 0},
+            {"slot": 28, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 25, "direction": 1},
+            {"slot": 26, "direction": 3},
+            {"slot": 27, "direction": 1},
+            {"slot": 28, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 25, "direction": 0},
+            {"slot": 26, "direction": 0},
+            {"slot": 27, "direction": 0},
+            {"slot": 28, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "29": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 29, "direction": 0},
+            {"slot": 30, "direction": 0},
+            {"slot": 31, "direction": 0},
+            {"slot": 32, "direction": 0},
+            {"slot": 33, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 29, "direction": 1},
+            {"slot": 30, "direction": 1},
+            {"slot": 31, "direction": 3},
+            {"slot": 32, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 29, "direction": 0},
+            {"slot": 30, "direction": 2},
+            {"slot": 31, "direction": 0},
+            {"slot": 32, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 30, "direction": 0},
+            {"slot": 32, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "30": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 43, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 1},
+            {"slot": 35, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 1},
+            {"slot": 35, "direction": 1},
+            {"slot": 36, "direction": 1},
+            {"slot": 37, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 1},
+            {"slot": 34, "direction": 1},
+            {"slot": 35, "direction": 1},
+            {"slot": 36, "direction": 1},
+            {"slot": 37, "direction": 1},
+            {"slot": 38, "direction": 1},
+            {"slot": 39, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 1},
+            {"slot": 34, "direction": 1},
+            {"slot": 35, "direction": 1},
+            {"slot": 36, "direction": 1},
+            {"slot": 37, "direction": 1},
+            {"slot": 38, "direction": 1},
+            {"slot": 39, "direction": 1},
+            {"slot": 40, "direction": 1},
+            {"slot": 41, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 43, "direction": 1},
+            {"slot": 34, "direction": 1},
+            {"slot": 35, "direction": 1},
+            {"slot": 36, "direction": 1},
+            {"slot": 37, "direction": 1},
+            {"slot": 38, "direction": 1},
+            {"slot": 39, "direction": 1},
+            {"slot": 40, "direction": 1},
+            {"slot": 41, "direction": 1},
+            {"slot": 42, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 43, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 43, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "31": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "32": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 28, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "33": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 2},
+            {"slot": 28, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 2},
+            {"slot": 28, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 5, "direction": 2},
+            {"slot": 28, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "34": {
+      "groups": [
+        {
+          "move_cells": 7,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "35": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 5, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "36": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 47, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "37": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 5, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "38": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 38, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 38, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 38, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 38, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "39": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 8, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 8, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "40": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 14, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 14, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 14, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 14, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 14, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0},
+            {"slot": 17, "direction": 0},
+            {"slot": 18, "direction": 0},
+            {"slot": 19, "direction": 0},
+            {"slot": 20, "direction": 0},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0},
+            {"slot": 17, "direction": 0},
+            {"slot": 18, "direction": 0},
+            {"slot": 19, "direction": 0},
+            {"slot": 20, "direction": 0},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 10,
+          "actors": [
+            {"slot": 14, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "41": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2},
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 9, "direction": 2},
+            {"slot": 8, "direction": 1},
+            {"slot": 7, "direction": 3},
+            {"slot": 6, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 11, "direction": 3},
+            {"slot": 10, "direction": 3},
+            {"slot": 9, "direction": 3},
+            {"slot": 6, "direction": 3},
+            {"slot": 5, "direction": 1},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 3},
+            {"slot": 9, "direction": 3},
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1},
+            {"slot": 2, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 10, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "42": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 25, "direction": 1},
+            {"slot": 26, "direction": 1},
+            {"slot": 27, "direction": 3},
+            {"slot": 28, "direction": 3},
+            {"slot": 30, "direction": 0},
+            {"slot": 31, "direction": 0},
+            {"slot": 32, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 25, "direction": 1},
+            {"slot": 27, "direction": 0},
+            {"slot": 30, "direction": 1},
+            {"slot": 31, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "43": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 33, "direction": 1},
+            {"slot": 34, "direction": 1},
+            {"slot": 35, "direction": 3},
+            {"slot": 36, "direction": 3},
+            {"slot": 37, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 33, "direction": 0},
+            {"slot": 36, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "44": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 39, "direction": 1},
+            {"slot": 44, "direction": 1},
+            {"slot": 41, "direction": 3},
+            {"slot": 42, "direction": 3},
+            {"slot": 43, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 39, "direction": 0},
+            {"slot": 41, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "45": {
+      "groups": [
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 8, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 8, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "46": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 61, "direction": 0},
+            {"slot": 62, "direction": 1},
+            {"slot": 63, "direction": 2},
+            {"slot": 64, "direction": 2},
+            {"slot": 65, "direction": 1},
+            {"slot": 66, "direction": 1},
+            {"slot": 67, "direction": 1},
+            {"slot": 68, "direction": 1},
+            {"slot": 69, "direction": 0},
+            {"slot": 70, "direction": 0},
+            {"slot": 71, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 62, "direction": 1},
+            {"slot": 63, "direction": 1},
+            {"slot": 66, "direction": 1},
+            {"slot": 67, "direction": 1},
+            {"slot": 68, "direction": 1},
+            {"slot": 69, "direction": 0},
+            {"slot": 70, "direction": 1},
+            {"slot": 71, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 62, "direction": 0},
+            {"slot": 66, "direction": 1},
+            {"slot": 68, "direction": 2},
+            {"slot": 70, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "47": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 67, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "48": {
+      "groups": [
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 64, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 64, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 64, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 64, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 64, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 64, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "49": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 65, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "50": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 52, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 52, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "51": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 61, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 61, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "52": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 60, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 60, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "53": {
+      "groups": [
+        {
+          "wait_frames": 5,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "54": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 0},
+            {"slot": 17, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 3},
+            {"slot": 17, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 1},
+            {"slot": 17, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 16, "direction": 1},
+            {"slot": 17, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "55": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 16, "direction": 3},
+            {"slot": 17, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "56": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 1, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "57": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "58": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "59": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 53, "direction": 1},
+            {"slot": 54, "direction": 0},
+            {"slot": 55, "direction": 0},
+            {"slot": 56, "direction": 0},
+            {"slot": 57, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 53, "direction": 1},
+            {"slot": 54, "direction": 1},
+            {"slot": 55, "direction": 0},
+            {"slot": 56, "direction": 0},
+            {"slot": 57, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 53, "direction": 1},
+            {"slot": 54, "direction": 1},
+            {"slot": 55, "direction": 1},
+            {"slot": 56, "direction": 0},
+            {"slot": 57, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 54, "direction": 1},
+            {"slot": 55, "direction": 1},
+            {"slot": 56, "direction": 1},
+            {"slot": 57, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 55, "direction": 1},
+            {"slot": 56, "direction": 1},
+            {"slot": 57, "direction": 1},
+            {"slot": 58, "direction": 0},
+            {"slot": 59, "direction": 0},
+            {"slot": 60, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 56, "direction": 1},
+            {"slot": 57, "direction": 1},
+            {"slot": 58, "direction": 1},
+            {"slot": 59, "direction": 0},
+            {"slot": 60, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 57, "direction": 1},
+            {"slot": 58, "direction": 1},
+            {"slot": 59, "direction": 1},
+            {"slot": 60, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 58, "direction": 1},
+            {"slot": 59, "direction": 1},
+            {"slot": 60, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "60": {
+      "groups": [
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 83, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "61": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "62": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 1, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "63": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "64": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 16, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "65": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 1, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 6,
+          "actors": [
+            {"slot": 1, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "66": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 2, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 2, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 2, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 3, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 3, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 4, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 4, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 4, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 5, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 5, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 6, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 6, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 6, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 7, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 7, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 8, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 8, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 8, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 9, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 9, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 9, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 9, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 9, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 9, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 10, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 10, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 10, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 10, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 11, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 11, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 11, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 12, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 12, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 12, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 12, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 13, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 13, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 13, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 13, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 14, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 14, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 72, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 72, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 15, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 15, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "67": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 0},
+            {"slot": 2, "direction": 0},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 0},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 1},
+            {"slot": 9, "direction": 1},
+            {"slot": 10, "direction": 1},
+            {"slot": 11, "direction": 1},
+            {"slot": 12, "direction": 3},
+            {"slot": 13, "direction": 3},
+            {"slot": 14, "direction": 3},
+            {"slot": 15, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 2, "direction": 0},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 0},
+            {"slot": 6, "direction": 1},
+            {"slot": 7, "direction": 3},
+            {"slot": 9, "direction": 1},
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 13, "direction": 3},
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 3, "direction": 1},
+            {"slot": 4, "direction": 3},
+            {"slot": 11, "direction": 1},
+            {"slot": 15, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "68": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 16, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "69": {
+      "groups": [
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 17, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 17, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "70": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 16, "direction": 0},
+            {"slot": 17, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "71": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 16, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "72": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 17, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "73": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "74": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 62, "direction": 2},
+            {"slot": 63, "direction": 2},
+            {"slot": 64, "direction": 2},
+            {"slot": 65, "direction": 2},
+            {"slot": 66, "direction": 2},
+            {"slot": 67, "direction": 2},
+            {"slot": 68, "direction": 2},
+            {"slot": 69, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "75": {
+      "groups": [
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 70, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "76": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 1},
+            {"slot": 6, "direction": 1},
+            {"slot": 7, "direction": 1},
+            {"slot": 8, "direction": 1},
+            {"slot": 9, "direction": 1},
+            {"slot": 10, "direction": 3},
+            {"slot": 11, "direction": 3},
+            {"slot": 12, "direction": 3},
+            {"slot": 13, "direction": 3},
+            {"slot": 14, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 1},
+            {"slot": 3, "direction": 3},
+            {"slot": 5, "direction": 1},
+            {"slot": 6, "direction": 1},
+            {"slot": 7, "direction": 1},
+            {"slot": 8, "direction": 1},
+            {"slot": 10, "direction": 3},
+            {"slot": 11, "direction": 3},
+            {"slot": 12, "direction": 3},
+            {"slot": 13, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 3},
+            {"slot": 5, "direction": 1},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 10, "direction": 3},
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 6, "direction": 2},
+            {"slot": 11, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "77": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "78": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 2, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 2, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 2, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "79": {
+      "groups": [
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "80": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 2, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "81": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "82": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 1, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "83": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "84": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 1, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "85": {
+      "groups": [
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 1},
+            {"slot": 5, "direction": 3},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 3},
+            {"slot": 8, "direction": 3},
+            {"slot": 9, "direction": 1},
+            {"slot": 10, "direction": 3},
+            {"slot": 11, "direction": 3},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 3},
+            {"slot": 14, "direction": 1},
+            {"slot": 15, "direction": 3},
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 1},
+            {"slot": 18, "direction": 3},
+            {"slot": 19, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 2, "direction": 1},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 3},
+            {"slot": 5, "direction": 1},
+            {"slot": 6, "direction": 3},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 3},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 1},
+            {"slot": 12, "direction": 2},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 3},
+            {"slot": 15, "direction": 1},
+            {"slot": 16, "direction": 1},
+            {"slot": 17, "direction": 3},
+            {"slot": 18, "direction": 2},
+            {"slot": 19, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 2, "direction": 3},
+            {"slot": 3, "direction": 1},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 1},
+            {"slot": 7, "direction": 1},
+            {"slot": 8, "direction": 1},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 1},
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 3},
+            {"slot": 13, "direction": 1},
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 2},
+            {"slot": 16, "direction": 3},
+            {"slot": 17, "direction": 2},
+            {"slot": 18, "direction": 1},
+            {"slot": 19, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "86": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 1},
+            {"slot": 10, "direction": 1},
+            {"slot": 11, "direction": 1},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 1},
+            {"slot": 14, "direction": 3},
+            {"slot": 15, "direction": 3},
+            {"slot": 16, "direction": 3},
+            {"slot": 17, "direction": 3},
+            {"slot": 18, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 1},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 1},
+            {"slot": 15, "direction": 2},
+            {"slot": 16, "direction": 3},
+            {"slot": 17, "direction": 3},
+            {"slot": 18, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 1},
+            {"slot": 4, "direction": 1},
+            {"slot": 5, "direction": 3},
+            {"slot": 6, "direction": 3},
+            {"slot": 12, "direction": 1},
+            {"slot": 13, "direction": 2},
+            {"slot": 17, "direction": 3},
+            {"slot": 18, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 2, "direction": 3},
+            {"slot": 4, "direction": 1},
+            {"slot": 6, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 14, "direction": 2},
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2},
+            {"slot": 19, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "87": {
+      "groups": [
+        {
+          "wait_frames": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2},
+            {"slot": 2, "direction": 2},
+            {"slot": 3, "direction": 2},
+            {"slot": 4, "direction": 2},
+            {"slot": 5, "direction": 2},
+            {"slot": 6, "direction": 2},
+            {"slot": 7, "direction": 2},
+            {"slot": 8, "direction": 2},
+            {"slot": 9, "direction": 2},
+            {"slot": 10, "direction": 2},
+            {"slot": 11, "direction": 2},
+            {"slot": 12, "direction": 2},
+            {"slot": 13, "direction": 2},
+            {"slot": 14, "direction": 2},
+            {"slot": 15, "direction": 2},
+            {"slot": 16, "direction": 2},
+            {"slot": 17, "direction": 2},
+            {"slot": 18, "direction": 2},
+            {"slot": 19, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "88": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 1, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 1, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "89": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 5,
+          "actors": [
+            {"slot": 2, "direction": 0},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 0},
+            {"slot": 5, "direction": 0},
+            {"slot": 6, "direction": 0},
+            {"slot": 7, "direction": 0},
+            {"slot": 8, "direction": 0},
+            {"slot": 9, "direction": 0},
+            {"slot": 10, "direction": 0},
+            {"slot": 11, "direction": 0},
+            {"slot": 12, "direction": 0},
+            {"slot": 13, "direction": 0},
+            {"slot": 14, "direction": 0},
+            {"slot": 15, "direction": 0},
+            {"slot": 16, "direction": 0},
+            {"slot": 17, "direction": 0},
+            {"slot": 18, "direction": 0},
+            {"slot": 19, "direction": 0},
+            {"slot": 20, "direction": 0},
+            {"slot": 21, "direction": 0},
+            {"slot": 22, "direction": 0},
+            {"slot": 23, "direction": 0},
+            {"slot": 24, "direction": 0},
+            {"slot": 25, "direction": 0},
+            {"slot": 26, "direction": 0},
+            {"slot": 27, "direction": 0},
+            {"slot": 28, "direction": 0},
+            {"slot": 29, "direction": 0},
+            {"slot": 30, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "90": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "91": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 0, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 1, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "92": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "93": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 2},
+            {"slot": 1, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 2},
+            {"slot": 3, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1},
+            {"slot": 3, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 1, "direction": 1},
+            {"slot": 3, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 8,
+          "actors": [
+            {"slot": 3, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "94": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 3, "direction": 2}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "95": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 3, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 1},
+            {"slot": 3, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "96": {
+      "groups": [
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 3, "direction": 3}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 3, "direction": 0}
+          ]
+        },
+        {
+          "wait_frames": 15,
+          "actors": [
+            {"slot": 3, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "97": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 1, "direction": 1}
+          ]
+        },
+        {
+          "wait_frames": 4,
+          "actors": [
+            {"slot": 0, "direction": 0},
+            {"slot": 1, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "98": {
+      "groups": [
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 0},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 3},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 3},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 0},
+            {"slot": 1, "direction": 3},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 0},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 3},
+            {"slot": 3, "direction": 0},
+            {"slot": 4, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 0, "direction": 3},
+            {"slot": 1, "direction": 3},
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "99": {
+      "groups": [
+        {
+          "move_cells": 6,
+          "actors": [
+            {"slot": 2, "direction": 2}
+          ]
+        }
+      ]
+    },
+    "100": {
+      "groups": [
+        {
+          "move_cells": 10,
+          "actors": [
+            {"slot": 2, "direction": 0}
+          ]
+        }
+      ]
+    },
+    "101": {
+      "groups": [
+        {
+          "move_cells": 3,
+          "actors": [
+            {"slot": 4, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "102": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 4, "direction": 1}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 4, "direction": 2}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 4, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "103": {
+      "groups": [
+        {
+          "wait_frames": 0,
+          "actors": [
+            {"slot": 4, "direction": 1}
+          ]
+        }
+      ]
+    },
+    "104": {
+      "groups": [
+        {
+          "wait_frames": 2,
+          "actors": [
+            {"slot": 3, "direction": 3}
+          ]
+        }
+      ]
+    },
+    "105": {
+      "groups": [
+        {
+          "move_cells": 2,
+          "actors": [
+            {"slot": 3, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 3, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 3, "direction": 3}
+          ]
+        },
+        {
+          "move_cells": 1,
+          "actors": [
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 0}
+          ]
+        },
+        {
+          "move_cells": 4,
+          "actors": [
+            {"slot": 3, "direction": 3},
+            {"slot": 4, "direction": 3}
+          ]
+        }
+      ]
+    }
   }
 }

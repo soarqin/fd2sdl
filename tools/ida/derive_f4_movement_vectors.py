@@ -253,7 +253,7 @@ def main():
     inputs=[args.source,args.image,args.movement,Path(__file__)]
     before=[input_id(p) for p in inputs]
     functions=source_guard(args.source,args.image)
-    profiles=json.loads(args.movement.read_text(encoding="utf8"))["tables"][0]["values"]
+    profiles=json.loads(args.movement.read_text(encoding="utf8"))["cost_profiles"]
     if len(profiles)!=29 or any(len(p)!=20 or min(p)<1 or max(p)>255 for p in profiles):
         raise ValueError("movement cold domain differs")
     movement_bytes=bytes(value for row in profiles for value in row)

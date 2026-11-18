@@ -89,6 +89,7 @@ class ReleasePackageTest(unittest.TestCase):
         self.assertIn("source/src/third_party/LICENSE.nukedopl3", paths)
         self.assertIn("source/data/static/manifest.json", paths)
         self.assertIn("source/tools/static_data/generate.py", paths)
+        self.assertIn("source/tools/static_data/table_schema.py", paths)
         self.assertIn("source/CMakeLists.txt", paths)
         self.assertIn("source/CMake/Application.cmake", paths)
         self.assertNotIn("source/CMake/Tests.cmake", paths)

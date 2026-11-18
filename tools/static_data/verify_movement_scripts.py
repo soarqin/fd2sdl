@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from dump_fd2_fixup_table import collect_internal_offset_fixups
 from rebuild_fd2_analysis import parse_le, parse_objects
 from verify_unit_tables import EXE_SHA256, source_range
+from table_schema import TABLE_SCHEMA_VERSION, load_json
 
 SCRIPT_IDS = tuple(range(106))
 POINTER_TABLE_VA = 0x627D8
@@ -90,19 +91,31 @@ def source_scripts(executable: Path) -> dict[int, ScriptSource]:
     return result
 
 
-def check_script(values: list[int], identity: int, expected: ScriptSource) -> None:
+def script_definition(data: bytes) -> dict:
+    groups = []
+    at = 1
+    for _ in range(data[0]):
+        mode, count = data[at:at + 2]
+        at += 2
+        end = at + 2 * count
+        actors = [{"slot": data[i], "direction": data[i + 1]} for i in range(at, end, 2)]
+        groups.append({"wait_frames" if mode & 0x80 else "move_cells": mode & 0x7f, "actors": actors})
+        at = end
+    return {"groups": groups}
+
+
+def check_script(definition: dict, identity: int, expected: ScriptSource) -> None:
     if type(identity) is not int or identity not in SCRIPT_IDS:
         raise ValueError("未支持的移动脚本ID")
-    if not isinstance(values, list) or any(type(value) is not int or not 0 <= value <= 255 for value in values):
-        raise ValueError(f"script{identity}: 脚本必须为完整byte数组")
-    actual = parse_stream(bytes(values))
-    if actual != expected.data:
-        raise ValueError(f"script{identity}: 字节与独立fixup源不符")
+    if not isinstance(definition, dict):
+        raise ValueError(f"script{identity}: 需要具名脚本对象")
+    if json.dumps(definition, sort_keys=True) != json.dumps(script_definition(expected.data), sort_keys=True):
+        raise ValueError(f"script{identity}: 具名字段与独立fixup源不符")
 
 
 def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
     if (not isinstance(document, dict) or set(document) != {"schema_version", "scripts"} or
-            type(document["schema_version"]) is not int or document["schema_version"] != 2 or
+            type(document["schema_version"]) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION or
             not isinstance(document["scripts"], dict)):
         raise ValueError("移动脚本JSON格式不符")
     if set(expected) != set(SCRIPT_IDS):
@@ -114,18 +127,9 @@ def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
         check_script(scripts[str(identity)], identity, expected[identity])
 
 
-def unique_keys(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"重复JSON键：{key}")
-        result[key] = value
-    return result
-
-
 def verify(executable: Path, definitions: Path = ROOT / "data/static/tables/movement_scripts.json") -> dict:
     expected = source_scripts(executable)
-    document = json.loads(definitions.read_text(encoding="utf-8"), object_pairs_hook=unique_keys)
+    document = load_json(definitions)
     check_document(document, expected)
     return {"ok": True, "scripts": len(expected), "source_bytes": sum(len(s.data) for s in expected.values()),
             "pointer_table_va": hex(POINTER_TABLE_VA), "executable_sha256": EXE_SHA256}

@@ -10,7 +10,7 @@ from pathlib import Path
 import struct
 
 from verify_unit_tables import EXE_SHA256, ROOT, check_table, source_range
-from verify_stage_tables import unique_object
+from table_schema import TABLE_SCHEMA_VERSION, load_table_document
 from dump_fd2_fixup_table import collect_internal_offset_fixups
 
 # Domain 完整1c4cc/1cd17/1e1dc/2d80d读集确定地址与消费索引，
@@ -39,16 +39,7 @@ ITEM_PRESENTATIONS = [
 ]
 
 
-def check(document, executable, fixups):
-    if hashlib.sha256(executable).hexdigest() != EXE_SHA256:
-        raise ValueError("FD2.EXE 身份不符")
-    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
-        raise ValueError("呈现冷表版本不符")
-    tables = {row["name"]: row for row in document["tables"]}
-    if len(tables) != len(document["tables"]):
-        raise ValueError("重复呈现冷表")
-    for spec in SPECS:
-        check_table(tables[spec[0]], spec, source_range(executable, spec[3], spec[2][0]))
+def source_short_fx_offsets(executable, fixups):
     # 21项指针从真实LE fixup的object3目标投影，不信JSON自报地址或原raw offset。
     offsets=[]
     for i in range(21):
@@ -71,6 +62,20 @@ def check(document, executable, fixups):
         at+=1+2*count
     if at!=84 or set(offsets)!=starts or len(starts)!=6:
         raise ValueError("SHORT原指针未恰覆盖六个完整序列")
+    return offsets
+
+
+def check(document, executable, fixups):
+    if hashlib.sha256(executable).hexdigest() != EXE_SHA256:
+        raise ValueError("FD2.EXE 身份不符")
+    if type(document.get("schema_version")) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION:
+        raise ValueError("呈现冷表版本不符")
+    tables = {row["name"]: row for row in document["tables"]}
+    if len(tables) != len(document["tables"]):
+        raise ValueError("重复呈现冷表")
+    for spec in SPECS:
+        check_table(tables[spec[0]], spec, source_range(executable, spec[3], spec[2][0]))
+    offsets = source_short_fx_offsets(executable, fixups)
     row=tables["k_battle_short_fx_offsets"]
     if ((row.get("c_type"),row.get("dimensions"),row.get("values"))!=
             ("uint8_t",[21],offsets)):
@@ -157,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     try:
-        document = json.loads(args.tables.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+        document = load_table_document(args.tables, "battle_animation")
         executable = args.executable.read_bytes()
         fixups = collect_internal_offset_fixups(args.executable)
         result = check(document, executable, fixups)

@@ -1,23 +1,43 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_terrain_attack_percent",
-      "c_type": "int32_t",
-      "dimensions": [6],
-      "values": [5, 0, -5, -5, -5, 0]
-    },
-    {
-      "name": "k_terrain_defense_percent",
-      "c_type": "int32_t",
-      "dimensions": [6],
-      "values": [0, 0, 10, 10, -5, 0]
-    },
-    {
-      "name": "k_critical_by_profile",
-      "c_type": "uint8_t",
-      "dimensions": [30],
-      "values": [5, 3, 3, 5, 3, 3, 0, 18, 5, 3, 3, 12, 3, 3, 12, 10, 6, 3, 3, 7, 3, 3, 30, 18, 0, 0, 0, 0, 0, 0]
-    }
+  "schema_version": 3,
+  "terrain": [
+    {"attack_percent": 5, "defense_percent": 0},
+    {"attack_percent": 0, "defense_percent": 0},
+    {"attack_percent": -5, "defense_percent": 10},
+    {"attack_percent": -5, "defense_percent": 10},
+    {"attack_percent": -5, "defense_percent": -5},
+    {"attack_percent": 0, "defense_percent": 0}
+  ],
+  "critical_thresholds": [
+    5,
+    3,
+    3,
+    5,
+    3,
+    3,
+    0,
+    18,
+    5,
+    3,
+    3,
+    12,
+    3,
+    3,
+    12,
+    10,
+    6,
+    3,
+    3,
+    7,
+    3,
+    3,
+    30,
+    18,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
   ]
 }

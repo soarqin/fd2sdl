@@ -10,7 +10,7 @@ from pathlib import Path
 import struct
 
 from verify_unit_tables import EXE_SHA256, ROOT, source_range
-from verify_stage_tables import unique_object
+from table_schema import TABLE_SCHEMA_VERSION, load_table_document
 
 # G1准备读集、完整caller及4e7dd getter确定；不取待验source自报地址。
 SPECS = (
@@ -58,7 +58,7 @@ def table_bytes(table, spec):
 def check(document, executable):
     if hashlib.sha256(executable).hexdigest() != EXE_SHA256:
         raise ValueError("FD2.EXE identity mismatch")
-    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
+    if type(document.get("schema_version")) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION:
         raise ValueError("preparation schema differs")
     tables = {t["name"]: t for t in document["tables"]}
     names = {s[0] for s in SPECS} | {"k_prepare_town_service_entries", "k_prepare_deployment_roster_gate",
@@ -120,7 +120,7 @@ def main():
     parser.add_argument("--json", type=Path)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
-    document = json.loads(args.tables.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    document = load_table_document(args.tables, "preparation")
     executable = args.executable.read_bytes()
     report = check(document, executable)
     if args.self_test:

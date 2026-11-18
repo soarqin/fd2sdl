@@ -189,7 +189,7 @@ def main():
     inputs=[args.source,args.image,args.movement,BASE,Path(__file__)]
     before=[base.input_id(p) for p in inputs]
     functions=base.source_guard(args.source,args.image)
-    movement=json.loads(args.movement.read_text())["tables"][0]["values"]
+    movement=json.loads(args.movement.read_text(encoding="utf8"))["cost_profiles"]
     raw=bytes(x for row in movement for x in row)
     if len(raw)!=580 or raw!=args.image.read_bytes()[0x61646:0x6188a] or movement[1][:2]!=[1,20]:
         raise ValueError("fixed profile1 class0/1 source differs")

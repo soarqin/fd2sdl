@@ -16,6 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from rebuild_fd2_analysis import parse_le, parse_objects, page_number_from_map_entry
+from static_data.table_schema import load_table_document
 
 EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 # 名称、类型、原始维度及VA独立固定；不能由待验JSON反向决定读集。
@@ -100,12 +101,11 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
     data = executable.read_bytes()
     checked = total = 0
     for stem, specs in TABLES.items():
-        document = json.loads((tables_dir / f"{stem}.json").read_text(encoding="utf-8"))
+        document = load_table_document(tables_dir / f"{stem}.json")
         tables = document.get("tables")
         expected_count = len(specs) + (1 if stem == "unit_base" else len(MAGIC_CONTRACT_TABLES) if stem == "magic" else 0)
-        if (type(document.get("schema_version")) is not int or document["schema_version"] != 2 or
-                not isinstance(tables, list) or len(tables) != expected_count):
-            raise ValueError(f"{stem}: 格式版本或表集合不符")
+        if len(tables) != expected_count:
+            raise ValueError(f"{stem}: 表集合不符")
         for table, spec in zip(tables, specs):
             count = 1
             for dimension in spec[2]:
@@ -122,8 +122,8 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
                 if (not isinstance(values,list) or len(values)!=28 or
                         any(type(value) is not int or not 0<=value<=255 for value in values)):
                     raise ValueError("magic contract: 投影整数不符")
-    unit = json.loads((tables_dir / "unit_base.json").read_text(encoding="utf-8"))["tables"]
-    stage = json.loads((tables_dir / "stage.json").read_text(encoding="utf-8"))["tables"]
+    unit = load_table_document(tables_dir / "unit_base.json")["tables"]
+    stage = load_table_document(tables_dir / "stage.json")["tables"]
     windows = {identity: source_range(data, 0x61DA1 + 24 * identity, 24) for identity in (48, 66)}
     check_constructor_alias_views(unit, stage, windows)
     return {"ok": True, "tables": checked, "source_bytes": total,

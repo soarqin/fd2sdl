@@ -8,22 +8,26 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "static_data"))
 from verify_movement_scripts import (
-    SCRIPT_IDS, ScriptSource, check_document, check_script, parse_stream, source_scripts, unique_keys,
+    SCRIPT_IDS, ScriptSource, check_document, check_script, parse_stream, source_scripts,
 )
+from table_schema import reject_duplicates
 
 
 class StaticMovementScriptsTest(unittest.TestCase):
     def setUp(self):
         self.stream = bytes([2, 3, 1, 0, 2, 0x80, 1, 63, 3])
         self.expected = ScriptSource(0x62980, self.stream)
-        self.values = list(self.stream)
+        self.definition = {"groups": [
+            {"move_cells": 3, "actors": [{"slot": 0, "direction": 2}]},
+            {"wait_frames": 0, "actors": [{"slot": 63, "direction": 3}]},
+        ]}
 
     def test_modes_bounds_and_complete_consumption(self):
         self.assertEqual(parse_stream(self.stream), self.stream)
         self.assertEqual(parse_stream(self.stream + b"other", complete=False), self.stream)
         with self.assertRaisesRegex(ValueError, "尾随"):
             parse_stream(self.stream + b"other")
-        check_script(self.values, 0, self.expected)
+        check_script(self.definition, 0, self.expected)
 
     def test_truncated_group_and_actor_pairs(self):
         for stop in range(len(self.stream)):
@@ -32,40 +36,40 @@ class StaticMovementScriptsTest(unittest.TestCase):
 
     def test_bad_direction_and_actor_rejected(self):
         for actor, direction in ((0, 4), (96, 2)):
-            values = self.values.copy()
+            values = list(self.stream)
             values[3:5] = [actor, direction]
             with self.subTest(actor=actor, direction=direction), self.assertRaisesRegex(ValueError, "越界"):
-                check_script(values, 0, self.expected)
+                parse_stream(bytes(values))
 
     def test_well_formed_modification_differs_from_original(self):
-        values = self.values.copy()
-        values[1] = 4
+        definition = copy.deepcopy(self.definition)
+        definition["groups"][0]["move_cells"] = 4
         with self.assertRaisesRegex(ValueError, "独立fixup源"):
-            check_script(values, 0, self.expected)
+            check_script(definition, 0, self.expected)
 
     def test_type_shape_and_unaccepted_script_ids(self):
-        for values in (self.stream, [True, *self.stream[1:]], [], [self.values]):
-            with self.subTest(values=values), self.assertRaises(ValueError):
-                check_script(values, 0, self.expected)
+        for definition in (self.stream, {}, [], {"groups": [{"move_cells": True, "actors": []}]}):
+            with self.subTest(definition=definition), self.assertRaises(ValueError):
+                check_script(definition, 0, self.expected)
         for identity in (-1, 0x6A, True):
             with self.subTest(identity=identity), self.assertRaises(ValueError):
-                check_script(self.values, identity, self.expected)
+                check_script(self.definition, identity, self.expected)
 
     def test_fixed_id_coverage_and_duplicates(self):
         expected = {identity: ScriptSource(0x62980 + index * 16, self.stream)
                     for index, identity in enumerate(SCRIPT_IDS)}
-        document = {"schema_version": 2, "scripts": {str(identity): self.values for identity in SCRIPT_IDS}}
+        document = {"schema_version": 3, "scripts": {str(identity): self.definition for identity in SCRIPT_IDS}}
         check_document(document, expected)
         for mutate in (lambda d: d["scripts"].pop("0"),
-                       lambda d: d["scripts"].update({"106": self.values}),
+                       lambda d: d["scripts"].update({"106": self.definition}),
                        lambda d: d["scripts"].update({"00": d["scripts"].pop("0")}),
                        lambda d: d.update(schema_version=True)):
             bad = copy.deepcopy(document)
             mutate(bad)
             with self.assertRaises(ValueError):
                 check_document(bad, expected)
-        with self.assertRaisesRegex(ValueError, "重复JSON键"):
-            json.loads('{"scripts":{"0":[0],"0":[0]}}', object_pairs_hook=unique_keys)
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
+            json.loads('{"scripts":{"0":{},"0":{}}}', object_pairs_hook=reject_duplicates)
 
     def test_unrecognized_executable_rejected_before_fixup_parse(self):
         with tempfile.TemporaryDirectory() as directory:

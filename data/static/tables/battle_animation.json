@@ -1,924 +1,231 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_battle_summary_bottom_override",
-      "c_type": "uint8_t",
-      "dimensions": [
-        2
-      ],
-      "values": [
-        24,
-        17
-      ]
-    },
-    {
-      "name": "k_battle_ai_ray_item_present",
-      "c_type": "int16_t",
-      "dimensions": [13, 3],
-      "values": [[1, 0, 0], [2, 1, 0], [3, 0, 0], [4, 0, 0], [5, 6, 0], [1, 0, 0], [6, 0, 0], [7, 3, 0], [8, 0, 0], [1, 1, 0], [9, 80, -4], [10, 200, 0], [11, 64, 4]]
-    },
-    {
-      "name": "k_battle_map_cast_preamble",
-      "c_type": "uint8_t",
-      "dimensions": [8, 2],
-      "values": [[1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1]]
-    },
-    {
-      "name": "shake_x",
-      "c_type": "int",
-      "dimensions": [
-        6
-      ],
-      "values": [
-        0,
-        4,
-        9,
-        14,
-        18,
-        14
-      ]
-    },
-    {
-      "name": "shake_y",
-      "c_type": "int",
-      "dimensions": [
-        6
-      ],
-      "values": [
-        0,
-        2,
-        4,
-        6,
-        8,
-        10
-      ]
-    },
-    {
-      "name": "k_battle_cast_colors",
-      "c_type": "uint8_t",
-      "dimensions": [
-        36,
-        3
-      ],
-      "values": [
-        [
-          63,
-          0,
-          0
-        ],
-        [
-          63,
-          0,
-          0
-        ],
-        [
-          63,
-          0,
-          0
-        ],
-        [
-          63,
-          0,
-          0
-        ],
-        [
-          43,
-          50,
-          60
-        ],
-        [
-          43,
-          50,
-          60
-        ],
-        [
-          43,
-          50,
-          60
-        ],
-        [
-          43,
-          50,
-          60
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          35,
-          16,
-          8
-        ],
-        [
-          46,
-          40,
-          30
-        ],
-        [
-          46,
-          40,
-          30
-        ],
-        [
-          46,
-          40,
-          30
-        ],
-        [
-          63,
-          61,
-          46
-        ],
-        [
-          63,
-          61,
-          46
-        ],
-        [
-          63,
-          40,
-          30
-        ],
-        [
-          63,
-          40,
-          30
-        ],
-        [
-          50,
-          50,
-          50
-        ],
-        [
-          50,
-          50,
-          50
-        ],
-        [
-          50,
-          50,
-          50
-        ],
-        [
-          63,
-          40,
-          30
-        ],
-        [
-          63,
-          40,
-          30
-        ],
-        [
-          35,
-          0,
-          0
-        ],
-        [
-          30,
-          42,
-          35
-        ],
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          63,
-          61,
-          46
-        ],
-        [
-          10,
-          31,
-          0
-        ],
-        [
-          35,
-          25,
-          0
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          43,
-          50,
-          60
-        ],
-        [
-          63,
-          63,
-          63
-        ],
-        [
-          63,
-          0,
-          0
-        ],
-        [
-          43,
-          50,
-          60
-        ]
-      ]
-    },
-    {
-      "name": "k_battle_magic_shake_x",
-      "c_type": "int",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        6,
-        4,
-        2,
-        0
-      ]
-    },
-    {
-      "name": "k_battle_magic_shake_y",
-      "c_type": "int",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        -3,
-        -2,
-        -1,
-        0
-      ]
-    },
-    {
-      "name": "k_battle_heal_curve",
-      "c_type": "uint8_t",
-      "dimensions": [
-        25
-      ],
-      "values": [
-        15,
-        15,
-        15,
-        15,
-        7,
-        3,
-        1,
-        0,
-        0,
-        1,
-        3,
-        7,
-        15,
-        15,
-        11,
-        9,
-        8,
-        8,
-        9,
-        11,
-        15,
-        15,
-        15,
-        15,
-        15
-      ]
-    },
-    {
-      "name": "k_battle_map_fx_start",
-      "c_type": "uint8_t",
-      "dimensions": [
-        33
-      ],
-      "values": [
-        49,
-        49,
-        49,
-        49,
-        64,
-        64,
-        64,
-        64,
-        76,
-        87,
-        49,
-        49,
-        49,
-        57,
-        57,
-        57,
-        57,
-        183,
-        126,
-        147,
-        204,
-        217,
-        170,
-        49,
-        49,
-        191,
-        138,
-        158,
-        49,
-        49,
-        0,
-        0,
-        64
-      ]
-    },
-    {
-      "name": "k_battle_map_fx_count",
-      "c_type": "uint8_t",
-      "dimensions": [
-        33
-      ],
-      "values": [
-        8,
-        8,
-        8,
-        8,
-        10,
-        10,
-        10,
-        10,
-        11,
-        27,
-        8,
-        8,
-        8,
-        7,
-        7,
-        7,
-        7,
-        8,
-        12,
-        11,
-        13,
-        13,
-        13,
-        8,
-        8,
-        13,
-        9,
-        12,
-        8,
-        8,
-        0,
-        0,
-        10
-      ]
-    },
-    {
-      "name": "k_battle_map_fx_cue",
-      "c_type": "uint8_t",
-      "dimensions": [
-        33
-      ],
-      "values": [
-        6,
-        6,
-        6,
-        6,
-        9,
-        9,
-        9,
-        9,
-        10,
-        14,
-        0,
-        0,
-        0,
-        12,
-        12,
-        12,
-        12,
-        6,
-        7,
-        8,
-        4,
-        4,
-        3,
-        0,
-        0,
-        5,
-        3,
-        2,
-        0,
-        0,
-        0,
-        0,
-        9
-      ]
-    },
-    {
-      "name": "k_battle_popup_miss",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        116,
-        117,
-        118,
-        118
-      ]
-    },
-    {
-      "name": "k_battle_composite_red",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        63,
-        51,
-        53,
-        53
-      ]
-    },
-    {
-      "name": "k_battle_composite_green",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        63,
-        57,
-        0,
-        58
-      ]
-    },
-    {
-      "name": "k_battle_composite_blue",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        63,
-        63,
-        0,
-        9
-      ]
-    },
-    {
-      "name": "k_battle_composite_banks",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4
-      ],
-      "values": [
-        91,
-        92,
-        93,
-        94
-      ]
-    },
-    {
-      "name": "k_battle_map_damage_tint",
-      "c_type": "uint8_t",
-      "dimensions": [
-        30
-      ],
-      "values": [
-        32,
-        32,
-        32,
-        32,
-        8,
-        8,
-        8,
-        8,
-        200,
-        8,
-        8,
-        8,
-        8,
-        8,
-        16,
-        16,
-        16,
-        16,
-        8,
-        8,
-        16,
-        16,
-        16,
-        8,
-        8,
-        16,
-        16,
-        16,
-        8,
-        8
-      ]
-    },
-    {
-      "name": "k_battle_map_extra_cues",
-      "c_type": "uint8_t",
-      "dimensions": [
-        10,
-        3
-      ],
-      "values": [
-        [
-          22,
-          7,
-          3
-        ],
-        [
-          25,
-          3,
-          5
-        ],
-        [
-          25,
-          6,
-          5
-        ],
-        [
-          18,
-          4,
-          7
-        ],
-        [
-          19,
-          3,
-          8
-        ],
-        [
-          19,
-          6,
-          8
-        ],
-        [
-          8,
-          3,
-          10
-        ],
-        [
-          8,
-          6,
-          10
-        ],
-        [
-          9,
-          15,
-          15
-        ],
-        [
-          9,
-          19,
-          15
-        ]
-      ]
-    },
-    {
-      "name": "k_battle_default_scene",
-      "c_type": "uint8_t",
-      "dimensions": [
-        30
-      ],
-      "values": [
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        0,
-        0,
-        0,
-        3,
-        0,
-        0
-      ]
-    },
-    {
-      "name": "k_battle_heal_masks",
-      "c_type": "uint8_t",
-      "dimensions": [
-        4,
-        2
-      ],
-      "values": [
-        [
-          1,
-          2
-        ],
-        [
-          2,
-          4
-        ],
-        [
-          8,
-          4
-        ],
-        [
-          6,
-          6
-        ]
-      ]
-    },
-    {
-      "name": "k_battle_item_presentations",
-      "c_type": "uint8_t",
-      "dimensions": [
-        20,
-        3
-      ],
-      "values": [
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          2,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          2,
-          1,
-          0
-        ],
-        [
-          3,
-          1,
-          0
-        ],
-        [
-          1,
-          1,
-          1
-        ],
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          2,
-          1,
-          0
-        ]
-      ]
-    },
-    {
-      "name": "k_battle_map_solid_color",
-      "c_type": "uint8_t",
-      "dimensions": [
-        1
-      ],
-      "values": [
-        200
-      ]
-    },
-    {
-      "name": "k_battle_short_fx_offsets",
-      "c_type": "uint8_t",
-      "dimensions": [
-        21
-      ],
-      "values": [
-        0,
-        0,
-        0,
-        13,
-        26,
-        39,
-        56,
-        73,
-        56,
-        0,
-        13,
-        39,
-        0,
-        56,
-        73,
-        56,
-        56,
-        13,
-        0,
-        56,
-        56
-      ]
-    },
-    {
-      "name": "k_battle_short_fx_sequences",
-      "c_type": "uint8_t",
-      "dimensions": [
-        84
-      ],
-      "values": [
-        6,
-        0,
-        255,
-        1,
-        0,
-        2,
-        255,
-        3,
-        255,
-        4,
-        255,
-        5,
-        255,
-        6,
-        6,
-        3,
-        7,
-        3,
-        8,
-        3,
-        9,
-        255,
-        10,
-        255,
-        11,
-        255,
-        6,
-        12,
-        255,
-        13,
-        1,
-        14,
-        255,
-        15,
-        255,
-        16,
-        255,
-        17,
-        255,
-        8,
-        18,
-        2,
-        19,
-        2,
-        20,
-        2,
-        21,
-        255,
-        22,
-        255,
-        23,
-        255,
-        24,
-        255,
-        25,
-        255,
-        8,
-        31,
-        5,
-        32,
-        5,
-        33,
-        5,
-        34,
-        255,
-        35,
-        255,
-        36,
-        255,
-        37,
-        255,
-        38,
-        255,
-        5,
-        26,
-        255,
-        27,
-        3,
-        28,
-        255,
-        29,
-        255,
-        30,
-        255
-      ]
-    },
-    {
-      "name": "k_battle_map_action_parameters",
-      "c_type": "uint16_t",
-      "dimensions": [
-        9
-      ],
-      "values": [
-        64,
-        31,
-        320,
-        39,
-        10,
-        25,
-        80,
-        8,
-        55
-      ]
-    }
-  ]
+  "schema_version": 3,
+  "summary_bottom_override": {"stage": 24, "raw_unit_index": 17},
+  "ai_ray_item_presentation": [
+    {"operation": 1, "value": 0, "step": 0},
+    {"operation": 2, "value": 1, "step": 0},
+    {"operation": 3, "value": 0, "step": 0},
+    {"operation": 4, "value": 0, "step": 0},
+    {"operation": 5, "value": 6, "step": 0},
+    {"operation": 1, "value": 0, "step": 0},
+    {"operation": 6, "value": 0, "step": 0},
+    {"operation": 7, "value": 3, "step": 0},
+    {"operation": 8, "value": 0, "step": 0},
+    {"operation": 1, "value": 1, "step": 0},
+    {"operation": 9, "value": 80, "step": -4},
+    {"operation": 10, "value": 200, "step": 0},
+    {"operation": 11, "value": 64, "step": 4}
+  ],
+  "map_cast_preamble": [
+    {"use_magic_rgb": 1, "wait_ticks": 1},
+    {"use_magic_rgb": 0, "wait_ticks": 1},
+    {"use_magic_rgb": 1, "wait_ticks": 1},
+    {"use_magic_rgb": 0, "wait_ticks": 1},
+    {"use_magic_rgb": 1, "wait_ticks": 1},
+    {"use_magic_rgb": 0, "wait_ticks": 1},
+    {"use_magic_rgb": 1, "wait_ticks": 1},
+    {"use_magic_rgb": 0, "wait_ticks": 1}
+  ],
+  "cast_colors": [
+    {"red": 63, "green": 0, "blue": 0},
+    {"red": 63, "green": 0, "blue": 0},
+    {"red": 63, "green": 0, "blue": 0},
+    {"red": 63, "green": 0, "blue": 0},
+    {"red": 43, "green": 50, "blue": 60},
+    {"red": 43, "green": 50, "blue": 60},
+    {"red": 43, "green": 50, "blue": 60},
+    {"red": 43, "green": 50, "blue": 60},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 35, "green": 16, "blue": 8},
+    {"red": 46, "green": 40, "blue": 30},
+    {"red": 46, "green": 40, "blue": 30},
+    {"red": 46, "green": 40, "blue": 30},
+    {"red": 63, "green": 61, "blue": 46},
+    {"red": 63, "green": 61, "blue": 46},
+    {"red": 63, "green": 40, "blue": 30},
+    {"red": 63, "green": 40, "blue": 30},
+    {"red": 50, "green": 50, "blue": 50},
+    {"red": 50, "green": 50, "blue": 50},
+    {"red": 50, "green": 50, "blue": 50},
+    {"red": 63, "green": 40, "blue": 30},
+    {"red": 63, "green": 40, "blue": 30},
+    {"red": 35, "green": 0, "blue": 0},
+    {"red": 30, "green": 42, "blue": 35},
+    {"red": 0, "green": 0, "blue": 0},
+    {"red": 63, "green": 61, "blue": 46},
+    {"red": 10, "green": 31, "blue": 0},
+    {"red": 35, "green": 25, "blue": 0},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 43, "green": 50, "blue": 60},
+    {"red": 63, "green": 63, "blue": 63},
+    {"red": 63, "green": 0, "blue": 0},
+    {"red": 43, "green": 50, "blue": 60}
+  ],
+  "physical_shake": [
+    {"x": 0, "y": 0},
+    {"x": 4, "y": 2},
+    {"x": 9, "y": 4},
+    {"x": 14, "y": 6},
+    {"x": 18, "y": 8},
+    {"x": 14, "y": 10}
+  ],
+  "magic_shake": [
+    {"x": 6, "y": -3},
+    {"x": 4, "y": -2},
+    {"x": 2, "y": -1},
+    {"x": 0, "y": 0}
+  ],
+  "map_fx": [
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 6, "damage_tint": 32},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 6, "damage_tint": 32},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 6, "damage_tint": 32},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 6, "damage_tint": 32},
+    {"first_frame": 64, "frame_count": 10, "initial_sample": 9, "damage_tint": 8},
+    {"first_frame": 64, "frame_count": 10, "initial_sample": 9, "damage_tint": 8},
+    {"first_frame": 64, "frame_count": 10, "initial_sample": 9, "damage_tint": 8},
+    {"first_frame": 64, "frame_count": 10, "initial_sample": 9, "damage_tint": 8},
+    {"first_frame": 76, "frame_count": 11, "initial_sample": 10, "damage_tint": 200},
+    {"first_frame": 87, "frame_count": 27, "initial_sample": 14, "damage_tint": 8},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 57, "frame_count": 7, "initial_sample": 12, "damage_tint": 8},
+    {"first_frame": 57, "frame_count": 7, "initial_sample": 12, "damage_tint": 16},
+    {"first_frame": 57, "frame_count": 7, "initial_sample": 12, "damage_tint": 16},
+    {"first_frame": 57, "frame_count": 7, "initial_sample": 12, "damage_tint": 16},
+    {"first_frame": 183, "frame_count": 8, "initial_sample": 6, "damage_tint": 16},
+    {"first_frame": 126, "frame_count": 12, "initial_sample": 7, "damage_tint": 8},
+    {"first_frame": 147, "frame_count": 11, "initial_sample": 8, "damage_tint": 8},
+    {"first_frame": 204, "frame_count": 13, "initial_sample": 4, "damage_tint": 16},
+    {"first_frame": 217, "frame_count": 13, "initial_sample": 4, "damage_tint": 16},
+    {"first_frame": 170, "frame_count": 13, "initial_sample": 3, "damage_tint": 16},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 191, "frame_count": 13, "initial_sample": 5, "damage_tint": 16},
+    {"first_frame": 138, "frame_count": 9, "initial_sample": 3, "damage_tint": 16},
+    {"first_frame": 158, "frame_count": 12, "initial_sample": 2, "damage_tint": 16},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 49, "frame_count": 8, "initial_sample": 0, "damage_tint": 8},
+    {"first_frame": 0, "frame_count": 0, "initial_sample": 0},
+    {"first_frame": 0, "frame_count": 0, "initial_sample": 0},
+    {"first_frame": 64, "frame_count": 10, "initial_sample": 9}
+  ],
+  "composite_fx": {
+    "32": {"red": 63, "green": 63, "blue": 63, "sfx_bank": 91},
+    "33": {"red": 51, "green": 57, "blue": 63, "sfx_bank": 92},
+    "34": {"red": 53, "green": 0, "blue": 0, "sfx_bank": 93},
+    "35": {"red": 53, "green": 58, "blue": 9, "sfx_bank": 94}
+  },
+  "map_extra_cues": [
+    {"core_id": 22, "frame": 7, "sample": 3},
+    {"core_id": 25, "frame": 3, "sample": 5},
+    {"core_id": 25, "frame": 6, "sample": 5},
+    {"core_id": 18, "frame": 4, "sample": 7},
+    {"core_id": 19, "frame": 3, "sample": 8},
+    {"core_id": 19, "frame": 6, "sample": 8},
+    {"core_id": 8, "frame": 3, "sample": 10},
+    {"core_id": 8, "frame": 6, "sample": 10},
+    {"core_id": 9, "frame": 15, "sample": 15},
+    {"core_id": 9, "frame": 19, "sample": 15}
+  ],
+  "heal_masks": {
+    "13": {"initial_radius": 1, "radius_step": 2},
+    "14": {"initial_radius": 2, "radius_step": 4},
+    "15": {"initial_radius": 8, "radius_step": 4},
+    "16": {"initial_radius": 6, "radius_step": 6}
+  },
+  "item_presentations": {
+    "5": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "6": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "7": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "8": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "9": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "10": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "11": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "12": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "13": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "14": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "15": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "16": {"actor_style": 1, "popup_kind": 2, "numeric_zero_on_success": 1},
+    "17": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "18": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "19": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "20": {"actor_style": 2, "popup_kind": 1, "numeric_zero_on_success": 0},
+    "21": {"actor_style": 3, "popup_kind": 1, "numeric_zero_on_success": 0},
+    "22": {"actor_style": 1, "popup_kind": 1, "numeric_zero_on_success": 1},
+    "23": {"actor_style": 0, "popup_kind": 0, "numeric_zero_on_success": 0},
+    "24": {"actor_style": 2, "popup_kind": 1, "numeric_zero_on_success": 0}
+  },
+  "healing_curve": [15, 15, 15, 15, 7, 3, 1, 0, 0, 1, 3, 7, 15, 15, 11, 9, 8, 8, 9, 11, 15, 15, 15, 15, 15],
+  "miss_glyphs": [116, 117, 118, 118],
+  "default_scene_by_stage": [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 3, 0, 0],
+  "map_solid_color": 200,
+  "map_action": {
+    "short_sfx_bank": 64,
+    "recovery_sfx_bank": 31,
+    "short_sprite_stride": 320,
+    "panel_first_frame": 39,
+    "panel_frame_count": 10,
+    "panel_delay_ms": 25,
+    "effect_delay_ms": 80,
+    "bar_delay_ms": 8,
+    "counter_top_bar_width": 55
+  },
+  "short_fx_sequences": [
+    [
+      {"frame": 0, "sample": 255},
+      {"frame": 1, "sample": 0},
+      {"frame": 2, "sample": 255},
+      {"frame": 3, "sample": 255},
+      {"frame": 4, "sample": 255},
+      {"frame": 5, "sample": 255}
+    ],
+    [
+      {"frame": 6, "sample": 3},
+      {"frame": 7, "sample": 3},
+      {"frame": 8, "sample": 3},
+      {"frame": 9, "sample": 255},
+      {"frame": 10, "sample": 255},
+      {"frame": 11, "sample": 255}
+    ],
+    [
+      {"frame": 12, "sample": 255},
+      {"frame": 13, "sample": 1},
+      {"frame": 14, "sample": 255},
+      {"frame": 15, "sample": 255},
+      {"frame": 16, "sample": 255},
+      {"frame": 17, "sample": 255}
+    ],
+    [
+      {"frame": 18, "sample": 2},
+      {"frame": 19, "sample": 2},
+      {"frame": 20, "sample": 2},
+      {"frame": 21, "sample": 255},
+      {"frame": 22, "sample": 255},
+      {"frame": 23, "sample": 255},
+      {"frame": 24, "sample": 255},
+      {"frame": 25, "sample": 255}
+    ],
+    [
+      {"frame": 31, "sample": 5},
+      {"frame": 32, "sample": 5},
+      {"frame": 33, "sample": 5},
+      {"frame": 34, "sample": 255},
+      {"frame": 35, "sample": 255},
+      {"frame": 36, "sample": 255},
+      {"frame": 37, "sample": 255},
+      {"frame": 38, "sample": 255}
+    ],
+    [
+      {"frame": 26, "sample": 255},
+      {"frame": 27, "sample": 3},
+      {"frame": 28, "sample": 255},
+      {"frame": 29, "sample": 255},
+      {"frame": 30, "sample": 255}
+    ]
+  ],
+  "short_fx_sequence_by_category": [0, 0, 0, 1, 2, 3, 4, 5, 4, 0, 1, 3, 0, 4, 5, 4, 4, 1, 0, 4, 4]
 }

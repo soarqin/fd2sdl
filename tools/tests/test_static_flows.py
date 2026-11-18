@@ -1,16 +1,15 @@
 """有限事件图的结构、入口、参数、容量和错误出口契约。"""
 import copy
-import importlib.util
 import json
 from pathlib import Path
 import shutil
 import tempfile
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location("flow_generate", ROOT / "tools/static_data/generate.py")
-generator = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(generator)
+sys.path.insert(0, str(ROOT / "tools/static_data"))
+import generate as generator
 
 
 def read_script_ids():

@@ -1,40 +1,67 @@
 """冷定义生成器拒绝坏输入；生产表由独立原版来源另行核对。"""
-import importlib.util
 import copy
 import json
 from pathlib import Path
+import sys
 import tempfile
 import shutil
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location("static_generate", ROOT / "tools/static_data/generate.py")
-generate = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(generate)
+sys.path.insert(0, str(ROOT / "tools/static_data"))
+import generate
+from extract import extract, source_values
+from table_schema import project_tables, table_definition
+
+TABLES = ROOT / "data/static/tables"
 
 
 def read_tables():
-    return {table["name"]: table["values"] for path in (ROOT / "data/static/tables").glob("*.json")
-            for table in generate.load_json(path).get("tables", [])}
+    return {table["name"]: table["values"] for path in TABLES.glob("*.json")
+            if path.stem != "movement_scripts"
+            for table in project_tables(path.stem, generate.load_json(path))}
 
 
 class StaticDataTest(unittest.TestCase):
-    def document(self):
-        return {"schema_version": 2, "tables": [{"name": "test_table", "c_type": "uint8_t", "dimensions": [2, 2],
-                "values": [[0, 255], [1, 2]]}]}
-
-    def test_reject_invalid_schema_type_extent_range_and_identifier(self):
-        for mutate in (lambda d: d.update(schema_version=1), lambda d: d.update(unknown=1),
-                       lambda d: d["tables"][0].update(c_type="uint8_t; injected"),
-                       lambda d: d["tables"][0].update(name="../unsafe"),
-                       lambda d: d["tables"][0].update(dimensions=[3, 2]),
-                       lambda d: d["tables"][0]["values"][0].__setitem__(1, 256),
-                       lambda d: d["tables"][0]["values"][0].__setitem__(1, True),
-                       lambda d: d["tables"][0].update(source={})):
-            document = self.document()
+    def test_reject_invalid_schema_fields_extent_range_and_identifier(self):
+        for mutate in (lambda d: d.update(schema_version=2), lambda d: d.update(unknown=1),
+                       lambda d: d["items"].update({"00": d["items"].pop("0")}),
+                       lambda d: d["items"]["0"].update(category=256),
+                       lambda d: d["items"]["0"].update(attack_bonus=32768),
+                       lambda d: d["items"]["0"].update(buy_price=True),
+                       lambda d: d["items"]["0"].update(source={}),
+                       lambda d: d["items"]["0"].pop("unknown_16"),
+                       lambda d: d["equipment_profiles"][0]["allowed_categories"].pop()):
+            document = generate.load_json(TABLES / "items.json")
             mutate(document)
             with self.assertRaises(ValueError):
-                generate.validate_document(document)
+                project_tables("items", document)
+
+    def test_named_mod_fields_pack_signed_words_and_preserve_unknown_bytes(self):
+        document = generate.load_json(TABLES / "items.json")
+        item = document["items"]["0"]
+        item.update(attack_bonus=-2, buy_price=500, use_parameter=0x1234, unknown_16=129)
+        document["items"]["0"] = dict(reversed(list(item.items())))
+        tables = {table["name"]: table["values"] for table in project_tables("items", document)}
+        row = tables["ITEM_RECORDS"][0]
+        self.assertEqual(row[1:3], [254, 255])
+        self.assertEqual(row[14:16], [0x34, 0x12])
+        self.assertEqual(row[19:21], [244, 1])
+        self.assertEqual(row[22], 129)
+        self.assertEqual(table_definition("items", tables), document)
+
+    def test_map_spell_fields_follow_spell_id_not_object_order(self):
+        document = generate.load_json(TABLES / "magic.json")
+        document["spells"] = dict(reversed(list(document["spells"].items())))
+        document["spells"]["17"]["map"]["cost_record_id"] = 19
+        tables = project_tables("magic", document)
+        profile = next(t for t in generate.native_records("magic", tables) if t["name"] == "k_magic_map_profiles")
+        self.assertEqual(profile["values"][17], [17, 19, 0, 1])
+        self.assertEqual(profile["values"][24], [16, 16, 0, 0])
+        document["spells"]["28"]["map"] = document["spells"]["27"]["map"]
+        with self.assertRaisesRegex(ValueError, "unknown field"):
+            project_tables("magic", document)
 
     def test_duplicate_key_rejected(self):
         with tempfile.TemporaryDirectory() as name:
@@ -57,27 +84,48 @@ class StaticDataTest(unittest.TestCase):
                 generate.generate(ROOT, output, check=True)
 
     def test_struct_fields_checked(self):
-        document = self.document()
-        table = document["tables"][0]
-        table.update(c_type="fd2_field_stage_music", dimensions=[2])
-        generate.validate_document(document)
-        table["values"][0][0] = -1
+        document = generate.load_json(TABLES / "stage.json")
+        music = document["stages"]["0"]["music"]
+        music.update(primary=13, alternate=8)
+        values = {t["name"]: t["values"] for t in project_tables("stage", document)}
+        self.assertEqual(values["k_stage_music"][0], [13, 8])
+        music["primary"] = -1
         with self.assertRaises(ValueError):
-            generate.validate_document(document)
+            project_tables("stage", document)
+
+    def test_short_fx_offsets_follow_named_sequence_lengths(self):
+        document = generate.load_json(TABLES / "battle_animation.json")
+        first, second = document["short_fx_sequences"][:2]
+        first.append(second.pop())
+        tables = {row["name"]: row["values"] for row in project_tables("battle_animation", document)}
+        category = document["short_fx_sequence_by_category"].index(1)
+        self.assertEqual(tables["k_battle_short_fx_offsets"][category], 1 + 2 * len(first))
+        self.assertEqual(table_definition("battle_animation", tables), document)
+        document["short_fx_sequence_by_category"][category] = 6
+        with self.assertRaisesRegex(ValueError, "invalid short FX sequence reference"):
+            project_tables("battle_animation", document)
 
     def test_movement_actor_capacity_checked_before_generation(self):
-        document = {"schema_version": 2, "scripts": {"42": [1, 1, 1, 95, 0]}}
+        slot = {"slot": 95, "direction": 0}
+        document = {"schema_version": 3, "scripts": {"42": {"groups": [{"move_cells": 1, "actors": [slot]}]}}}
         self.assertEqual(generate.read_movement_scripts(document), {42: [1, 1, 1, 95, 0]})
         for actor in (96, 255):
-            document["scripts"]["42"][3] = actor
+            slot["slot"] = actor
             with self.subTest(actor=actor), self.assertRaisesRegex(ValueError, "actor/direction"):
                 generate.read_movement_scripts(document)
 
-    def test_movement_ids_and_streams_must_be_unambiguous(self):
-        for scripts in ({"042": [0]}, {"256": [0]}, {"0": [True]}, {"0": []},
-                        {"0": [1, 128]}, {"0": [1, 128, 1, 0, 4]}, {"0": [0, 0]}):
+    def test_movement_ids_and_modes_must_be_unambiguous(self):
+        actor = {"slot": 0, "direction": 5}
+        redraw = {"groups": [{"wait_frames": 0, "actors": [actor]}]}
+        self.assertEqual(generate.read_movement_scripts({"schema_version": 3, "scripts": {"0": redraw}}),
+                         {0: [1, 128, 1, 0, 5]})
+        for scripts in ({"042": {"groups": []}}, {"256": {"groups": []}}, {"0": [0]},
+                        {"0": {"groups": [{"move_cells": 0, "wait_frames": 0, "actors": []}]}},
+                        {"0": {"groups": [{"wait_frames": 1, "actors": [actor]}]}},
+                        {"0": {"groups": [{"move_cells": True, "actors": []}]}},
+                        {"0": {"groups": [{"move_cells": 0, "actors": [actor] * 33}]}}):
             with self.subTest(scripts=scripts), self.assertRaises(ValueError):
-                generate.read_movement_scripts({"schema_version": 2, "scripts": scripts})
+                generate.read_movement_scripts({"schema_version": 3, "scripts": scripts})
 
     def test_resize_movement_script_and_reject_missing_referenced_id(self):
         with tempfile.TemporaryDirectory() as name:
@@ -85,7 +133,7 @@ class StaticDataTest(unittest.TestCase):
             shutil.copytree(ROOT / "data/static", root / "data/static")
             path = root / "data/static/tables/movement_scripts.json"
             document = generate.load_json(path)
-            document["scripts"]["0"] = [1, 1, 1, 0, 3]
+            document["scripts"]["0"] = {"groups": [{"move_cells": 1, "actors": [{"slot": 0, "direction": 3}]}]}
             path.write_text(json.dumps(document), encoding="utf-8")
             output = Path(name) / "generated"
             generate.generate(root, output)
@@ -113,6 +161,9 @@ class StaticDataTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "reference"):
                 generate.validate_references(tables)
             tables[name][0][column] = old
+        tables["MAGIC_MAP_COST_IDS"][17] = 36
+        with self.assertRaisesRegex(ValueError, "map magic reference"):
+            generate.validate_references(tables)
 
     def test_constructor_alias_projection_has_only_reviewed_source_windows(self):
         tables = read_tables()
@@ -141,19 +192,38 @@ class StaticDataTest(unittest.TestCase):
                     generate.generate(root, output)
                 self.assertEqual(before, {p.name: p.read_bytes() for p in output.iterdir()})
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            table_path = root / "data/static/tables/magic_fx.json"
-            doc = json.loads(table_path.read_text(encoding="utf-8"))
-            table = doc["tables"][0]
-            table["values"] = table["values"][:1]
-            table["dimensions"][0] = 1
-            table_path.write_text(json.dumps(doc), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "contract"):
+            manifest["table_contracts"]["magic_fx.json"]["k_fx_friendly_clips"]["dimensions"][0] = 1
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "extent"):
                 generate.generate(root, output)
-            shutil.copyfile(ROOT / "data/static/tables/magic_fx.json", table_path)
+            shutil.copyfile(ROOT / "data/static/manifest.json", manifest_path)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in output.iterdir()})
             (output / "obsolete.inc").write_text("old table", encoding="utf-8")
             for check in (False, True):
                 with self.assertRaisesRegex(ValueError, "obsolete"):
                     generate.generate(root, output, check=check)
+
+    def test_extract_source_music_planes_and_signed_scalars(self):
+        with patch("extract.source_range", return_value=b"\x13\x01\x0c\x12"):
+            self.assertEqual(source_values(b"", "fd2_field_stage_music", (2,), 0),
+                             [[19, 12], [1, 18]])
+        with patch("extract.source_range", return_value=b"\xfb\xff\xff\xff"):
+            self.assertEqual(source_values(b"", "int32_t", (1,), 0), [-5])
+
+    def test_extract_rejects_modified_exe_and_protected_output(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            original = root / "original"
+            original.mkdir()
+            executable = original / "FD2.EXE"
+            executable.write_bytes(b"unknown executable")
+            output = root / "export"
+            with self.assertRaisesRegex(ValueError, "FD2.EXE"):
+                extract(executable, output)
+            self.assertFalse(output.exists())
+            with self.assertRaises(ValueError):
+                extract(executable, original / "export")
+            self.assertEqual(list(original.iterdir()), [executable])
 
 
 if __name__ == "__main__":

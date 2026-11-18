@@ -1,11 +1,8 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_field_quake_parameters",
-      "c_type": "int32_t",
-      "dimensions": [3, 3],
-      "values": [[128, 128, 131], [0, 0, 128], [-128, 128, 125]]
-    }
+  "schema_version": 3,
+  "earthquake": [
+    {"x_offset_fp": 128, "y_offset_fp": 128, "step_fp": 131},
+    {"x_offset_fp": 0, "y_offset_fp": 0, "step_fp": 128},
+    {"x_offset_fp": -128, "y_offset_fp": 128, "step_fp": 125}
   ]
 }

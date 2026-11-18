@@ -17,6 +17,7 @@
 
 _Static_assert(sizeof(MAGIC_RECORDS) == FD2_FIELD_MAGIC_COUNT * FD2_FIELD_MAGIC_RECORD_SIZE &&
                sizeof(MAGIC_RECORDS[0]) == FD2_FIELD_MAGIC_RECORD_SIZE &&
+               sizeof(k_magic_map_profiles) / sizeof(k_magic_map_profiles[0]) == 28u &&
                sizeof(MAGIC_DAMAGE_PROFILE_SCALES) / sizeof(MAGIC_DAMAGE_PROFILE_SCALES[0]) ==
                    FD2_FIELD_MAGIC_DAMAGE_PROFILE_COUNT,
                "magic definition layout must match the supported original records");
@@ -45,10 +46,8 @@ const uint8_t *fd2_field_magic_record_get(uint8_t magic_id) {
 }
 
 int fd2_field_magic_map_profile_get(uint8_t id, fd2_field_magic_map_profile *out) {
-    if (id >= 28u || !out) return -1;
-    fd2_field_magic_map_profile profile = {MAGIC_MAP_EFFECT_IDS[id], MAGIC_MAP_COST_IDS[id],
-        MAGIC_MAP_TARGET_LIMITS[id], MAGIC_MAP_COST_BEFORE_CAST[id]};
-    *out = profile;
+    if (!out || id >= sizeof(k_magic_map_profiles) / sizeof(k_magic_map_profiles[0])) return -1;
+    *out = k_magic_map_profiles[id];
     return 0;
 }
 

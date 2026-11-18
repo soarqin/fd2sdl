@@ -2,7 +2,7 @@
 
 本流程只生成本地隔离包，不上传或发布。项目自有代码使用 MIT；SDL、Nuked OPL3、OPL AIL model 等保留各自许可与通知，不能用项目 LICENSE 覆盖第三方许可。准确清单由根目录 `THIRD_PARTY_NOTICES.md`（或无扩展名的同名文件）及源码中的许可文件提供。
 
-SD1 起 App 构建还需要 Python 3.9+ 标准库；`data/static/` 中的 JSON 和 `tools/static_data/generate.py` 属于离线重建必需源码，白名单与摘要一并记录。运行程序不需要 Python。原 R1 包的历史结果不因此改写为新源码已重新发布。
+App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/static_data/generate.py` 和 `tools/static_data/table_schema.py` 是离线重建所需的源码，均记录在白名单与摘要中。运行程序无需 Python。R1 包的验收结果对应当时的源码版本。
 
 ## 包含与排除
 

@@ -33,7 +33,7 @@ Linux 的独立窗口烟测需要 X11 和 XTest 开发库及 `xvfb-run`／`xauth
 | 合成存档：校验和、读回、覆写、坏文件拒绝 | `ctest` 加 `-R '^save_synthetic$'` |
 | Python 工具回归 | `python -B -m unittest discover -s tools/tests`（Linux 用 `python3`） |
 | 检查源码规范地址 | `python tools/ida/check_src_addresses.py`（Linux 用 `python3`） |
-| 冷定义生成与独立原字节校验 | [冷定义工具](static-data.md) |
+| 从 FD2.EXE 导出冷表、生成 C 定义及核对原字节 | [冷定义工具](static-data.md) |
 | 确认原版资源和模拟器配置身份 | [`original_reference.py`](../../tools/original_reference.py)，见[原版参照规范](../formats/original-reference.md) |
 | 导出／调试原版 | [IDA 流程](ida.md)、[DOSBox debugger](dosbox-debug.md) |
 | Windows x64 本地打包与离线重建 | [Windows Release](windows-release.md) |

@@ -1,131 +1,147 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_fx_friendly_clips",
-      "c_type": "uint16_t",
-      "dimensions": [9],
-      "values": [18, 19, 26, 39, 22, 24, 32, 37, 28]
+  "schema_version": 3,
+  "effects": {
+    "0": {
+      "friendly_clip": 18,
+      "hostile_clip": 20,
+      "sfx_bank": 82,
+      "hp_denominator": 7,
+      "minimum_sample_count": 2,
+      "minimum_part_count": 16,
+      "hit_frame_base": 32,
+      "return_lut_base": 11
     },
-    {
-      "name": "k_fx_hostile_clips",
-      "c_type": "uint16_t",
-      "dimensions": [10],
-      "values": [20, 21, 27, 43, 23, 25, 33, 38, 30, 44]
+    "1": {
+      "friendly_clip": 19,
+      "hostile_clip": 21,
+      "sfx_bank": 82,
+      "hp_denominator": 8,
+      "minimum_sample_count": 2,
+      "minimum_part_count": 30,
+      "hit_frame_base": 32,
+      "return_lut_base": 11
     },
-    {
-      "name": "k_fx_banks",
-      "c_type": "uint8_t",
-      "dimensions": [10],
-      "values": [82, 82, 83, 84, 85, 86, 87, 88, 89, 90]
+    "2": {
+      "friendly_clip": 26,
+      "hostile_clip": 27,
+      "sfx_bank": 83,
+      "hp_denominator": 6,
+      "minimum_sample_count": 4,
+      "minimum_part_count": 18,
+      "hit_frame_base": 32,
+      "return_lut_base": 11
     },
-    {
-      "name": "k_fx_hp_denominators",
-      "c_type": "uint8_t",
-      "dimensions": [10],
-      "values": [7, 8, 6, 13, 6, 6, 5, 5, 16, 20]
+    "3": {
+      "friendly_clip": 39,
+      "hostile_clip": 43,
+      "sfx_bank": 84,
+      "hp_denominator": 13,
+      "minimum_sample_count": 3,
+      "minimum_part_count": 33,
+      "hit_frame_base": 32,
+      "return_lut_base": 11
     },
-    {
-      "name": "k_fx_sample_counts",
-      "c_type": "uint8_t",
-      "dimensions": [10],
-      "values": [2, 2, 4, 3, 2, 2, 4, 2, 3, 3]
+    "4": {
+      "friendly_clip": 22,
+      "hostile_clip": 23,
+      "sfx_bank": 85,
+      "hp_denominator": 6,
+      "minimum_sample_count": 2,
+      "minimum_part_count": 14,
+      "hit_frame_base": 176,
+      "return_lut_base": 15
     },
-    {
-      "name": "k_fx_minimum_parts",
-      "c_type": "uint16_t",
-      "dimensions": [10],
-      "values": [16, 30, 18, 33, 14, 12, 10, 5, 32, 31]
+    "5": {
+      "friendly_clip": 24,
+      "hostile_clip": 25,
+      "sfx_bank": 86,
+      "hp_denominator": 6,
+      "minimum_sample_count": 2,
+      "minimum_part_count": 12,
+      "hit_frame_base": 176,
+      "return_lut_base": 15
     },
-    {
-      "name": "k_fx_rain0_x",
-      "c_type": "int32_t",
-      "dimensions": [7],
-      "values": [40, 70, 120, 80, 50, 100, 70]
+    "6": {
+      "friendly_clip": 32,
+      "hostile_clip": 33,
+      "sfx_bank": 87,
+      "hp_denominator": 5,
+      "minimum_sample_count": 4,
+      "minimum_part_count": 10,
+      "hit_frame_base": 176,
+      "return_lut_base": 15
     },
-    {
-      "name": "k_fx_rain0_y",
-      "c_type": "int32_t",
-      "dimensions": [7],
-      "values": [0, -10, -20, 0, -15, -5, 0]
+    "7": {
+      "friendly_clip": 37,
+      "hostile_clip": 38,
+      "sfx_bank": 88,
+      "hp_denominator": 5,
+      "minimum_sample_count": 2,
+      "minimum_part_count": 5,
+      "hit_frame_base": 176,
+      "return_lut_base": 15
     },
-    {
-      "name": "k_fx_rain0_front",
-      "c_type": "uint8_t",
-      "dimensions": [7],
-      "values": [0, 0, 1, 0, 1, 0, 0]
+    "8": {
+      "friendly_clip": 28,
+      "hostile_clip": 30,
+      "sfx_bank": 89,
+      "hp_denominator": 16,
+      "minimum_sample_count": 3,
+      "minimum_part_count": 32,
+      "hit_frame_base": 176,
+      "return_lut_base": 19
     },
-    {
-      "name": "k_fx_rain1_x",
-      "c_type": "int32_t",
-      "dimensions": [8],
-      "values": [-59, -39, 0, 39, 55, 39, 0, -39]
-    },
-    {
-      "name": "k_fx_rain1_y",
-      "c_type": "int32_t",
-      "dimensions": [8],
-      "values": [-10, -24, -30, -24, -10, 4, 10, 4]
-    },
-    {
-      "name": "k_fx_shower_x",
-      "c_type": "int32_t",
-      "dimensions": [12],
-      "values": [30, 0, 70, 40, 130, 70, -30, 30, 110, 80, -10, 30]
-    },
-    {
-      "name": "k_fx_shower_y",
-      "c_type": "uint8_t",
-      "dimensions": [12],
-      "values": [0, 10, 0, 20, 5, 20, 0, 10, 0, 18, 0, 10]
-    },
-    {
-      "name": "k_fx_shower_parts",
-      "c_type": "uint8_t",
-      "dimensions": [12],
-      "values": [22, 0, 0, 0, 0, 0, 11, 0, 22, 0, 0, 0]
-    },
-    {
-      "name": "k_fx_dust_x",
-      "c_type": "int32_t",
-      "dimensions": [10],
-      "values": [30, 50, 70, 40, 80, 100, 70, 30, 60, 90]
-    },
-    {
-      "name": "k_fx_orbit_dx",
-      "c_type": "int32_t",
-      "dimensions": [5],
-      "values": [10, 8, 3, 0, 0]
-    },
-    {
-      "name": "k_fx_orbit_dy",
-      "c_type": "int32_t",
-      "dimensions": [5],
-      "values": [10, 8, 3, 0, 0]
-    },
-    {
-      "name": "k_fx_surge_x",
-      "c_type": "int32_t",
-      "dimensions": [10],
-      "values": [30, -10, 70, 20, 100, 130, 40, 80, 110, 60]
-    },
-    {
-      "name": "k_fx_burst_offsets",
-      "c_type": "uint8_t",
-      "dimensions": [16],
-      "values": [0, 8, 24, 16, 8, 0, 24, 16, 0, 8, 24, 16, 8, 0, 24, 16]
-    },
-    {
-      "name": "k_fx_hit_frame_bases",
-      "c_type": "uint16_t",
-      "dimensions": [10],
-      "values": [32, 32, 32, 32, 176, 176, 176, 176, 176, 176]
-    },
-    {
-      "name": "k_fx_return_lut_bases",
-      "c_type": "uint16_t",
-      "dimensions": [10],
-      "values": [11, 11, 11, 11, 15, 15, 15, 15, 19, 15]
+    "9": {
+      "hostile_clip": 44,
+      "sfx_bank": 90,
+      "hp_denominator": 20,
+      "minimum_sample_count": 3,
+      "minimum_part_count": 31,
+      "hit_frame_base": 176,
+      "return_lut_base": 15
     }
-  ]
+  },
+  "rain0": [
+    {"x": 40, "y": 0, "front": 0},
+    {"x": 70, "y": -10, "front": 0},
+    {"x": 120, "y": -20, "front": 1},
+    {"x": 80, "y": 0, "front": 0},
+    {"x": 50, "y": -15, "front": 1},
+    {"x": 100, "y": -5, "front": 0},
+    {"x": 70, "y": 0, "front": 0}
+  ],
+  "rain1": [
+    {"x": -59, "y": -10},
+    {"x": -39, "y": -24},
+    {"x": 0, "y": -30},
+    {"x": 39, "y": -24},
+    {"x": 55, "y": -10},
+    {"x": 39, "y": 4},
+    {"x": 0, "y": 10},
+    {"x": -39, "y": 4}
+  ],
+  "shower": [
+    {"x": 30, "y": 0, "parts": 22},
+    {"x": 0, "y": 10, "parts": 0},
+    {"x": 70, "y": 0, "parts": 0},
+    {"x": 40, "y": 20, "parts": 0},
+    {"x": 130, "y": 5, "parts": 0},
+    {"x": 70, "y": 20, "parts": 0},
+    {"x": -30, "y": 0, "parts": 11},
+    {"x": 30, "y": 10, "parts": 0},
+    {"x": 110, "y": 0, "parts": 22},
+    {"x": 80, "y": 18, "parts": 0},
+    {"x": -10, "y": 0, "parts": 0},
+    {"x": 30, "y": 10, "parts": 0}
+  ],
+  "orbit": [
+    {"dx": 10, "dy": 10},
+    {"dx": 8, "dy": 8},
+    {"dx": 3, "dy": 3},
+    {"dx": 0, "dy": 0},
+    {"dx": 0, "dy": 0}
+  ],
+  "dust_x": [30, 50, 70, 40, 80, 100, 70, 30, 60, 90],
+  "surge_x": [30, -10, 70, 20, 100, 130, 40, 80, 110, 60],
+  "burst_offsets": [0, 8, 24, 16, 8, 0, 24, 16, 0, 8, 24, 16, 8, 0, 24, 16]
 }

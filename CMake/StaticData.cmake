@@ -17,6 +17,7 @@ add_custom_command(OUTPUT ${FD2_STATIC_OUTPUTS}
         --root "${PROJECT_SOURCE_DIR}" --output "${FD2_STATIC_INCLUDE_ROOT}/static_data"
     COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${FD2_STATIC_OUTPUTS}
     DEPENDS "${PROJECT_SOURCE_DIR}/tools/static_data/generate.py"
+        "${PROJECT_SOURCE_DIR}/tools/static_data/table_schema.py"
         "${PROJECT_SOURCE_DIR}/data/static/manifest.json" ${FD2_STATIC_TABLES} ${FD2_STATIC_FLOWS}
     VERBATIM)
 add_custom_target(fd2_static_data DEPENDS ${FD2_STATIC_OUTPUTS})

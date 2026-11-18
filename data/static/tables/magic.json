@@ -1,202 +1,351 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "MAGIC_RECORDS",
-      "c_type": "uint8_t",
-      "dimensions": [36, 7],
-      "values": [
-        [50, 0, 90, 5, 0, 2, 0],
-        [120, 0, 90, 5, 0, 6, 0],
-        [250, 0, 90, 5, 1, 20, 0],
-        [244, 1, 85, 5, 1, 42, 0],
-        [40, 0, 85, 4, 1, 4, 0],
-        [100, 0, 80, 4, 1, 15, 0],
-        [220, 0, 80, 4, 2, 30, 0],
-        [194, 1, 80, 4, 2, 60, 0],
-        [184, 1, 100, 8, 0, 24, 0],
-        [231, 3, 50, 3, 0, 30, 0],
-        [80, 0, 95, 0, 5, 18, 0],
-        [160, 0, 90, 0, 7, 45, 0],
-        [84, 1, 90, 0, 9, 80, 0],
-        [70, 0, 0, 4, 0, 3, 1],
-        [140, 0, 0, 4, 1, 10, 1],
-        [4, 1, 0, 5, 2, 20, 1],
-        [244, 1, 0, 5, 3, 40, 1],
-        [0, 0, 0, 4, 2, 5, 1],
-        [0, 0, 0, 4, 2, 5, 1],
-        [0, 0, 0, 4, 2, 8, 1],
-        [0, 0, 0, 4, 2, 5, 1],
-        [0, 0, 0, 4, 2, 5, 1],
-        [0, 0, 0, 4, 2, 8, 0],
-        [0, 0, 0, 3, 0, 20, 3],
-        [0, 0, 0, 5, 1, 22, 0],
-        [0, 0, 0, 3, 1, 24, 1],
-        [10, 0, 50, 4, 2, 8, 0],
-        [10, 0, 50, 4, 2, 10, 0],
-        [0, 0, 0, 1, 0, 22, 0],
-        [0, 0, 0, 0, 2, 26, 0],
-        [0, 0, 0, 20, 0, 24, 0],
-        [0, 0, 0, 0, 2, 26, 0],
-        [32, 3, 90, 5, 3, 76, 0],
-        [0, 0, 0, 5, 3, 52, 1],
-        [0, 0, 0, 5, 3, 28, 1],
-        [0, 0, 0, 4, 2, 36, 0]
-      ]
+  "schema_version": 3,
+  "spells": {
+    "0": {
+      "effect_value": 50,
+      "accuracy": 90,
+      "cast_range": 5,
+      "effect_range": 0,
+      "mp_cost": 2,
+      "target_filter": 0,
+      "map": {"effect_id": 0, "cost_record_id": 0, "target_limit": 0, "cost_before_cast": 0}
     },
-    {
-      "name": "MAGIC_DAMAGE_PROFILE_SCALES",
-      "c_type": "uint32_t",
-      "dimensions": [28],
-      "values": [10, 10, 10, 10, 7, 7, 10, 10, 10, 10, 9, 10, 5, 5, 8, 10, 6, 8, 10, 9, 5, 5, 10, 8, 8, 4, 10, 7]
+    "1": {
+      "effect_value": 120,
+      "accuracy": 90,
+      "cast_range": 5,
+      "effect_range": 0,
+      "mp_cost": 6,
+      "target_filter": 0,
+      "map": {"effect_id": 1, "cost_record_id": 1, "target_limit": 0, "cost_before_cast": 0}
     },
-    {
-      "name": "MAGIC_MAP_EFFECT_IDS",
-      "c_type": "uint8_t",
-      "dimensions": [
-        28
-      ],
-      "values": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        16,
-        25,
-        26,
-        27
-      ]
+    "2": {
+      "effect_value": 250,
+      "accuracy": 90,
+      "cast_range": 5,
+      "effect_range": 1,
+      "mp_cost": 20,
+      "target_filter": 0,
+      "map": {"effect_id": 2, "cost_record_id": 2, "target_limit": 0, "cost_before_cast": 0}
     },
-    {
-      "name": "MAGIC_MAP_COST_IDS",
-      "c_type": "uint8_t",
-      "dimensions": [
-        28
-      ],
-      "values": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        18,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        16,
-        25,
-        26,
-        27
-      ]
+    "3": {
+      "effect_value": 500,
+      "accuracy": 85,
+      "cast_range": 5,
+      "effect_range": 1,
+      "mp_cost": 42,
+      "target_filter": 0,
+      "map": {"effect_id": 3, "cost_record_id": 3, "target_limit": 0, "cost_before_cast": 0}
     },
-    {
-      "name": "MAGIC_MAP_TARGET_LIMITS",
-      "c_type": "uint8_t",
-      "dimensions": [
-        28
-      ],
-      "values": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        0
-      ]
+    "4": {
+      "effect_value": 40,
+      "accuracy": 85,
+      "cast_range": 4,
+      "effect_range": 1,
+      "mp_cost": 4,
+      "target_filter": 0,
+      "map": {"effect_id": 4, "cost_record_id": 4, "target_limit": 0, "cost_before_cast": 0}
     },
-    {
-      "name": "MAGIC_MAP_COST_BEFORE_CAST",
-      "c_type": "uint8_t",
-      "dimensions": [
-        28
-      ],
-      "values": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        0,
-        1,
-        1,
-        1
-      ]
+    "5": {
+      "effect_value": 100,
+      "accuracy": 80,
+      "cast_range": 4,
+      "effect_range": 1,
+      "mp_cost": 15,
+      "target_filter": 0,
+      "map": {"effect_id": 5, "cost_record_id": 5, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "6": {
+      "effect_value": 220,
+      "accuracy": 80,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 30,
+      "target_filter": 0,
+      "map": {"effect_id": 6, "cost_record_id": 6, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "7": {
+      "effect_value": 450,
+      "accuracy": 80,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 60,
+      "target_filter": 0,
+      "map": {"effect_id": 7, "cost_record_id": 7, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "8": {
+      "effect_value": 440,
+      "accuracy": 100,
+      "cast_range": 8,
+      "effect_range": 0,
+      "mp_cost": 24,
+      "target_filter": 0,
+      "map": {"effect_id": 8, "cost_record_id": 8, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "9": {
+      "effect_value": 999,
+      "accuracy": 50,
+      "cast_range": 3,
+      "effect_range": 0,
+      "mp_cost": 30,
+      "target_filter": 0,
+      "map": {"effect_id": 9, "cost_record_id": 9, "target_limit": 1, "cost_before_cast": 1}
+    },
+    "10": {
+      "effect_value": 80,
+      "accuracy": 95,
+      "cast_range": 0,
+      "effect_range": 5,
+      "mp_cost": 18,
+      "target_filter": 0,
+      "map": {"effect_id": 10, "cost_record_id": 10, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "11": {
+      "effect_value": 160,
+      "accuracy": 90,
+      "cast_range": 0,
+      "effect_range": 7,
+      "mp_cost": 45,
+      "target_filter": 0,
+      "map": {"effect_id": 11, "cost_record_id": 11, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "12": {
+      "effect_value": 340,
+      "accuracy": 90,
+      "cast_range": 0,
+      "effect_range": 9,
+      "mp_cost": 80,
+      "target_filter": 0,
+      "map": {"effect_id": 12, "cost_record_id": 12, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "13": {
+      "effect_value": 70,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 0,
+      "mp_cost": 3,
+      "target_filter": 1,
+      "map": {"effect_id": 13, "cost_record_id": 13, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "14": {
+      "effect_value": 140,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 1,
+      "mp_cost": 10,
+      "target_filter": 1,
+      "map": {"effect_id": 14, "cost_record_id": 14, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "15": {
+      "effect_value": 260,
+      "accuracy": 0,
+      "cast_range": 5,
+      "effect_range": 2,
+      "mp_cost": 20,
+      "target_filter": 1,
+      "map": {"effect_id": 15, "cost_record_id": 15, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "16": {
+      "effect_value": 500,
+      "accuracy": 0,
+      "cast_range": 5,
+      "effect_range": 3,
+      "mp_cost": 40,
+      "target_filter": 1,
+      "map": {"effect_id": 16, "cost_record_id": 16, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "17": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 5,
+      "target_filter": 1,
+      "map": {"effect_id": 17, "cost_record_id": 18, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "18": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 5,
+      "target_filter": 1,
+      "map": {"effect_id": 18, "cost_record_id": 18, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "19": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 8,
+      "target_filter": 1,
+      "map": {"effect_id": 19, "cost_record_id": 19, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "20": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 5,
+      "target_filter": 1,
+      "map": {"effect_id": 20, "cost_record_id": 20, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "21": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 5,
+      "target_filter": 1,
+      "map": {"effect_id": 21, "cost_record_id": 21, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "22": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 8,
+      "target_filter": 0,
+      "map": {"effect_id": 22, "cost_record_id": 22, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "23": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 3,
+      "effect_range": 0,
+      "mp_cost": 20,
+      "target_filter": 3,
+      "map": {"effect_id": 23, "cost_record_id": 23, "target_limit": 1, "cost_before_cast": 1}
+    },
+    "24": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 5,
+      "effect_range": 1,
+      "mp_cost": 22,
+      "target_filter": 0,
+      "map": {"effect_id": 16, "cost_record_id": 16, "target_limit": 0, "cost_before_cast": 0}
+    },
+    "25": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 3,
+      "effect_range": 1,
+      "mp_cost": 24,
+      "target_filter": 1,
+      "map": {"effect_id": 25, "cost_record_id": 25, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "26": {
+      "effect_value": 10,
+      "accuracy": 50,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 8,
+      "target_filter": 0,
+      "map": {"effect_id": 26, "cost_record_id": 26, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "27": {
+      "effect_value": 10,
+      "accuracy": 50,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 10,
+      "target_filter": 0,
+      "map": {"effect_id": 27, "cost_record_id": 27, "target_limit": 0, "cost_before_cast": 1}
+    },
+    "28": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 1,
+      "effect_range": 0,
+      "mp_cost": 22,
+      "target_filter": 0
+    },
+    "29": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 0,
+      "effect_range": 2,
+      "mp_cost": 26,
+      "target_filter": 0
+    },
+    "30": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 20,
+      "effect_range": 0,
+      "mp_cost": 24,
+      "target_filter": 0
+    },
+    "31": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 0,
+      "effect_range": 2,
+      "mp_cost": 26,
+      "target_filter": 0
+    },
+    "32": {
+      "effect_value": 800,
+      "accuracy": 90,
+      "cast_range": 5,
+      "effect_range": 3,
+      "mp_cost": 76,
+      "target_filter": 0
+    },
+    "33": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 5,
+      "effect_range": 3,
+      "mp_cost": 52,
+      "target_filter": 1
+    },
+    "34": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 5,
+      "effect_range": 3,
+      "mp_cost": 28,
+      "target_filter": 1
+    },
+    "35": {
+      "effect_value": 0,
+      "accuracy": 0,
+      "cast_range": 4,
+      "effect_range": 2,
+      "mp_cost": 36,
+      "target_filter": 0
     }
+  },
+  "damage_scale_by_profile": [
+    10,
+    10,
+    10,
+    10,
+    7,
+    7,
+    10,
+    10,
+    10,
+    10,
+    9,
+    10,
+    5,
+    5,
+    8,
+    10,
+    6,
+    8,
+    10,
+    9,
+    5,
+    5,
+    10,
+    8,
+    8,
+    4,
+    10,
+    7
   ]
 }

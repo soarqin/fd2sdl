@@ -669,6 +669,8 @@ repeat group_count:
     u8 direction
 ```
 
+Mod 使用 [`movement_scripts.json` 的具名组和参与者](static-data.md#过场移动脚本)。构建时根据组数和参与者数量生成上述字节流。
+
 若 `step_or_mode & 0x80 == 0`，解释器播放移动：每个 step 内将 actor 的 direction 写入单位记录 offset `0x03`，frame_phase(offset `0x04`) 依次设为 `1..6` 并刷新画面，随后按 direction 更新一格坐标：`0 => y+1`、`1 => x-1`、`2 => y-1`、`3 => x+1`。若最高位置位，`step_or_mode & 0x7f` 表示原地朝向/等待帧数；值为 0 时走特殊重绘路径，用于遮挡关系变化。
 
 正式路径由 `field_actor_path_play @0x3869c` 按方向码 `0/1/2/3` 分派到下、左、上、右四个单格 helper：`field_actor_move_down_follow_camera @0x380be`、`field_actor_move_left_follow_camera @0x38221`、`field_actor_move_up_follow_camera @0x38399`、`field_actor_move_right_follow_camera @0x38529`。每个 helper 都先写 direction，再播放 `1..6` 相位，每相位移动 4 px 并等待一次 BIOS tick，第 6 相位后才提交单位格坐标。

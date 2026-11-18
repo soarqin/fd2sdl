@@ -1,248 +1,40 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_field_background_config",
-      "c_type": "uint16_t",
-      "dimensions": [
-        33,
-        4
-      ],
-      "values": [
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          1,
-          15,
-          320,
-          200
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          2,
-          16,
-          462,
-          226
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          2,
-          35,
-          408,
-          276
-        ],
-        [
-          2,
-          40,
-          408,
-          256
-        ],
-        [
-          3,
-          42,
-          312,
-          192
-        ],
-        [
-          1,
-          15,
-          320,
-          200
-        ],
-        [
-          1,
-          15,
-          320,
-          200
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          2,
-          46,
-          462,
-          244
-        ],
-        [
-          1,
-          55,
-          320,
-          200
-        ],
-        [
-          1,
-          55,
-          320,
-          200
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "name": "k_field_background_wave",
-      "c_type": "uint8_t",
-      "dimensions": [
-        16
-      ],
-      "values": [
-        2,
-        3,
-        3,
-        4,
-        4,
-        4,
-        3,
-        3,
-        2,
-        1,
-        1,
-        0,
-        0,
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "k_field_background_scroll_initial",
-      "c_type": "uint8_t",
-      "dimensions": [
-        1
-      ],
-      "values": [
-        1
-      ]
-    }
-  ]
+  "schema_version": 3,
+  "stages": {
+    "0": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "1": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "2": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "3": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "4": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "5": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "6": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "7": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "8": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "9": {"kind": 1, "fdother_entry": 15, "width": 320, "height": 200},
+    "10": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "11": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "12": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "13": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "14": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "15": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "16": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "17": {"kind": 2, "fdother_entry": 16, "width": 462, "height": 226},
+    "18": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "19": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "20": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "21": {"kind": 2, "fdother_entry": 35, "width": 408, "height": 276},
+    "22": {"kind": 2, "fdother_entry": 40, "width": 408, "height": 256},
+    "23": {"kind": 3, "fdother_entry": 42, "width": 312, "height": 192},
+    "24": {"kind": 1, "fdother_entry": 15, "width": 320, "height": 200},
+    "25": {"kind": 1, "fdother_entry": 15, "width": 320, "height": 200},
+    "26": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "27": {"kind": 2, "fdother_entry": 46, "width": 462, "height": 244},
+    "28": {"kind": 1, "fdother_entry": 55, "width": 320, "height": 200},
+    "29": {"kind": 1, "fdother_entry": 55, "width": 320, "height": 200},
+    "30": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "31": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0},
+    "32": {"kind": 0, "fdother_entry": 0, "width": 0, "height": 0}
+  },
+  "wave_offsets": [2, 3, 3, 4, 4, 4, 3, 3, 2, 1, 1, 0, 0, 0, 1, 1],
+  "initial_scroll_speed": 1
 }

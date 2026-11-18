@@ -7,84 +7,14 @@ import json
 from pathlib import Path
 import re
 
-ROOT = Path(__file__).resolve().parents[2]
+from table_schema import ROOT, TABLE_SCHEMA_VERSION, decode_json, integer, load_json, project_tables
+
 SCHEMA_VERSION = 2
-INTEGER_TYPES = {
-    "uint8_t": (0, 255), "int8_t": (-128, 127),
-    "uint16_t": (0, 65535), "int16_t": (-32768, 32767),
-    "uint32_t": (0, 4294967295), "int32_t": (-2147483648, 2147483647),
-    "int": (-2147483648, 2147483647),
-}
-STRUCT_TYPES = {"fd2_field_stage_music": ["uint8_t", "uint8_t"]}
 PORTS = ("next", "yes", "no", "cancel", "ack", "text_ready", "slot", "error")
 S5_CINEMATIC_IDS = {"stage.cinematic."+name for name in
     ("ending","credits","card_normal","card_last","card_first","montage_round")}
 S5_SOURCE_WIDE_IDS = {f"stage.source.{kind}.{stage:03d}" for kind,stages in (
     ("entry",(24,29)), ("victory",(20,22,23,26,28,29))) for stage in stages}
-
-
-def reject_duplicates(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
-
-
-def load_json(path: Path):
-    return decode_json(path.read_bytes())
-
-
-def decode_json(raw):
-    return json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicates,
-                      parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
-
-
-def integer(value, c_type):
-    lo, hi = INTEGER_TYPES[c_type]
-    if type(value) is not int or not lo <= value <= hi:
-        raise ValueError(f"{c_type} value outside [{lo}, {hi}]: {value!r}")
-
-
-def validate_values(values, dimensions, c_type):
-    if dimensions:
-        if not isinstance(values, list) or len(values) != dimensions[0]:
-            raise ValueError(f"array extent mismatch: expected {dimensions}")
-        for value in values:
-            validate_values(value, dimensions[1:], c_type)
-    elif c_type in STRUCT_TYPES:
-        fields = STRUCT_TYPES[c_type]
-        if not isinstance(values, list) or len(values) != len(fields):
-            raise ValueError(f"{c_type}: wrong field count")
-        for value, field in zip(values, fields):
-            integer(value, field)
-    else:
-        integer(values, c_type)
-
-
-def validate_document(document):
-    if not isinstance(document, dict) or set(document) != {"schema_version", "tables"}:
-        raise ValueError("table document requires schema_version and tables only")
-    if type(document["schema_version"]) is not int or document["schema_version"] != SCHEMA_VERSION:
-        raise ValueError("unsupported static schema_version")
-    if not isinstance(document["tables"], list) or not document["tables"]:
-        raise ValueError("nonempty tables required")
-    names = set()
-    for table in document["tables"]:
-        if not isinstance(table, dict) or set(table) != {"name", "c_type", "dimensions", "values"}:
-            raise ValueError("unknown/missing table field")
-        name, c_type, dimensions = table["name"], table["c_type"], table["dimensions"]
-        if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", name) or name in names:
-            raise ValueError(f"invalid/duplicate C table identifier: {name}")
-        names.add(name)
-        if c_type not in INTEGER_TYPES and c_type not in STRUCT_TYPES:
-            raise ValueError(f"unsupported C type: {c_type}")
-        if not isinstance(dimensions, list) or not 1 <= len(dimensions) <= 3 or any(
-                type(n) is not int or not 1 <= n <= 65536 for n in dimensions):
-            raise ValueError(f"invalid dimensions: {dimensions}")
-        validate_values(table["values"], dimensions, c_type)
-    return document
 
 
 def initializer(value):
@@ -107,7 +37,7 @@ def validate_references(tables):
             raise ValueError(f"invalid {label} reference: {value}")
     profiles = len(tables["k_profiles"])
     for row in tables["k_player_base_records"] + tables["k_enemy_records"]:
-        reference(row[1], profiles, "movement profile", first=1)
+        reference(row[1], profiles - 1, "movement profile", first=1)
     for row in tables["k_player_base_records"]:
         for item in row[12:18]:
             reference(item, len(tables["ITEM_RECORDS"]), "initial item", sentinel=255)
@@ -116,6 +46,12 @@ def validate_references(tables):
     for row in tables["k_learning_records"]:
         for magic in row[1::2]:
             reference(magic, len(tables["MAGIC_RECORDS"]), "learned magic", sentinel=255)
+    for name in ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS"):
+        for magic in tables[name]:
+            reference(magic, len(tables["MAGIC_RECORDS"]), "map magic")
+    for before in tables["MAGIC_MAP_COST_BEFORE_CAST"]:
+        if before not in (0, 1):
+            raise ValueError("map magic cost_before_cast must be 0 or 1")
 
 
 def preparation_views(tables):
@@ -163,41 +99,91 @@ def render_tables(tables):
     lines = ["/* 由 tools/static_data/generate.py 生成，禁止手改。 */"]
     for table in tables:
         dimensions = "".join(f"[{n}]" for n in table["dimensions"])
+        if not dimensions:
+            lines.extend([f"static const {table['c_type']} {table['name']} = {initializer(table['values'])};", ""])
+            continue
         lines.append(f"static const {table['c_type']} {table['name']}{dimensions} = {{")
         lines.extend("    " + initializer(row) + "," for row in table["values"])
         lines.extend(["};", ""])
     return "\n".join(lines).encode("utf-8")
 
 
+def native_records(stem, tables):
+    """具名投影仍可独立核原来源，C 直接索引实际需要的记录。"""
+    if stem == "battle_animation":
+        return [dict(table, c_type="fd2_battle_map_action_parameters", dimensions=[])
+                if table["name"] == "k_battle_map_action_parameters" else table for table in tables]
+    groups = {
+        "attack": [
+            ("fd2_terrain_combat_modifier", "k_terrain_modifiers",
+             ("k_terrain_attack_percent", "k_terrain_defense_percent")),
+        ],
+        "magic": [
+            ("fd2_field_magic_map_profile", "k_magic_map_profiles",
+             ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS", "MAGIC_MAP_TARGET_LIMITS",
+              "MAGIC_MAP_COST_BEFORE_CAST")),
+        ],
+        "magic_fx": [
+            ("fd2_magic_fx_definition", "k_fx_definitions",
+             ("k_fx_hostile_clips", "k_fx_friendly_clips", "k_fx_banks", "k_fx_hp_denominators",
+              "k_fx_sample_counts", "k_fx_hit_frame_bases", "k_fx_return_lut_bases", "k_fx_minimum_parts")),
+            ("fd2_magic_rain_point", "k_fx_rain0", ("k_fx_rain0_x", "k_fx_rain0_y", "k_fx_rain0_front")),
+            ("fd2_magic_fx_point", "k_fx_rain1", ("k_fx_rain1_x", "k_fx_rain1_y")),
+            ("fd2_magic_shower_point", "k_fx_shower", ("k_fx_shower_x", "k_fx_shower_y", "k_fx_shower_parts")),
+            ("fd2_magic_fx_point", "k_fx_orbit", ("k_fx_orbit_dx", "k_fx_orbit_dy")),
+        ],
+    }
+    if stem not in groups:
+        return tables
+    columns = {table["name"]: table["values"] for table in tables}
+    for c_type, symbol, names in groups[stem]:
+        fields = [columns.pop(name) for name in names]
+        if symbol == "k_fx_definitions" and len(fields[1]) == 9:
+            fields[1] = fields[1] + [0]  # FULL ID 9 没有己方片段，getter 拒绝该组合。
+        if len({len(field) for field in fields}) != 1:
+            raise ValueError(f"{symbol}: native record column extent mismatch")
+        values = [list(row) for row in zip(*fields)]
+        tables = [table for table in tables if table["name"] not in names]
+        tables.append({"name": symbol, "c_type": c_type, "dimensions": [len(values)], "values": values})
+    return tables
+
+
 def read_movement_scripts(document):
     if (not isinstance(document, dict) or set(document) != {"schema_version", "scripts"} or
-            type(document["schema_version"]) is not int or document["schema_version"] != SCHEMA_VERSION or
+            type(document["schema_version"]) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION or
             not isinstance(document["scripts"], dict) or not document["scripts"]):
         raise ValueError("movement script document requires schema_version and nonempty scripts")
     scripts = {}
-    for identity, data in document["scripts"].items():
+    for identity, script in document["scripts"].items():
         if not re.fullmatch(r"0|[1-9][0-9]{0,2}", identity) or int(identity) > 255:
             raise ValueError(f"invalid movement script ID: {identity}")
-        if not isinstance(data, list) or not data:
-            raise ValueError(f"movement script {identity} must be a nonempty byte stream")
-        for value in data:
-            integer(value, "uint8_t")
-        at = 1
-        for _ in range(data[0]):
-            if at + 2 > len(data):
-                raise ValueError(f"movement script {identity}: truncated group")
-            mode, count = data[at:at+2]
-            at += 2
-            end = at + count * 2
-            if count > 32 or end > len(data):
+        if not isinstance(script, dict) or set(script) != {"groups"} or not isinstance(script["groups"], list):
+            raise ValueError(f"movement script {identity}: groups array required")
+        groups = script["groups"]
+        integer(len(groups), "uint8_t")
+        data = [len(groups)]
+        for group in groups:
+            if not isinstance(group, dict) or set(group) not in (
+                    {"move_cells", "actors"}, {"wait_frames", "actors"}):
+                raise ValueError(f"movement script {identity}: expected move_cells or wait_frames and actors")
+            wait = "wait_frames" in group
+            count = group["wait_frames" if wait else "move_cells"]
+            if type(count) is not int or not 0 <= count <= 127:
+                raise ValueError(f"movement script {identity}: group count outside [0, 127]")
+            mode = count | (0x80 if wait else 0)
+            actors = group["actors"]
+            if not isinstance(actors, list) or len(actors) > 32:
                 raise ValueError(f"movement script {identity}: invalid actor pair count")
-            for pos in range(at, end, 2):
-                actor, direction = data[pos:pos+2]
+            data.extend((mode, len(actors)))
+            for actor_definition in actors:
+                if not isinstance(actor_definition, dict) or set(actor_definition) != {"slot", "direction"}:
+                    raise ValueError(f"movement script {identity}: actor requires slot and direction")
+                actor, direction = actor_definition["slot"], actor_definition["direction"]
+                integer(actor, "uint8_t")
+                integer(direction, "uint8_t")
                 if actor >= 96 or (direction > 3 and not (mode == 0x80 and direction == 5)):
                     raise ValueError(f"movement script {identity}: invalid actor/direction pair")
-            at = end
-        if at != len(data):
-            raise ValueError(f"movement script {identity}: stream not completely consumed")
+                data.extend((actor, direction))
         scripts[int(identity)] = data
     return scripts
 
@@ -621,18 +607,13 @@ def generate(root: Path, output: Path, check=False):
         path = tables_dir / name
         raw = path.read_bytes()
         inputs[path] = raw
-        records = validate_document(decode_json(raw))["tables"]
-        if not isinstance(contracts, dict) or set(contracts) != {t["name"] for t in records}:
-            raise ValueError(f"{name}: ABI table coverage differs from manifest")
+        records = project_tables(path.stem, decode_json(raw), contracts)
         for table in records:
             symbol = table["name"]
-            shape = {"c_type": table["c_type"], "dimensions": table["dimensions"]}
-            if json.dumps(contracts[symbol], sort_keys=True) != json.dumps(shape, sort_keys=True):
-                raise ValueError(f"{name}/{symbol}: consumer ABI contract mismatch")
             if symbol in tables:
                 raise ValueError(f"duplicate global table name: {symbol}")
             tables[symbol] = table["values"]
-        outputs[Path(name).stem + ".inc"] = render_tables(records)
+        outputs[path.stem + ".inc"] = render_tables(native_records(path.stem, records))
     validate_references(tables)
     aliases = constructor_alias_records(tables)
     outputs["unit_base.inc"] += b"\n" + render_tables([{

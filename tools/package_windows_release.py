@@ -19,7 +19,7 @@ CODE_EXTENSIONS = {".c", ".cpp", ".h", ".hpp", ".inl", ".inc", ".ipp", ".tcc", "
 REQUIRED_SOURCE = {"LICENSE", "README.md", "CMakeLists.txt", "src/main.c",
                    "CMake/Application.cmake", "CMake/BuildOptions.cmake",
                    "CMake/SDL3.cmake", "CMake/StaticData.cmake",
-                   "data/static/manifest.json", "tools/static_data/generate.py",
+                   "data/static/manifest.json", "tools/static_data/generate.py", "tools/static_data/table_schema.py",
                    "src/third_party/nukedopl3.c", "src/third_party/nukedopl3.h",
                    "src/third_party/LICENSE.nukedopl3"}
 # 仅发布说明：main启动/音乐路径与battle_animation的BG/TAI读取，不作第二套runtime校验。
@@ -70,8 +70,8 @@ def _tree(root: Path):
 def _source_allowed(relative: str) -> bool:
     parts = PurePosixPath(relative).parts
     name = parts[-1]
-    if relative == "tools/static_data/generate.py":
-        return True
+    if parts[:2] == ("tools", "static_data"):
+        return relative in REQUIRED_SOURCE
     if parts[:2] == ("data", "static"):
         return relative == "data/static/manifest.json" or (
             len(parts) == 4 and parts[2] in {"tables", "flows", "stages"} and

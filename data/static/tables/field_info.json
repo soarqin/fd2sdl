@@ -1,17 +1,7 @@
 {
-  "schema_version": 2,
-  "tables": [
-    {
-      "name": "k_field_overview_condition_policy",
-      "c_type": "int32_t",
-      "dimensions": [3],
-      "values": [597, 2, 1]
-    },
-    {
-      "name": "k_field_overview_roster_rules",
-      "c_type": "int32_t",
-      "dimensions": [1, 4],
-      "values": [[16, 18, -2, 0]]
-    }
+  "schema_version": 3,
+  "conditions": {"fragment_base": 597, "stage_stride": 2, "defeat_offset": 1},
+  "roster_rules": [
+    {"stage": 16, "text_id": 18, "absent_delta": -2, "present_delta": 0}
   ]
 }

@@ -18,6 +18,10 @@
 #include "field_move_profile.h"
 
 /* 地形百分比与profile暴击原表见 data/static/tables/attack.json。 */
+typedef struct {
+    int32_t attack_percent, defense_percent;
+} fd2_terrain_combat_modifier;
+
 #include "static_data/attack.inc"
 
 #define FD2_FIELD_EQUIPMENT_SLOT_COUNT 8u
@@ -213,10 +217,11 @@ int fd2_field_attack_terrain_modifiers(uint8_t movement_cost_class,
                                        int32_t *attack_percent,
                                        int32_t *defense_percent) {
     if (!attack_percent || !defense_percent || movement_cost_class >=
-        sizeof(k_terrain_attack_percent) / sizeof(k_terrain_attack_percent[0]))
+        sizeof(k_terrain_modifiers) / sizeof(k_terrain_modifiers[0]))
         return -1;
-    *attack_percent = k_terrain_attack_percent[movement_cost_class];
-    *defense_percent = k_terrain_defense_percent[movement_cost_class];
+    const fd2_terrain_combat_modifier *modifier = &k_terrain_modifiers[movement_cost_class];
+    *attack_percent = modifier->attack_percent;
+    *defense_percent = modifier->defense_percent;
     return 0;
 }
 

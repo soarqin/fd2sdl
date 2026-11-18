@@ -1,4 +1,4 @@
-# 冷定义的构建与来源校验
+# 冷定义的构建、导出与来源校验
 
 普通冷表和移动脚本位于 `data/static/tables/`，事件图位于 `data/static/flows/`，消费契约在 `data/static/manifest.json`。构建期生成私有 `const` 表。流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。JSON 字段、索引和改动示例见[静态数据与 Mod 制作](../formats/static-data.md)。
 
@@ -6,11 +6,37 @@
 
 正常 CMake 构建自动使用 Python 3.9+ 标准库，在构建目录的 `generated/static_data/` 下生成 `.inc` 文件。运行时使用已编译的数据和所需 DAT 资源。构建需要 JSON 和生成器，离线源码包包含这些材料。命令见[工具速查](README.md)。
 
-修改定义时编辑 JSON。版本 2 精简了构建输入，原版地址、读集与来源身份由源码注释、独立校验工具和逆向文档记录。旧 JSON 中的逐表、逐域 `source` 可在 Git 提交 `7ddd365` 的 `data/static/` 中追溯。原版文件身份见[原版参照身份](../formats/original-reference.md)，历史候选的验收范围见[历史证据索引](../history.md)。
+普通冷表和移动脚本使用版本 3 的具名 JSON。事件图和消费清单使用版本 2。[`table_schema.py`](../../tools/static_data/table_schema.py) 将具名字段投影为原始字节布局或 C 数组。地形攻防修正、地图施法分派、短演出参数和 FULL 法术特效由 C 直接按记录读取。原版地址、读集与来源身份由源码注释、独立校验工具和逆向文档登记。旧 JSON 中逐表、逐域的 `source` 可在 Git 提交 `7ddd365` 的 `data/static/` 中追溯。历史候选的验收范围见[历史证据索引](../history.md)。
 
-生成器检查重复键与符号、字段、整数范围、普通表尺寸和已解码引用。普通表的 ABI 尺寸变化需要同时审查调用方。移动脚本只检查 ID、字节流结构和流程引用，按实际字节数生成数组。所有输入验证成功后才替换输出。若报多余旧 `.inc`，可使用新的构建目录重新生成。
+生成器检查重复键、必填字段、整数范围、普通表尺寸和已解码引用。普通表的尺寸变化需要同时审查调用方。移动脚本按实际组数和参与者数量生成字节流，检查 ID、组容量、方向和流程引用。所有输入验证成功后才替换输出。若报多余旧 `.inc`，可使用新的构建目录重新生成。
 
 生成校验接受符合类型和引用合同的有意修改。是否与原版一致由独立校验器按原始读集判断。保留用途未确认的字节。
+
+## 从原版 FD2.EXE 导出冷表
+
+在完整源码仓库的根目录执行。准备一份符合[原版参照身份](../formats/original-reference.md)的 `FD2.EXE` 和同版本的 `data/static/tables/`。要还原默认值，使用含默认冷定义的工作区，或用 `--tables-dir` 指向另一份同版本的默认表。导出目标须是位于原资源和源定义目录之外的新目录。
+
+Windows PowerShell
+
+```powershell
+python -B tools/static_data/extract.py original_game/FD2.EXE --output build/original-static
+python -B tools/static_data/verify_unit_tables.py original_game/FD2.EXE --tables-dir build/original-static
+python -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --tables-dir build/original-static --self-test
+python -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE --definitions build/original-static/movement_scripts.json
+```
+
+Linux Bash
+
+```bash
+python3 -B tools/static_data/extract.py original_game/FD2.EXE --output build/original-static
+python3 -B tools/static_data/verify_unit_tables.py original_game/FD2.EXE --tables-dir build/original-static
+python3 -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --tables-dir build/original-static --self-test
+python3 -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE --definitions build/original-static/movement_scripts.json
+```
+
+工具先校验 EXE 的 SHA-256，按登记的 LE 页范围读取记录，并通过 fixup 和指令锚点重建已支持的指针或分派投影。输出包含 16 份版本 3 JSON，其中 106 条原版移动脚本根据指针、模式和计数解码。终端报告的 `from_exe` 列出从 EXE 重建的表投影，`retained` 列出沿用输入 JSON 的已审查投影，例如部分演出参数与构造窗口定义。
+
+对照导出结果后，将所需记录合入 `data/static/tables/`，再构建 `fd2_static_data` 目标。原版事件流程还需按 [IDA 流程](ida.md) 和 [地址映射](../reverse-engineering/address-mapping.md) 核对调用、分支及关联 DAT，再将确认的语义写入 `data/static/flows/`。导出工具的范围为冷表和移动脚本，完整构建使用仓库中的事件图。
 
 ## 独立校验
 

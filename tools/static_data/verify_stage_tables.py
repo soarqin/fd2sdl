@@ -15,6 +15,7 @@ from pathlib import Path
 import struct
 
 from verify_unit_tables import EXE_SHA256, ROOT, source_range
+from table_schema import TABLE_SCHEMA_VERSION, load_table_document
 
 # 名称／类型／尺寸／VA独立登记，禁止按待验JSON的自报范围寻找匹配。
 TABLES = {
@@ -47,15 +48,6 @@ CUES = (
     ("FD2_FIELD_SFX_STAGE_TRANSITION", 80, 11),
     ("FD2_FIELD_SFX_EARTHQUAKE", 80, 13),
 )
-
-
-def unique_object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"重复 JSON 字段：{key}")
-        result[key] = value
-    return result
 
 
 def flatten(value, dimensions, c_type):
@@ -93,7 +85,7 @@ def check(documents, executable):
         tables = document.get("tables")
         count = len(specs) + (stem == "field_audio")
         if (type(document.get("schema_version")) is not int
-                or document["schema_version"] != 2
+                or document["schema_version"] != TABLE_SCHEMA_VERSION
                 or not isinstance(tables, list) or len(tables) != count):
             raise ValueError(f"{stem}：格式版本或表集合不符")
         for table, spec in zip(tables, specs):
@@ -139,8 +131,7 @@ def negative_checks(documents, executable):
 
 
 def verify(executable: Path, tables_dir: Path, self_test=False):
-    documents = {stem: json.loads((tables_dir / f"{stem}.json").read_text(encoding="utf-8"),
-                                 object_pairs_hook=unique_object) for stem in TABLES}
+    documents = {stem: load_table_document(tables_dir / f"{stem}.json") for stem in TABLES}
     data = executable.read_bytes()
     result = check(documents, data)
     if self_test:

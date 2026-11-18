@@ -156,7 +156,8 @@ static uint64_t words_fnv(const int32_t *p,size_t n) {
     uint64_t h=UINT64_C(14695981039346656037);
     for(size_t i=0;i<n;i++)for(unsigned sh=0;sh<32;sh+=8) {
         h^=((uint32_t)p[i]>>sh)&255u;h*=UINT64_C(1099511628211);
-    }return h;
+    }
+    return h;
 }
 static uint64_t bytes_fnv(const uint8_t *p,size_t n) {
     uint64_t h=UINT64_C(14695981039346656037);

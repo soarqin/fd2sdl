@@ -7,7 +7,6 @@
 #endif
 #include "audio_pcm_capture.h"
 #include <SDL3/SDL.h>
-#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,14 +33,14 @@ struct fd2_audio_pcm_capture {
     float *buffer;
     uint32_t capacity, max_ms, pid;
     char *directory, *start, *stop, *ready, *summary, *wav;
-    _Atomic unsigned enabled, busy, written, error, closing;
+    SDL_AtomicU32 enabled, written, error, closing;
+    SDL_AtomicInt busy;
     uint64_t first_qpc,last_qpc;
     int ready_published, suppress_device_output;
     float silence[512*2];
 };
 static void fail(fd2_audio_pcm_capture *c,unsigned error) {
-    unsigned expected=E_NONE;
-    (void)atomic_compare_exchange_strong(&c->error,&expected,error);
+    (void)SDL_CompareAndSwapAtomicU32(&c->error,E_NONE,error);
 }
 static const char *error_name(unsigned e) {
     static const char *const names[]={"","wrong_start_pid","stop_before_ready","no_successful_submission",
@@ -75,7 +74,8 @@ static char *resolved_directory(const char *path) {
     for(wchar_t *s=real;*s;) {
         while(*s==L'/'||*s==L'\\')s++;
         wchar_t *end=s;while(*end&&*end!=L'/'&&*end!=L'\\')end++;
-        if(end-s==13&&!_wcsnicmp(s,L"original_game",13))return NULL;s=end;
+        if(end-s==13&&!_wcsnicmp(s,L"original_game",13))return NULL;
+        s=end;
     }
     int bytes=WideCharToMultiByte(CP_UTF8,0,real,-1,NULL,0,NULL,NULL);
     char *out=bytes>0?malloc((size_t)bytes):NULL;
@@ -84,8 +84,11 @@ static char *resolved_directory(const char *path) {
 #else
     char *out=realpath(path,NULL);if(!out)return NULL;
     for(char *s=out;*s;) {
-        while(*s=='/')s++;char *end=s;while(*end&&*end!='/')end++;
-        if(end-s==13&&!strncmp(s,"original_game",13)){free(out);return NULL;}s=end;
+        while (*s == '/') s++;
+        char *end = s;
+        while (*end && *end != '/') end++;
+        if(end-s==13&&!strncmp(s,"original_game",13)){free(out);return NULL;}
+        s=end;
     }
     return out;
 #endif
@@ -106,7 +109,8 @@ static int finish_file(FILE *file) {
 #else
     if(ok)ok=fsync(fileno(file))==0;
 #endif
-    if(fclose(file))ok=0;return ok?0:-1;
+    if(fclose(file))ok=0;
+    return ok?0:-1;
 }
 static int publish(const char *path,const char *text) {
     char *tmp=malloc(strlen(path)+5);if(!tmp)return -1;sprintf(tmp,"%s.tmp",path);
@@ -127,7 +131,8 @@ static int publish(const char *path,const char *text) {
         ok=link(tmp,path)==0;if(ok)unlink(tmp);
 #endif
     }
-    if(!ok)SDL_RemovePath(tmp);free(tmp);return ok?0:-1;
+    if(!ok)SDL_RemovePath(tmp);
+    free(tmp);return ok?0:-1;
 }
 static void le(unsigned char *p,uint32_t v,unsigned n){for(unsigned i=0;i<n;i++)p[i]=(unsigned char)(v>>(8*i));}
 /* v3：S16/32768可由F32精确承载，逐个原S16均可无损回译。
@@ -154,7 +159,8 @@ static int write_wave(fd2_audio_pcm_capture *c,unsigned frames) {
         }
         ok=fwrite(pcm,1,n*4,file)==n*4;at+=n;
     }
-    if(finish_file(file))ok=0;return ok?0:-1;
+    if(finish_file(file))ok=0;
+    return ok?0:-1;
 }
 static int read_start_pid(fd2_audio_pcm_capture *c) {
     SDL_IOStream *io=SDL_IOFromFile(c->start,"rb");if(!io)return 1;
@@ -167,17 +173,17 @@ static int read_start_pid(fd2_audio_pcm_capture *c) {
     return n&&v==c->pid&&*end==0?0:-1;
 }
 static int quiet(fd2_audio_pcm_capture *c) {
-    /* seq_cst busy/enabled约束：关门前进入的submission必须完成，关门后进入的只读false。 */
-    atomic_store(&c->enabled,0);
+    /* 先关闭接收门，再等待已进入的 submission 释放 busy。 */
+    SDL_SetAtomicU32(&c->enabled,0);
     uint64_t until=SDL_GetTicks()+QUIET_TIMEOUT_MS;
-    while(atomic_load(&c->busy)) {if(SDL_GetTicks()>=until){fail(c,E_NOT_QUIET);return 0;}SDL_Delay(1);}
+    while(SDL_GetAtomicInt(&c->busy)) {if(SDL_GetTicks()>=until){fail(c,E_NOT_QUIET);return 0;}SDL_Delay(1);}
     return 1;
 }
 static int SDLCALL capture_worker(void *userdata) {
     fd2_audio_pcm_capture *c=userdata;const char *reason="host_shutdown";
     uint64_t deadline=SDL_GetTicks()+START_TIMEOUT_MS;
     while(!exists(c->start)) {
-        if(atomic_load(&c->closing)){fail(c,E_HOST);goto done;}
+        if(SDL_GetAtomicU32(&c->closing)){fail(c,E_HOST);goto done;}
         if(exists(c->stop)){fail(c,E_STOP_EARLY);reason="stop_before_start";goto done;}
         if(SDL_GetTicks()>=deadline){fail(c,E_START);reason="start_timeout";goto done;}
         SDL_Delay(2);
@@ -185,16 +191,16 @@ static int SDLCALL capture_worker(void *userdata) {
     deadline=SDL_GetTicks()+READY_TIMEOUT_MS;
     int owner;
     while((owner=read_start_pid(c))==1) {
-        if(atomic_load(&c->closing)){fail(c,E_HOST);goto done;}
+        if(SDL_GetAtomicU32(&c->closing)){fail(c,E_HOST);goto done;}
         if(exists(c->stop)){fail(c,E_STOP_EARLY);reason="stop_before_ready";goto done;}
         if(SDL_GetTicks()>=deadline){owner=-1;break;}
         SDL_Delay(2);
     }
     if(owner){fail(c,E_OWNER);reason="bad_start";goto done;}
-    atomic_store(&c->enabled,1);deadline=SDL_GetTicks()+READY_TIMEOUT_MS;
-    while(!atomic_load_explicit(&c->written,memory_order_acquire)) {
-        if(atomic_load(&c->error)){reason="capture_error";goto done;}
-        if(atomic_load(&c->closing)){fail(c,E_HOST);goto done;}
+    SDL_SetAtomicU32(&c->enabled,1);deadline=SDL_GetTicks()+READY_TIMEOUT_MS;
+    while(!SDL_GetAtomicU32(&c->written)) {
+        if(SDL_GetAtomicU32(&c->error)){reason="capture_error";goto done;}
+        if(SDL_GetAtomicU32(&c->closing)){fail(c,E_HOST);goto done;}
         if(exists(c->stop)){fail(c,E_STOP_EARLY);reason="stop_before_ready";goto done;}
         if(SDL_GetTicks()>=deadline){fail(c,E_NO_SUBMISSION);reason="no_submission";goto done;}
         SDL_Delay(2);
@@ -204,17 +210,17 @@ static int SDLCALL capture_worker(void *userdata) {
     if(publish(c->ready,text)){fail(c,E_IO);reason="ready_io_error";goto done;}
     c->ready_published=1;deadline=SDL_GetTicks()+c->max_ms;
     for(;;) {
-        if(atomic_load(&c->error)){reason="capture_error";break;}
+        if(SDL_GetAtomicU32(&c->error)){reason="capture_error";break;}
         if(exists(c->stop)){reason="stop";break;}
-        if(atomic_load(&c->closing)){fail(c,E_HOST);break;}
+        if(SDL_GetAtomicU32(&c->closing)){fail(c,E_HOST);break;}
         if(SDL_GetTicks()>=deadline){fail(c,E_TIME);reason="time_limit";break;}
         SDL_Delay(2);
     }
 done:;
-    int quiescent=quiet(c);unsigned frames=atomic_load_explicit(&c->written,memory_order_acquire);
+    int quiescent=quiet(c);unsigned frames=SDL_GetAtomicU32(&c->written);
     int wave_ok=quiescent&&frames&&write_wave(c,frames)==0;
     if(quiescent&&frames&&!wave_ok)fail(c,E_IO);
-    unsigned error=atomic_load(&c->error);
+    unsigned error=SDL_GetAtomicU32(&c->error);
     int ok=!error&&c->ready_published&&wave_ok&&!strcmp(reason,"stop");
     uint64_t first=quiescent?c->first_qpc:0,last=quiescent?c->last_qpc:0;
     char summary[1800];
@@ -243,8 +249,6 @@ fd2_audio_pcm_capture *fd2_audio_pcm_capture_open(const char *directory,int rate
     c->pid=(unsigned)getpid();
 #endif
     c->buffer=malloc((size_t)c->capacity*2*sizeof(float));if(!c->buffer)goto bad;
-    atomic_init(&c->enabled,0);atomic_init(&c->busy,0);atomic_init(&c->written,0);atomic_init(&c->error,0);atomic_init(&c->closing,0);
-    if(!atomic_is_lock_free(&c->enabled)||!atomic_is_lock_free(&c->busy)||!atomic_is_lock_free(&c->written)||!atomic_is_lock_free(&c->error))goto bad;
     c->thread=SDL_CreateThread(capture_worker,"app-mix-writer",c);if(!c->thread)goto bad;
     return c;
 bad:
@@ -257,9 +261,9 @@ const float *fd2_audio_pcm_capture_submission(fd2_audio_pcm_capture *c,const flo
 }
 void fd2_audio_pcm_capture_push(fd2_audio_pcm_capture *c,const float *stereo,size_t frames) {
     if(!c)return;
-    if(atomic_fetch_add(&c->busy,1)){fail(c,E_FRAMES);atomic_fetch_sub(&c->busy,1);return;}
-    if(atomic_load(&c->enabled)) {
-        unsigned at=atomic_load_explicit(&c->written,memory_order_relaxed);
+    if(SDL_AddAtomicInt(&c->busy,1)){fail(c,E_FRAMES);SDL_AddAtomicInt(&c->busy,-1);return;}
+    if(SDL_GetAtomicU32(&c->enabled)) {
+        unsigned at=SDL_GetAtomicU32(&c->written);
         if(!stereo||!frames||frames>512)fail(c,E_FRAMES);
         else if(frames>c->capacity-at)fail(c,E_CAPACITY);
         else {
@@ -268,26 +272,27 @@ void fd2_audio_pcm_capture_push(fd2_audio_pcm_capture *c,const float *stereo,siz
             else {
                 uint64_t qpc=SDL_GetPerformanceCounter();if(!at)c->first_qpc=qpc;c->last_qpc=qpc;
                 memcpy(c->buffer+(size_t)at*2,stereo,frames*2*sizeof(float));
-                atomic_store_explicit(&c->written,at+(unsigned)frames,memory_order_release);
+                SDL_SetAtomicU32(&c->written,at+(unsigned)frames);
             }
         }
     }
-    atomic_fetch_sub(&c->busy,1);
+    SDL_AddAtomicInt(&c->busy,-1);
 }
 void fd2_audio_pcm_capture_put_failed(fd2_audio_pcm_capture *c) {
     if(!c)return;
     /* 与成功push使用同一接收窗口；quiet关闭门并等已进入的通知结束。 */
-    atomic_fetch_add(&c->busy,1);
-    if(atomic_load(&c->enabled))fail(c,E_AUDIO_PUT);
-    atomic_fetch_sub(&c->busy,1);
+    SDL_AddAtomicInt(&c->busy,1);
+    if(SDL_GetAtomicU32(&c->enabled))fail(c,E_AUDIO_PUT);
+    SDL_AddAtomicInt(&c->busy,-1);
 }
 void fd2_audio_pcm_capture_output_dropped(fd2_audio_pcm_capture *c) {
     if(!c)return;
-    atomic_fetch_add(&c->busy,1);
-    if(atomic_load(&c->enabled))fail(c,E_AUDIO_BACKLOG);
-    atomic_fetch_sub(&c->busy,1);
+    SDL_AddAtomicInt(&c->busy,1);
+    if(SDL_GetAtomicU32(&c->enabled))fail(c,E_AUDIO_BACKLOG);
+    SDL_AddAtomicInt(&c->busy,-1);
 }
 void fd2_audio_pcm_capture_close(fd2_audio_pcm_capture *c) {
-    if(!c)return;atomic_store(&c->closing,1);SDL_WaitThread(c->thread,NULL);
+    if(!c)return;
+    SDL_SetAtomicU32(&c->closing,1);SDL_WaitThread(c->thread,NULL);
     free(c->buffer);free(c->directory);free(c->start);free(c->stop);free(c->ready);free(c->summary);free(c->wav);free(c);
 }

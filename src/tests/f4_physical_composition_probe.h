@@ -79,7 +79,7 @@ static int f4_phys_cli(const char *root) {
     if(_setmode(_fileno(stdout),_O_BINARY)<0)return 1;
 #endif
     if(f4_path(path,root,"FIGANI.DAT") || fd2_archive_open(&archive,path) ||
-       !(frozen=malloc(archive.size)))goto done;
+       (frozen = malloc(archive.size)) == NULL)goto done;
     memcpy(frozen,archive.data,archive.size);
     if(f4_input_receipt("FIGANI.DAT",archive.data,archive.size))goto done;
     while(fgets(line,sizeof(line),stdin)) {

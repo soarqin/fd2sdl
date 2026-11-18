@@ -571,7 +571,8 @@ int fd2_field_game_progress_ack(fd2_field_game *game) {
     } else {
         fd2_reward_cursor cursor = reward_cursor_get(&game->progress);
         const fd2_static_flow_node *node = fd2_static_flow_at(fd2_reward_graph(), cursor.step);
-        if (!node || node->args[0] != notice.kind || fd2_reward_ack(fd2_reward_graph(), &cursor) != 0) result = -1;
+        if (!node || node->args[0] != (int32_t)notice.kind ||
+                fd2_reward_ack(fd2_reward_graph(), &cursor) != 0) result = -1;
         else { game->progress.flow_step = cursor.step; result = advance_reward_progress(game); }
     }
     if (result == 1) {
@@ -1325,7 +1326,7 @@ int fd2_field_game_stage_source_node(fd2_field_game *game,
         if (!game->stage || game->stage >= 30u || !game->metadata.unknown_01) return -1;
         fd2_save_manual_state state = {0};
         state.stage_id = (uint8_t)game->stage;
-        state.unit_count = game->roster_count;
+        state.unit_count = (uint8_t)game->roster_count;
         memcpy(state.unit_area, game->roster, sizeof(game->roster));
         fd2_field_units units;
         if (fd2_field_prepare_deployment_project(&state, game->stage, &game->map, &game->metadata,
@@ -1386,7 +1387,7 @@ int fd2_field_game_stage_source_node(fd2_field_game *game,
         if (a[0] < 0 || a[0] > 31 || append_persistent_player(game, (uint8_t)a[0]) != 0) return -1;
     } else if (!strcmp(node->op, "roster_sync")) {
         fd2_save_manual_state state = {0};
-        state.unit_count = game->roster_count;
+        state.unit_count = (uint8_t)game->roster_count;
         memcpy(state.unit_area, game->roster, sizeof(game->roster));
         int result = settlement_roster_sync(&game->units, &state);
         /* 首错之前已经同步的持久记录不回滚。 */
@@ -2872,7 +2873,7 @@ static void render_field_cursor(const fd2_field_game *game,
         {0,-1,10},{-1,0,11},{1,0,12},{0,1,13}
     };
     static const int8_t radius1[][3] = {{0,0,14},{0,-1,2},{-1,0,3},{1,0,4},{0,1,5}};
-    int8_t one[1][3] = {{0,0,display == 1 ? 0 : 1}};
+    const int8_t one[1][3] = {{0,0,display == 1 ? 0 : 1}};
     const int8_t (*parts)[3] = display == 3 ? radius1 : display == 4 ? radius2 : display == 5 ? sprites : one;
     size_t count = display == 3 ? 5 : display == 4 ? 13 : display == 5 ? 21 : 1;
     for (size_t i = 0; i < count; i++) {
@@ -4515,9 +4516,12 @@ static int magic_effect_group(fd2_field_game *game, fd2_field_magic_present_even
         event->target_before = &before; event->target_after = &game->units.items[raw];
         event->result = &effect;
         int presented=map_c11_present(game,event);
+        event->target_before = event->target_after = NULL;
+        event->result = NULL;
         if(presented)return presented; /* 当前target已提交，HOST不得进入下一目标。 */
     }
-    event->target_before = event->target_after = NULL; event->result = NULL;
+    event->target_before = event->target_after = NULL;
+    event->result = NULL;
     return 0;
 }
 
@@ -5490,8 +5494,6 @@ static int physical_sequence_preflight(
                               &adjusted_defense) != 0 ||
         adjusted_attack > FD2_FIELD_COMBAT_EFFECTIVE_STAT_MAX ||
         adjusted_defense > FD2_FIELD_COMBAT_EFFECTIVE_STAT_MAX ||
-        attacker->accuracy > FD2_FIELD_COMBAT_ACCURACY_MAX ||
-        defender->evasion > FD2_FIELD_COMBAT_ACCURACY_MAX ||
         fd2_field_attack_weapon_critical_bonus(
             attacker, &weapon_critical_bonus) != 0 ||
         (!game->attack_critical_base &&
@@ -6851,8 +6853,8 @@ static int commit_ai_item_internal(
         return -1;
     const uint8_t *item = fd2_field_item_record_get(plan->item_id);
     uint8_t code = item ? item[0x0du] : 0u;
-    uint16_t value = item ? (uint16_t)item[0x0eu] |
-        ((uint16_t)item[0x0fu] << 8) : 0u;
+    uint16_t value = item ? (uint16_t)(item[0x0eu] |
+        ((unsigned)item[0x0fu] << 8)) : 0;
     /* 0x20c6f 的物品 dispatcher：AI 评分涉及 code 5/13/20/21/24。
      * code 5/13 先共用 0x211a4，逐目标以 item value 调用恢复 core
      * 0x1c916；只有 code 5 随后在 0x20d24 移除并压紧原 slot。
@@ -7731,7 +7733,8 @@ int fd2_field_game_process_automatic_action_visual(
                 fd2_field_unit_has_acted(unit) ||
                 unit->detail_status[1] != 0u) {
                 int result=skip_ai_outer_result(game,i);
-                if(result<0)return -1;if(result>0)return 1;
+                if(result<0)return -1;
+                if(result>0)return 1;
                 continue;
             }
             fd2_field_ai_magic_candidate magic;
@@ -7744,7 +7747,8 @@ int fd2_field_game_process_automatic_action_visual(
                 &item) == 0 && item.score >= 6;
             if (!magic_ready && !item_ready) {
                 int result=skip_ai_outer_result(game,i);
-                if(result<0)return -1;if(result>0)return 1;
+                if(result<0)return -1;
+                if(result>0)return 1;
                 continue;
             }
             /* 13a9f没有统一聚焦；各实际动作wrapper按自身原调用点处理。 */
@@ -7760,7 +7764,8 @@ int fd2_field_game_process_automatic_action_visual(
         if (!ai_unit_can_execute(unit, game->active_side) ||
             fd2_field_unit_has_acted(unit) || unit->detail_status[1] != 0u) {
             int result=skip_ai_outer_result(game,i);
-            if(result<0)return -1;if(result>0)return 1;
+            if(result<0)return -1;
+            if(result>0)return 1;
             continue;
         }
         return run_scheduled_ai_actor(game, i, vga, frame_delay_ms, mode);

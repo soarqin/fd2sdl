@@ -185,7 +185,7 @@ int fd2_field_play_request_music(fd2_vga *vga,fd2_field_play_context *context,
     fflush(stdout);
     if (result != 0) {
         context->music_error = 1;
-        fprintf(stderr, "音乐请求失败：stage=%zu track=%d。\n", stage, track);
+        fprintf(stderr, u8"音乐请求失败：stage=%zu track=%d。\n", stage, track);
     }
     return result;
 }
@@ -2556,7 +2556,7 @@ static void play_focus_cycle(field_play_loop *loop) {
             ? fd2_field_game_cycle_item_target(game)
             : fd2_field_game_cycle_magic_target(game);
         if (result < 0 || game->failure != FD2_FIELD_FAILURE_NONE) {
-            fprintf(stderr, "目标轮换状态无效。\n");
+            fprintf(stderr, u8"目标轮换状态无效。\n");
             loop_stop(loop, FD2_FIELD_PLAY_RETURN_ERROR);
         } else if (game->runtime_host_quit) {
             loop_stop(loop, FD2_FIELD_PLAY_RETURN_HOST_QUIT);
@@ -2653,7 +2653,7 @@ static int play_storage_action(field_play_loop *loop, fd2_field_system_action sy
         /* 存储动作已返回；呈现失败不能回滚或把已写的Save误报成未写。
          * Load成功也已替换session。 */
         char message[96];
-        snprintf(message, sizeof(message), "%s，但结果提示资源无效。",
+        snprintf(message, sizeof(message), u8"%s，但结果提示资源无效。",
             system_action == FD2_FIELD_SYSTEM_ACTION_SAVE
                 ? (success ? "活动存档已写入" : "活动存档返回失败")
                 : (success ? "活动读档已完成" : "活动读档返回失败"));
@@ -2709,7 +2709,7 @@ static void play_system_menu_confirm(field_play_loop *loop) {
         size_t fragment = 0;
         if (fd2_field_system_menu_get_confirmation_fragment(&game->system_menu,
                 FD2_FIELD_SYSTEM_CONFIRM_PROMPT, &fragment) != 0) {
-            if (!loop->runtime->host_quit) fprintf(stderr, "系统确认提示资源无效。\n");
+            if (!loop->runtime->host_quit) fprintf(stderr, u8"系统确认提示资源无效。\n");
             loop_stop(loop, loop->runtime->host_quit
                 ? FD2_FIELD_PLAY_RETURN_HOST_QUIT : FD2_FIELD_PLAY_RETURN_ERROR);
             return;
@@ -2946,7 +2946,7 @@ static fd2_field_play_result play_finish_battle(fd2_field_game *game, fd2_vga *v
         fd2_save_manual_state prepared;
         int scene_result = FD2_SCENE_RESULT_ERROR;
         if (!fd2_field_stage_battle_is_supported(game->stage)) {
-            fprintf(stderr, "当前关卡结算尚未开放，已停止跨关（stage=%zu）。\n", game->stage);
+            fprintf(stderr, u8"当前关卡结算尚未开放，已停止跨关（stage=%zu）。\n", game->stage);
         } else if (fd2_field_stage_source_is_bound(game->stage, "victory")) {
             if (begin_victory_flow(game, vga, context) == 0) {
                 scene_result = fd2_scene_play_stage_victory(vga, fdother, game, field_audio, once);
@@ -3140,7 +3140,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
             if (progress_result != FD2_SCENE_RESULT_OK) {
                 loop.result = play_result_from_scene(progress_result);
                 if (progress_result == FD2_SCENE_RESULT_ERROR)
-                    fprintf(stderr, "战场奖励、状态提示或必需演出失败。\n");
+                    fprintf(stderr, u8"战场奖励、状态提示或必需演出失败。\n");
                 break;
             }
             if (had_progress) input_ready_reported = 0; /* 仍在实际present/quit检查后重报ready。 */
@@ -3267,7 +3267,7 @@ fd2_field_play_result fd2_field_play_run_context(fd2_vga *vga,
                  action == FD2_FIELD_ACTION_LEFT || action == FD2_FIELD_ACTION_RIGHT)) {
                 if (fd2_field_game_select_item_menu_direction(
                         &game, field_action_direction(action)) < 0) {
-                    fprintf(stderr, "物品子菜单方向状态无效。\n");
+                    fprintf(stderr, u8"物品子菜单方向状态无效。\n");
                     loop_stop(&loop, FD2_FIELD_PLAY_RETURN_ERROR);
                 }
                 continue;

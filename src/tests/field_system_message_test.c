@@ -51,13 +51,10 @@ static uint64_t message_ticks(void) { return mock_ms; }
 static int message_delay(uint32_t ms) { delay_calls++; mock_ms += ms; return 0;
 }
 static int message_tick_wait(uint32_t ticks) {
-    if(glyph_tick_calls<32u)tick_args[glyph_tick_calls]=ticks;glyph_tick_calls++;
+    if(glyph_tick_calls<32u)tick_args[glyph_tick_calls]=ticks;
+    glyph_tick_calls++;
     uint64_t ns=fd2_bios_clock_deadline_ns(mock_ms*UINT64_C(1000000),ticks);
     mock_ms=(ns+UINT64_C(999999))/UINT64_C(1000000);
-return 0;
-}
-static int message_wait(fd2_vga *vga) {
-    vga->frame_deadline_ns = vga->frame_interval_ns = 0;
 return 0;
 }
 static int message_present(fd2_vga *vga) {
@@ -65,7 +62,8 @@ static int message_present(fd2_vga *vga) {
     if (expected_present_frame && memcmp(vga->framebuffer, expected_present_frame, VGA_W * VGA_H) != 0) {
         unsigned count = 0; size_t first = 0;
         for (size_t i = 0; i < VGA_W * VGA_H; i++) if (vga->framebuffer[i] != expected_present_frame[i]) {
-            if (!count) first = i; count++;
+            if (!count) first = i;
+            count++;
         }
         fprintf(stderr, "present mismatch count=%u first=(%zu,%zu) actual=%u expected=%u\n",
             count, first % VGA_W, first / VGA_W, vga->framebuffer[first], expected_present_frame[first]);
@@ -237,7 +235,6 @@ uint64_t message_ticks_ns(void);
 #define fd2_vga_upload_current_frame message_copy_upload
 #define fd2_input_begin_frame message_copy_pump
 #define fd2_vga_present_timed message_present_timed
-#define fd2_vga_wait_frame_deadline message_wait
 #define fd2_field_game_open message_open
 #define fd2_field_game_close message_close
 #define fd2_field_game_execute_storage_action message_storage
@@ -256,7 +253,6 @@ uint64_t message_ticks_ns(void);
 #undef fd2_input_begin_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
-#undef fd2_vga_wait_frame_deadline
 #undef fd2_field_game_open
 #undef fd2_field_game_close
 #undef fd2_field_game_execute_storage_action

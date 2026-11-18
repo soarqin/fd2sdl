@@ -88,7 +88,9 @@ add_executable(fd2_audio_device_loss_probe
     "${fd2_src}/tests/audio_device_loss_probe.c"
     "${fd2_src}/tests/sdl_local_disconnect.c"
     "${fd2_src}/audio_pcm_capture.c"
-    "${fd2_src}/bios_clock.c" "${fd2_src}/ail_timer.c")
+    "${fd2_src}/bios_clock.c" "${fd2_src}/ail_timer.c"
+    "${fd2_src}/audio_dig.c" "${fd2_src}/sb_dma_provider.c"
+    "${fd2_src}/sb_channel.c" "${fd2_src}/audio_sb.c" "${fd2_src}/mixdown_dc.c")
 add_executable(fd2_sdl_local_disconnect_test
     "${fd2_src}/tests/sdl_local_disconnect_test.c")
 target_compile_definitions(fd2_sdl_local_disconnect_test PRIVATE SDL_MAIN_HANDLED=1)
@@ -96,7 +98,7 @@ foreach(fd2_target IN ITEMS fd2_audio_device_loss_probe fd2_sdl_local_disconnect
     target_include_directories(${fd2_target} PRIVATE
         "${fd2_src}" "${SDL3_SOURCE_DIR}/src" "${SDL3_BUILD_CONFIG_DIR}")
     target_link_libraries(${fd2_target} PRIVATE SDL3::SDL3-static)
-    target_compile_options(${fd2_target} PRIVATE /W4 /utf-8 /experimental:c11atomics)
+    target_compile_options(${fd2_target} PRIVATE /W4 /utf-8)
     set_target_properties(${fd2_target} PROPERTIES
         COMPILE_PDB_NAME "${fd2_target}"
         COMPILE_PDB_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/pdb")

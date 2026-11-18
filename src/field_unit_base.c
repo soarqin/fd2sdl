@@ -112,9 +112,9 @@ int fd2_field_unit_reward_preview(
     if (!source || !out) return -1;
     fd2_field_unit updated = *source;
     const fd2_static_flow *flow = fd2_reward_graph();
-    if (!flow) return -1;
+    if (!flow || flow->entry > UINT8_MAX) return -1;
     fd2_reward_cursor cursor = {0};
-    cursor.step = flow->entry;
+    cursor.step = (uint8_t)flow->entry;
     fd2_reward_notice notice;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         int result = fd2_reward_advance(flow, &updated, gain, &cursor, &notice,

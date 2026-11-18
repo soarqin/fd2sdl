@@ -43,7 +43,7 @@ Linux（Bash）：`ctest --test-dir src/build -R '^save_synthetic$' --output-on-
 Windows（PowerShell，Visual Studio Debug）：
 
 ```powershell
-cmake -S src -B src/build-win
+cmake -S src -B src/build-win -A x64 -DBUILD_TESTING=ON
 cmake --build src/build-win --config Debug --parallel
 ctest --test-dir src/build-win -C Debug --output-on-failure
 python -m unittest discover -s tools/tests -p 'test_*.py'
@@ -55,13 +55,13 @@ git diff --check
 Linux（Bash，单配置生成器）：
 
 ```bash
-cmake -S src -B src/build
+cmake -S src -B src/build -DBUILD_TESTING=ON
 cmake --build src/build --parallel
 ctest --test-dir src/build --output-on-failure
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
 # 无窗口资源／逻辑集成，正式窗口另测
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/fd2sdl --field-play-once
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/build/fd2sdl --field-play-once
 
 python3 tools/ida/check_src_addresses.py
 (cd docs/generated/ida-canonical && sha256sum -c SHA256SUMS)
@@ -259,13 +259,13 @@ Windows 已验证按本轮 PID／HWND 投递窗口消息的后台输入：DOSBox
 独立后台校准必须由 `run-job 600000` 管理进程树，产物目录须为新目录；内部 `--sentinel` 不单独运行。Windows PowerShell：
 
 ```powershell
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
 ```
 
 运行条件、Linux 对应入口和测试范围见[图形自动化测试](gui-testing.md)。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC 单窗口捕获。报告和截图默认写入构建目录下的 `graphics-artifacts/`；可用 `--artifacts PATH` 指定独立的新证据目录，构建目录仍由 `--build-dir` 指定。显式产物目录已存在，或位于解析后的原证据目录内时，工具拒绝执行。产物不提交仓库；自动化仅操作本次启动并识别的测试进程。原版 DOSBox 自动对照使用隔离副本及独立判据，不把 SDL 截图自检当作原版一致性证据。
@@ -304,7 +304,7 @@ B5 的统一入口为 `--b5-only`，已登记准备／酒店四槽、正式败�
 
 ```powershell
 cmake --build src/build-win --config Debug --target fd2sdl fd2_field_play_input_driver fd2_field_natural_plan --parallel
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
 ```
 
 自然场景的规划器默认查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录；可用 `--planner` 覆盖，不存在时在窗口启动前拒绝。stage 1 默认使用本轮 `prepare-controlled` 生成的原版活动 Save；没有先运行准备场景时须提供独立只读 `--b5-save-fixture`。自然流程默认最多50轮，败北、重复语义状态或到达上限均保留失败，不重开／重抽；调度器只为原版首个实际阶段结束周期录一次音频，作为 A5 曲目身份／切换证据，不是 A7 保真。所有 WGC 场景串行运行，先清理原版再启 SDL，正常／错误／超时均清理本轮 Job，失败收据不覆盖。
@@ -347,7 +347,7 @@ cmake --build src/build-win --config Debug --target fd2_field_play_input_driver 
 
 ```bash
 san=$(mktemp -d /tmp/fd2-sanitize.XXXXXX)
-cmake -S src -B "$san" \
+cmake -S src -B "$san" -DBUILD_TESTING=ON \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
   -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
@@ -355,25 +355,22 @@ cmake -S src -B "$san" \
 cmake --build "$san" --parallel
 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   ctest --test-dir "$san" --output-on-failure -E '^field_play_input$'
-
-# 两个构建目录共用 src/fd2sdl 输出，完成后恢复普通主程序链接
-cmake --build src/build --target fd2sdl --clean-first
 ```
 
 该 sanitizer 子集不覆盖窗口输入；窗口回归仍须由普通构建运行。当前 Windows 任务不要求补跑该 Linux 子集；Windows 普通 CTest 通过也不登记为 Linux ASan／UBSan 通过，Windows MSVC 不能直接使用上述 Clang 参数。构建目录和可执行文件不入库。
 
 ## 调试与快速入口
 
-以下为 Linux 主程序路径；Windows Visual Studio Debug 将 `./src/fd2sdl` 替换为 `./src/Debug/fd2sdl.exe`，参数相同。Release／Ninja 路径见跨平台约定。
+以下为 Linux 主程序路径；Windows Visual Studio Debug 将 `./src/build/fd2sdl` 替换为 `./src/build-win/Debug/fd2sdl.exe`，参数相同。Release／Ninja 路径见跨平台约定。
 
 | 命令 | 用途 |
 |---|---|
-| `./src/fd2sdl --map-preview 0` | 地图预览 |
-| `./src/fd2sdl --field-preview 0` | 正式单位预览 |
-| `./src/fd2sdl --field-play 0` | 第一关正式输入循环，当前只支持 stage 0 |
-| `./src/fd2sdl --field-effect-play 0` | flash、震动与转场的定时验收序列 |
-| `./src/fd2sdl --prologue-preview` | 新游戏初始过场 |
-| `./src/fd2sdl --new-game-play` | 过场后交接正式战场 |
+| `./src/build/fd2sdl --map-preview 0` | 地图预览 |
+| `./src/build/fd2sdl --field-preview 0` | 正式单位预览 |
+| `./src/build/fd2sdl --field-play 0` | 第一关正式输入循环，当前只支持 stage 0 |
+| `./src/build/fd2sdl --field-effect-play 0` | flash、震动与转场的定时验收序列 |
+| `./src/build/fd2sdl --prologue-preview` | 新游戏初始过场 |
+| `./src/build/fd2sdl --new-game-play` | 过场后交接正式战场 |
 
 除 `--field-effect-play` 外，上述入口各有 `-once` 版本，例如 `--field-preview-once 0`、`--new-game-play-once`。它们是有限的资源／逻辑检查，不证明对应正式入口可达、完整输入或视听一致。
 

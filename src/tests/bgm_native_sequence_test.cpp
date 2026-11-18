@@ -143,7 +143,8 @@ static bool synthetic_native_vectors() {
     append_note(streams[1],60,2);append_note(streams[1],60,4);streams[1].push_back(2);
     append_note(streams[1],60,5);streams[1].push_back(10);append_eot(streams[1]);
     append_note(streams[2],60,0);streams[2].insert(streams[2].end(),{0,0xb0,64,127,1,0xb0,64,0,2});append_eot(streams[2]);
-    for(uint8_t n=30;n<63;++n)append_note(streams[3],n,100);streams[3].push_back(1);append_eot(streams[3]);
+    for(uint8_t n=30;n<63;++n)append_note(streams[3],n,100);
+    streams[3].push_back(1);append_eot(streams[3]);
     streams[4]={0xb0,7,127};append_note(streams[4],60,10);streams[4].push_back(1);append_eot(streams[4]);
     append_note(streams[5],60,10);append_note(streams[5],61,10);streams[5].push_back(1);append_eot(streams[5]);
     for(size_t i=0;i<streams.size();++i) {

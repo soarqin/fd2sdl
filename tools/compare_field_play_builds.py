@@ -15,7 +15,7 @@ CONTINUE 活动战场。原存档只读，写入只发生在本轮副本。
 用法（PowerShell）：
   python tools/compare_field_play_builds.py --root . `
     --old-game build/ab/old-src/src/Debug/fd2sdl.exe `
-    --new-game src/Debug/fd2sdl.exe `
+    --new-game src/build-win/Debug/fd2sdl.exe `
     --driver src/build-win/Debug/fd2_field_play_input_driver.exe `
     --artifacts build/ab/runs
 """

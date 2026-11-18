@@ -153,7 +153,7 @@ uint16_t oplModel_ailFreq(double tone, uint32_t *mul_offset)
         --octave;
     }
 
-    return freq | (octave << 10);
+    return (uint16_t)(freq | (octave << 10));
 }
 
 
@@ -163,7 +163,7 @@ uint16_t oplModel_ailFreq(double tone, uint32_t *mul_offset)
  *                    AIL volume formula                       *
  ***************************************************************/
 
-static const uint_fast32_t s_ail_vel_graph[16] =
+static const uint_fast8_t s_ail_vel_graph[16] =
 {
     82,   85,  88,  91,  94,  97, 100, 103,
     106, 109, 112, 115, 118, 121, 124, 127

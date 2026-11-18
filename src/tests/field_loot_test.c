@@ -210,7 +210,7 @@ static int test_defeat_three_callers_stop_at_host_quit(void) {
         } else {
             const fd2_static_flow *flow=fd2_static_flow_lookup("common_event","common.defeat.tail");CHECK(flow);
             int pc=fd2_static_flow_label(flow,"finalize");
-            g->event_resume=(fd2_field_event_resume){.flow=flow,.pc=pc,.actor=0,.active=1};
+            g->event_resume=(fd2_field_event_resume){.flow=flow,.pc=(int16_t)pc,.actor=0,.active=1};
             CHECK(common_event_run(g)==(error?-1:0) && g->event_resume.active);
             if(!error)CHECK(g->event_resume.pc==pc);
         }
@@ -232,7 +232,7 @@ static int test_ai_physical_outer_refresh(void) {
         /* 走真实exchange wrapper，固定两方为合法零伤害以只核外围尾序。 */
         g->units.items[0].attack=g->units.items[1].attack=0;
         g->units.items[0].accuracy=g->units.items[1].accuracy=0;
-        outer_refresh_log log={0,quit,descriptor?30u:5u,2,0};
+        outer_refresh_log log={0,quit,descriptor?30u:5u,2,0,0};
         g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;
         CHECK(resolve_physical_exchange(g,0,1,0)==0 && log.count== (quit==1?1u:descriptor?1u:2u));
         CHECK(!g->failure);
@@ -252,7 +252,7 @@ static int test_ai_physical_outer_refresh(void) {
     for(unsigned quit=0;quit<3;quit++) {
         fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
         CHECK(g && fixture(g,&ar,&calls)==0 && add_dead(g,2,1,25)==0);
-        outer_refresh_log log={0,quit,30,2,0};
+        outer_refresh_log log={0,quit,30,2,0,0};
         g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;g->experience_value=5;
         CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_AI_PHYSICAL,0,0)==(quit==1?0:1));
         if(quit!=1)CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && log.count==2);
@@ -265,7 +265,7 @@ static int test_ai_physical_outer_refresh(void) {
     for(int descriptor=0;descriptor<2;descriptor++) {
         fd2_field_game *g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;
         CHECK(g && fixture(g,&ar,&calls)==0 && add_dead(g,2,descriptor?1:255,25)==0);
-        outer_refresh_log log={0,0,30,2,0};
+        outer_refresh_log log={0,0,30,2,0,0};
         g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;
         CHECK(begin_defeated_loot(g,1,0,(player_action_kind)kind,0,0)==descriptor);
         if(descriptor)CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0);
@@ -591,7 +591,7 @@ static int test_ai_physical_child_does_not_finish_parent(void) {
     common_test_override=fd2_static_flow_lookup("common_event","common.loot.child.0");CHECK(common_test_override);
     common_resource_calls=common_resource_reject=0;g->event_preflight=common_resource_check;
     CHECK(add_dead(g,2,2,39)==0 && add_dead(g,3,1,25)==0);
-    outer_refresh_log log={0,0,30,2,1};
+    outer_refresh_log log={0,0,30,2,1,0};
     g->runtime_present=check_outer_refresh;g->runtime_present_userdata=&log;g->experience_value=5;
     CHECK(begin_defeated_loot(g,1,0,PLAYER_ACTION_AI_PHYSICAL,0,0)==1 && log.count==1);
     CHECK(reply(g,FD2_FIELD_LOOT_ACK,-1)==0 && g->event_resume.child_wait && log.count==1);
@@ -866,7 +866,7 @@ static int test_controller_rejection_preserves_existing_failure_boundary(void) {
     g->active_side = 1;
     size_t at = (size_t)u->y * (size_t)g->map.width + u->x;
     g->map.cells[at] &= ~UINT32_C(0x1f0000);
-    g->terrain.attrs[fd2_field_cell_terrain(g->map.cells[at])].flags &= (uint8_t)~0x60u;
+    g->terrain.attrs[fd2_field_cell_terrain(g->map.cells[at])].flags &= UINT8_MAX ^ 0x60u;
     CHECK(fd2_field_game_finish_unit_action(g) == -1);
     /* 原尾已经提交acted/清理；controller拒绝不补造ACTION failure。 */
     CHECK(fd2_field_unit_has_acted(u) && g->selected_unit == -1);
@@ -1194,7 +1194,7 @@ static int test_original_direction_reset_wait_and_caller_boundaries(void) {
         g.runtime_present=direction_wait_present;g.runtime_present_userdata=&trace;
         CHECK(run_turn_entry(&g,refresh?FD2_FIELD_TURN_DIRECTIONS_RESET_REFRESH:
             FD2_FIELD_TURN_DIRECTIONS_RESET)==terminal);
-        CHECK(trace.delays==1 && trace.refreshes==(!terminal && refresh) && g.runtime_host_quit==(terminal==1));
+        CHECK(trace.delays==1 && trace.refreshes==(unsigned)(!terminal && refresh) && g.runtime_host_quit==(terminal==1));
         for(size_t i=0;i<3;i++)CHECK(!g.units.items[i].direction && g.units.items[i].frame_phase==5 &&
             g.units.walk_frames[i]==2 && g.units.items[i].flags==0x40);
         CHECK(!g.failure); /* adapter回传错误，实际caller按自身合同锁失败。 */
@@ -1212,7 +1212,7 @@ static int test_original_direction_reset_wait_and_caller_boundaries(void) {
             g->event_resume=(fd2_field_event_resume){.actor=0,.active=1,.completion=FD2_EVENT_COMPLETE_MARCH};
             result=common_event_finish(g);
         } else result=finish_and_dispatch_ai_action(g,0);
-        CHECK(result==(terminal<0?-1:0) && trace.delays==1 && trace.refreshes==(!terminal && !march));
+        CHECK(result==(terminal<0?-1:0) && trace.delays==1 && trace.refreshes==(unsigned)(!terminal && !march));
         CHECK(fd2_field_unit_has_acted(&g->units.items[0])==!march && !calls);
         if(terminal)CHECK(!memcmp(&g->units,&trace.prefix,sizeof(g->units)) && g->selected_unit==0 &&
             g->interaction==FD2_FIELD_INTERACTION_COMMAND);

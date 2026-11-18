@@ -88,7 +88,7 @@ static int test_raw_cap_early_return_and_multi_level(void) {
         if(which==0)g.units.items[0].flags=1;else if(which==1)g.units.items[0].level=40;
         CHECK(fd2_field_game_complete_player_controller(&g,0)==0);
         CHECK(!g.progress.resume && g.progress.notice.kind==FD2_FIELD_PROGRESS_NONE);
-        CHECK(g.experience_value==(which==2?0:33));
+        CHECK(g.experience_value==(which==2?0u:33u));
     }
     return 0;
 }
@@ -218,7 +218,7 @@ static int test_loaded_zero_movement_counter_scheduler(void) {
                  ((uint8_t *)enemy)[0x31] == 255);
     enemy->x = 8; enemy->y = 14; enemy->level = 30;
     enemy->hp = 1; enemy->defense = enemy->evasion = 0;
-    enemy->flags &= (uint8_t)~4u;
+    enemy->flags &= UINT8_MAX ^ 4u;
     ((uint8_t *)enemy)[0x0b] = 71;
     enemy->movement_points = 0;
     enemy->attack = 3; enemy->accuracy = 100;
@@ -313,9 +313,9 @@ static int test_physical_level_weight_not_magic_normalization(void) {
         if(which==3) { CHECK(fd2_field_game_resolve_attack(&g)==-1 && !r.index);
             CHECK(memcmp(&before,&g,sizeof(g))==0); }
         else { CHECK(fd2_field_game_resolve_attack(&g)==0);
-            CHECK(t->hp==91 && g.experience_value==(which==0?27:1));
-            CHECK(g.progress.notice.value==(which==0?27:1));
-            CHECK(drain(&g)==0 && a->experience==(which==0?27:1)); }
+            CHECK(t->hp==91 && g.experience_value==(which==0?27u:1u));
+            CHECK(g.progress.notice.value==(which==0?27u:1u));
+            CHECK(drain(&g)==0 && a->experience==(which==0?27u:1u)); }
         fd2_field_path_close(&g.move_range);
     }
     return 0;

@@ -68,7 +68,7 @@ static int f4_promotion_cli(const char *root) {
 #endif
     if(f4_path(path,root,"BG.DAT") || fd2_archive_open(&bg,path) ||
        f4_path(path,root,"FIGANI.DAT") || fd2_archive_open(&figani,path) ||
-       !(bg_before=malloc(bg.size)) || !(fig_before=malloc(figani.size)))goto done;
+       (bg_before = malloc(bg.size)) == NULL || (fig_before = malloc(figani.size)) == NULL)goto done;
     memcpy(bg_before,bg.data,bg.size);memcpy(fig_before,figani.data,figani.size);
     if(f4_input_receipt("BG.DAT",bg.data,bg.size) || f4_input_receipt("FIGANI.DAT",figani.data,figani.size))goto done;
     for(f4_prom_case=0;fgets(line,sizeof(line),stdin);f4_prom_case++) {

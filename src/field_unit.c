@@ -342,7 +342,7 @@ void fd2_field_unit_set_hidden(fd2_field_unit *unit, int hidden) {
     if (hidden)
         unit->flags |= FD2_FIELD_UNIT_FLAG_HIDDEN;
     else
-        unit->flags &= (uint8_t)~FD2_FIELD_UNIT_FLAG_HIDDEN;
+        unit->flags &= UINT8_MAX ^ FD2_FIELD_UNIT_FLAG_HIDDEN;
 }
 
 int fd2_field_unit_has_acted(const fd2_field_unit *unit) {
@@ -356,7 +356,7 @@ void fd2_field_unit_set_acted(fd2_field_unit *unit, int acted) {
     if (acted)
         unit->flags |= FD2_FIELD_UNIT_FLAG_ACTED;
     else
-        unit->flags &= (uint8_t)~FD2_FIELD_UNIT_FLAG_ACTED;
+        unit->flags &= UINT8_MAX ^ FD2_FIELD_UNIT_FLAG_ACTED;
 }
 
 int fd2_field_units_find_visible_text_id(const fd2_field_units *units,

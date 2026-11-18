@@ -79,7 +79,7 @@ static int compare(const fixture *f,const bridge_vector *v) {
         (int64_t)s->cursor,s->left,s->total,s->mode,s->block_ready,
         s->driver_half,s->saved_next_half,s->driver_state,(int64_t)s->dma_reads,
         (int64_t)s->block_ends,f->fills};
-    CHECK(sizeof(state)==sizeof(v->state));
+    _Static_assert(sizeof(state)==sizeof(v->state), "sizeof(state)==sizeof(v->state)");
     for(size_t i=0;i<sizeof(state)/sizeof(state[0]);i++) if(state[i]!=v->state[i]) {
         fprintf(stderr,"%s: state[%zu] %lld != %lld\n",v->label,i,
             (long long)state[i],(long long)v->state[i]);return 0;

@@ -2199,7 +2199,7 @@ static int short_source_columns(uint8_t raw[8][5]) {
     return 0;
 }
 /* 1e739闭式列分类，独立于产品分支/指针，按col后row逐点保首错前缀。 */
-static int short_source_bar(uint8_t *dst,const uint8_t raw[8][5],int x,int y,int width) {
+static int short_source_bar(uint8_t *dst,uint8_t raw[8][5],int x,int y,int width) {
     int last=width<=0?69:width<70?70:width;
     for(int col=0;col<=last;col++) {
         unsigned image=width<=0?(col==69?7u:6u):
@@ -2306,7 +2306,7 @@ static int test_short_counter_raw_bar_owner(void) {
 
 /* 1e739闭式列序按App真实owner；原23/24/25/29/30列来自独立档案RAW，
  * 不由产品绘制生成expected。先col后row，保首越界之前的每一个byte。 */
-static int short_source_app_bar(uint8_t *dst,const uint8_t raw[8][5],int x,int y,int width) {
+static int short_source_app_bar(uint8_t *dst,uint8_t raw[8][5],int x,int y,int width) {
     int last=width<=0?69:width<70?70:width;
     for(int col=0;col<=last;col++) {
         unsigned image=width<=0?(col==69?7u:6u):
@@ -2332,7 +2332,7 @@ static void short_source_app_panel(uint8_t *dst,const battle_image *image,int x,
 /* 1e611完整正常写序；-1表示HP0不画，-2表示正HP/max0原IDIV点。
  * 显式宽度常量独立取自1e81b/1e81f MOVZX、69乘法、IDIV和INC。 */
 static int short_source_counter_page(uint8_t *dst,const battle_image *panel,
-        const uint8_t raw[8][5],const int x[2],const int y[2],int actor_width,int target_width) {
+        uint8_t raw[8][5],const int x[2],const int y[2],int actor_width,int target_width) {
     short_source_app_panel(dst,panel,x[1]+68,y[1]+68);
     if(short_source_app_bar(dst,raw,x[1]+75,y[1]+74,55)!=0)return -1;
     if(target_width==-2)return -1;
@@ -2424,7 +2424,7 @@ static int test_app_page_short_counter_adapter(void) {
  * 这里签FINISH adapter，不将没有重放整套cast的控制向量称原版演出证据。 */
 static int test_app_page_normal_return_adapter(void) {
     const uint8_t ids[]={0,0,28,13},casters[]={0,0,19,9};
-    const uint32_t modes[]={0,1,7,0};
+    const uint8_t modes[]={0,1,7,0};
     const size_t cast_entries[]={0,1,59,0};
     for(unsigned kind=0;kind<4;kind++)for(unsigned outcome=0;outcome<4;outcome++) {
         fd2_battle_animation ctx;CHECK(setup(&ctx)==0);game.units.count=2;
@@ -2944,8 +2944,8 @@ static int test_map_physical_linear_app_adapter(void) {
     /* 三个不同原RUN色，使局部walk2与global0/1/2/3明确可区分；
      * 3映1，raw4=0则取idle2。没有C decoder或renderer生成expected。 */
     uint8_t colored[3*48];static const uint8_t frame_colors[3]={0,37,84};
-    for(unsigned f=0;f<3;f++)for(unsigned row=0;row<24;row++) {
-        colored[f*48+row*2]=23;colored[f*48+row*2+1]=frame_colors[f];
+    for(unsigned f=0;f<3;f++)for(unsigned y=0;y<24;y++) {
+        colored[f*48+y*2]=23;colored[f*48+y*2+1]=frame_colors[f];
     }
     for(unsigned f=0;f<12;f++)offsets[f]=(f%3u)*48u;
     g->sprites.data=colored;g->sprites.size=sizeof(colored);

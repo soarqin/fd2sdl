@@ -58,6 +58,7 @@ static int f4_text_run(const char *root) {
     result=ferror(stdin)?1:0;
 done:
     if(a){fd2_field_prepare_assets_close(a);free(a);}fd2_archive_close(&other);
-    if(result)fputs("F4 text prepare reader rejected input/output\n",stderr);return result;
+    if(result)fputs("F4 text prepare reader rejected input/output\n",stderr);
+    return result;
 }
 #endif

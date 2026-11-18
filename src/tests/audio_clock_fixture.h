@@ -9,7 +9,7 @@ static void fd2_test_idle_dig(void *user) { (void)user; }
 static int fd2_test_audio_clock_prepare(fd2_audio *audio) {
     return audio ? fd2_bios_clock_ail_attach(fd2_audio_now_ns(audio), 65536u) : -1;
 }
-static int fd2_test_audio_clock_after_mdi(fd2_audio *audio) {
+static inline int fd2_test_audio_clock_after_mdi(fd2_audio *audio) {
     return audio && fd2_bios_clock_install_dig(fd2_audio_now_ns(audio),
         fd2_test_idle_dig, NULL) == FD2_AIL_TIMER_DIG ? 0 : -1;
 }

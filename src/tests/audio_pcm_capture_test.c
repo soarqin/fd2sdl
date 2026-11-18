@@ -5,7 +5,6 @@
 #include "audio.h"
 #include "audio_pcm_capture.h"
 #include <SDL3/SDL.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,9 +24,15 @@ return GetCurrentProcessId();
 return (unsigned)getpid();
 #endif
 }
-static void path(char *out,const char *dir,const char *name){snprintf(out,2200,"%s/%s",dir,name);}
+static void path(char *out,const char *dir,const char *name) {
+    int written=snprintf(out,2200,"%s/%s",dir,name);
+    if (written<0 || written>=2200) abort();
+}
 static int file_exists(const char *p){SDL_PathInfo x;return SDL_GetPathInfo(p,&x);}
-static int new_case(char *out){snprintf(out,2048,"%s/case-%02u",base,next_case++);return SDL_CreateDirectory(out)?0:-1;}
+static int new_case(char *out) {
+    int written=snprintf(out,2048,"%s/case-%02u",base,next_case++);
+    return written>=0 && written<2048 && SDL_CreateDirectory(out) ? 0 : -1;
+}
 static int write_text(const char *p,const char *text){SDL_IOStream *f=SDL_IOFromFile(p,"wb");if(!f)return -1;int ok=SDL_WriteIO(f,text,strlen(text))==strlen(text);if(!SDL_CloseIO(f))ok=0;return ok?0:-1;}
 static int start(const char *dir,unsigned owner){char p[2200],s[64];path(p,dir,"start");snprintf(s,sizeof(s),"%u\n",owner);return write_text(p,s);}
 static int stop(const char *dir){char p[2200];path(p,dir,"stop");return write_text(p,"stop\n");}
@@ -58,14 +63,14 @@ static int temporary_output_collision(void) {
     CHECK(!file_exists(tmp));
     return 0;
 }
-typedef struct{fd2_audio_pcm_capture *c;_Atomic int quit;} Producer;
-static int SDLCALL producer(void *u){Producer *p=u;float a[1024];samples(a);while(!atomic_load(&p->quit)){fd2_audio_pcm_capture_push(p->c,a,512);SDL_Delay(1);}return 0;}
-static int concurrent_stop(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,2000,0);CHECK(c);CHECK(!start(dir,pid()));Producer p={c};atomic_init(&p.quit,0);SDL_Thread *t=SDL_CreateThread(producer,"synthetic-observer-submission",&p);CHECK(t);CHECK(wait_file(dir,"ready.json",1000));SDL_Delay(20);CHECK(!stop(dir));CHECK(wait_file(dir,"summary.json",1200));CHECK(contains(dir,"summary.json","\"ok\":true"));CHECK(contains(dir,"summary.json","\"submission_quiescent\":true"));CHECK(!inspect_wave(dir));atomic_store(&p.quit,1);SDL_WaitThread(t,NULL);fd2_audio_pcm_capture_close(c);return 0;}
+typedef struct{fd2_audio_pcm_capture *c;SDL_AtomicInt quit;} Producer;
+static int SDLCALL producer(void *u){Producer *p=u;float a[1024];samples(a);while(!SDL_GetAtomicInt(&p->quit)){fd2_audio_pcm_capture_push(p->c,a,512);SDL_Delay(1);}return 0;}
+static int concurrent_stop(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,2000,0);CHECK(c);CHECK(!start(dir,pid()));Producer p={.c=c};SDL_Thread *t=SDL_CreateThread(producer,"synthetic-observer-submission",&p);CHECK(t);CHECK(wait_file(dir,"ready.json",1000));SDL_Delay(20);CHECK(!stop(dir));CHECK(wait_file(dir,"summary.json",1200));CHECK(contains(dir,"summary.json","\"ok\":true"));CHECK(contains(dir,"summary.json","\"submission_quiescent\":true"));CHECK(!inspect_wave(dir));SDL_SetAtomicInt(&p.quit,1);SDL_WaitThread(t,NULL);fd2_audio_pcm_capture_close(c);return 0;}
 static int utf8_paths(void){char dir[2048],p[2200];CHECK(!new_case(dir));path(p,dir,"采集证据");CHECK(SDL_CreateDirectory(p));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(p,48000,2000,1);CHECK(c);CHECK(!start(p,pid()));CHECK(ready(c,p));CHECK(!stop(p));CHECK(wait_file(p,"summary.json",1000));char wavepath[2200];path(wavepath,p,"app-mix.wav");size_t size=0;void *b=SDL_LoadFile(wavepath,&size);CHECK(b&&size>44);CHECK(u32((unsigned char*)b+24)==48000);SDL_free(b);fd2_audio_pcm_capture_close(c);return 0;}
 static int backlog_error(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,2000,0);CHECK(c);CHECK(!start(dir,pid()));CHECK(ready(c,dir));fd2_audio_pcm_capture_output_dropped(c);CHECK(wait_file(dir,"summary.json",1000));CHECK(contains(dir,"summary.json","audio_backlog_dropped"));CHECK(!contains(dir,"summary.json","\"ok\":true"));fd2_audio_pcm_capture_close(c);return 0;}
 static int offline_boundary(void){
 CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR"));
-fd2_audio_config config={48000,0,1};fd2_audio *a=fd2_audio_create(&config);CHECK(a);float x[8];CHECK(fd2_audio_render_offline(a,x,4)==4);for(unsigned i=0;i<8;i++)CHECK(x[i]==0);fd2_audio_destroy(a);
+fd2_audio_config config={48000,0,1,0};fd2_audio *a=fd2_audio_create(&config);CHECK(a);float x[8];CHECK(fd2_audio_render_offline(a,x,4)==4);for(unsigned i=0;i<8;i++)CHECK(x[i]==0);fd2_audio_destroy(a);
 CHECK(SDL_SetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR",base,true));
 CHECK(!fd2_audio_create(&config));
 CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR"));

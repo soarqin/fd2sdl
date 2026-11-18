@@ -29,7 +29,7 @@ static void fixture(guarded_window *window, guarded_output *out) {
         out->data[i][1]=-123456788+(int32_t)i*31;
     }
 }
-static uint64_t window_fnv(const int32_t (*data)[2]) {
+static uint64_t window_fnv(int32_t (*data)[2]) {
     uint64_t hash=UINT64_C(14695981039346656037);
     for (size_t i=0;i<FD2_SB_CHANNEL_WINDOW;i++)
         for(size_t side=0;side<2;side++) {

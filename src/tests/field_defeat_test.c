@@ -1,6 +1,6 @@
-#include <stdint.h>
 /* 1db65：真实FDOTHER/FDICON/FDSHAP，正式Game common→runtime.defeat→Play
  * 服务。只私有替换时钟、上传与资源故障，不创建窗口，不代替原版运行。 */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +12,7 @@
 #include "field_rng.h"
 #include "field_background.h"
 #include "field_visual.h"
+#include "portrait.h"
 
 #define CHECK(x) do { if(!(x)) {fprintf(stderr,"field_defeat_test:%d %s\n",__LINE__,#x);exit(1);} } while(0)
 static uint64_t test_now;

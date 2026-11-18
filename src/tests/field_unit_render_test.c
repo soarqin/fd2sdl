@@ -1105,10 +1105,10 @@ static int test_transition_whitening_finish(void) {
         uint8_t palette[768],dac[768];
         for(size_t i=0;i<sizeof(palette);i++)palette[i]=(uint8_t)(i%64u);
         fd2_vga_set_palette(vga,palette);
-        fd2_field_effect_frames frames={0};
-        CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&frames)==0);
-        memcpy(last,frames.snapshots[8],VGA_W*VGA_H);
-        fd2_field_effect_frames_close(&frames);
+        fd2_field_effect_frames effect_frames={0};
+        CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&effect_frames)==0);
+        memcpy(last,effect_frames.snapshots[8],VGA_W*VGA_H);
+        fd2_field_effect_frames_close(&effect_frames);
         if(bad)vga->palette[767]=64;
         memcpy(dac,vga->dac,sizeof(dac));*before=*game;
         CHECK(fd2_field_game_play_stage_transition(game,vga,NULL,84,88,10,8,1)==(bad?-1:0));
@@ -1254,7 +1254,7 @@ static int test_quake_scaled_original_arguments(void) {
     for(size_t i=0;i<FD2_FIELD_PAGE_SIZE;i++)page_before[i]=(uint8_t)(57u+i*19u+i/456u);
     CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,page_before,FD2_FIELD_PAGE_SIZE,456)==0);
     for(size_t i=0;i<64000;i++)vga->framebuffer[i]=(uint8_t)(39u+i*23u+i/320u);
-    fd2_field_effect_frames frames={0};CHECK(fd2_field_game_prepare_earthquake(game,vga,&frames)==0);
+    fd2_field_effect_frames effect_frames={0};CHECK(fd2_field_game_prepare_earthquake(game,vga,&effect_frames)==0);
     static const int source[3][3]={{128,128,131},{0,0,128},{-128,128,125}};
     for(unsigned part=0;part<3;part++) {
         memcpy(expected,vga->framebuffer,64000);
@@ -1267,15 +1267,15 @@ static int test_quake_scaled_original_arguments(void) {
             unsigned tile=(tx+3u*ty)%16u,px=(unsigned)(sx%3072)/128u,py=(unsigned)(sy%3072)/128u;
             expected[(size_t)(y+4)*320u+(size_t)x+4u]=(uint8_t)(1u+(tile*13u+py*7u+px*11u)%251u);
         }
-        CHECK(!memcmp(expected,frames.snapshots[part],64000));
+        CHECK(!memcmp(expected,effect_frames.snapshots[part],64000));
         if(!part) {
             memcpy(page_after,page_before,FD2_FIELD_PAGE_SIZE);
             for(size_t y=0;y<192;y++)memcpy(page_after+(y+72u)*456u+72u,expected+(y+4u)*320u+4u,312);
-            CHECK(fd2_field_page_read(frames.page_snapshots[0],0,0,456,336,page_before,FD2_FIELD_PAGE_SIZE,456)==0);
+            CHECK(fd2_field_page_read(effect_frames.page_snapshots[0],0,0,456,336,page_before,FD2_FIELD_PAGE_SIZE,456)==0);
             CHECK(!memcmp(page_before,page_after,FD2_FIELD_PAGE_SIZE));
         }
     }
-    fd2_field_effect_frames_close(&frames);fd2_field_page_destroy(vga->field_page);
+    fd2_field_effect_frames_close(&effect_frames);fd2_field_page_destroy(vga->field_page);
     free(game);free(vga);free(page_before);free(page_after);free(expected);return 0;
 }
 
@@ -1322,20 +1322,20 @@ static int test_app_page_effect_owners(void) {
     /* 1c2da固定idle3→2，真实页的opaque/SKIP由原RLE决定。 */
     game->idle_phase=3;vga->field_visual.actor_idle_phase=3;
     const uint8_t pair[]={0,1};
-    fd2_field_effect_frames frames={0},empty={0};
+    fd2_field_effect_frames effect_frames={0},empty={0};
     *before=*game;*vga_before=*vga;
     CHECK(effect_page_read(vga->field_page,saved)==0);
-    CHECK(fd2_field_game_prepare_actor_group_flash(game,vga,pair,2,94,&frames)==0);
-    CHECK(frames.page_snapshots[1] && !frames.page_snapshots[0]);
-    CHECK(effect_page_read(frames.page_snapshots[1],expected)==0);
+    CHECK(fd2_field_game_prepare_actor_group_flash(game,vga,pair,2,94,&effect_frames)==0);
+    CHECK(effect_frames.page_snapshots[1] && !effect_frames.page_snapshots[0]);
+    CHECK(effect_page_read(effect_frames.page_snapshots[1],expected)==0);
     CHECK(memcmp(saved,expected,FD2_FIELD_PAGE_SIZE)!=0);
     CHECK(!memcmp(game,before,sizeof(*game)) && !memcmp(vga,vga_before,sizeof(*vga)));
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(saved,actual,FD2_FIELD_PAGE_SIZE));
-    CHECK(fd2_field_effect_play(&frames,vga,NULL,0)==0);
+    CHECK(fd2_field_effect_play(&effect_frames,vga,NULL,0)==0);
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(expected,actual,FD2_FIELD_PAGE_SIZE));
-    CHECK(!memcmp(vga->framebuffer,frames.snapshots[0],VGA_W*VGA_H));
+    CHECK(!memcmp(vga->framebuffer,effect_frames.snapshots[0],VGA_W*VGA_H));
     CHECK(!memcmp(game,before,sizeof(*game)) && !calls);
-    fd2_field_effect_frames_close(&frames);
+    fd2_field_effect_frames_close(&effect_frames);
     CHECK(fd2_field_page_write(vga->field_page,0,0,FD2_FIELD_PAGE_STRIDE,
         FD2_FIELD_PAGE_HEIGHT,saved,FD2_FIELD_PAGE_SIZE,FD2_FIELD_PAGE_STRIDE)==0);
     memcpy(vga->framebuffer,vga_before->framebuffer,sizeof(vga->framebuffer));
@@ -1351,24 +1351,24 @@ static int test_app_page_effect_owners(void) {
     CHECK(fd2_field_page_write(vga->field_page,0,0,456,336,saved,FD2_FIELD_PAGE_SIZE,456)==0);
     *before=*game;*vga_before=*vga;
     CHECK(effect_page_read(vga->field_page,saved)==0);
-    CHECK(fd2_field_game_prepare_earthquake(game,vga,&frames)==0);
-    CHECK(frames.page_snapshots[0] && frames.page_snapshots[1] && frames.page_snapshots[2]);
+    CHECK(fd2_field_game_prepare_earthquake(game,vga,&effect_frames)==0);
+    CHECK(effect_frames.page_snapshots[0] && effect_frames.page_snapshots[1] && effect_frames.page_snapshots[2]);
     for(size_t source=0;source<3;source++)for(size_t y=0;y<200;y++)for(size_t x=0;x<320;x++)
-        if(x<4 || x>=316 || y<4 || y>=196)CHECK(frames.snapshots[source][y*320u+x]==vga_before->framebuffer[y*320u+x]);
-    CHECK(effect_page_read(frames.page_snapshots[0],expected)==0);
+        if(x<4 || x>=316 || y<4 || y>=196)CHECK(effect_frames.snapshots[source][y*320u+x]==vga_before->framebuffer[y*320u+x]);
+    CHECK(effect_page_read(effect_frames.page_snapshots[0],expected)==0);
     CHECK(!memcmp(game,before,sizeof(*game)) && !memcmp(vga,vga_before,sizeof(*vga)));
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(saved,actual,FD2_FIELD_PAGE_SIZE));
-    fd2_field_effect_frames_close(&frames);
-    CHECK(fd2_field_game_begin_earthquake(game,vga,&frames)==0);
+    fd2_field_effect_frames_close(&effect_frames);
+    CHECK(fd2_field_game_begin_earthquake(game,vga,&effect_frames)==0);
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(expected,actual,FD2_FIELD_PAGE_SIZE));
     CHECK(!memcmp(game,before,sizeof(*game)) && !calls);
     CHECK(vga->field_page==vga_before->field_page &&
         !memcmp(&vga->field_visual,&vga_before->field_visual,sizeof(vga->field_visual)));
-    quake_page_observer quake_probe={vga_before->framebuffer,&frames,0};
-    CHECK(fd2_field_effect_play_hooked(&frames,vga,NULL,0,quake_page_copy_observe,&quake_probe)==0 && quake_probe.count==60u);
+    quake_page_observer quake_probe={vga_before->framebuffer,&effect_frames,0};
+    CHECK(fd2_field_effect_play_hooked(&effect_frames,vga,NULL,0,quake_page_copy_observe,&quake_probe)==0 && quake_probe.count==60u);
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(expected,actual,FD2_FIELD_PAGE_SIZE));
-    CHECK(!memcmp(vga->framebuffer,frames.snapshots[1],VGA_W*VGA_H));
-    fd2_field_effect_frames_close(&frames);
+    CHECK(!memcmp(vga->framebuffer,effect_frames.snapshots[1],VGA_W*VGA_H));
+    fd2_field_effect_frames_close(&effect_frames);
     CHECK(fd2_field_game_play_earthquake(game,vga,NULL,0)==0);
     CHECK(!memcmp(&game->units,&before->units,sizeof(game->units)) && !calls);
     CHECK(vga->field_page==vga_before->field_page && game->visual_owner==&vga->field_visual);
@@ -1387,11 +1387,11 @@ static int test_app_page_effect_owners(void) {
      * 因其它恢复法术21eb1有尾11cac而统一恢复本入口。 */
     *before=*game;*vga_before=*vga;
     CHECK(effect_page_read(vga->field_page,saved)==0);
-    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&frames)==0);
-    CHECK(frames.snapshot_count==9 && frames.page_snapshots[8]);
+    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&effect_frames)==0);
+    CHECK(effect_frames.snapshot_count==9 && effect_frames.page_snapshots[8]);
     CHECK(!memcmp(game,before,sizeof(*game)) && !memcmp(vga,vga_before,sizeof(*vga)));
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(saved,actual,FD2_FIELD_PAGE_SIZE));
-    fd2_field_effect_frames_close(&frames);
+    fd2_field_effect_frames_close(&effect_frames);
     CHECK(fd2_field_game_play_stage_transition(game,vga,NULL,84,88,10,8,0)==0);
     CHECK(!memcmp(&game->units,&before->units,sizeof(game->units)) && !calls);
     fd2_field_page *base=fd2_field_page_create();CHECK(base);
@@ -1424,17 +1424,17 @@ static int test_app_page_effect_owners(void) {
     uint32_t offsets[3];
     memcpy(offsets,game->sprites.offsets+frame,sizeof(offsets));
     for(size_t i=0;i<3;i++)game->sprites.offsets[frame+i]=(uint32_t)game->sprites.size;
-    CHECK(fd2_field_game_prepare_actor_group_flash(game,vga,pair,2,0,&frames)==-1);
-    CHECK(!memcmp(&frames,&empty,sizeof(frames)));
-    CHECK(fd2_field_game_prepare_earthquake(game,vga,&frames)==-1);
-    CHECK(!memcmp(&frames,&empty,sizeof(frames)));
-    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&frames)==-1);
-    CHECK(!memcmp(&frames,&empty,sizeof(frames)));
+    CHECK(fd2_field_game_prepare_actor_group_flash(game,vga,pair,2,0,&effect_frames)==-1);
+    CHECK(!memcmp(&effect_frames,&empty,sizeof(effect_frames)));
+    CHECK(fd2_field_game_prepare_earthquake(game,vga,&effect_frames)==-1);
+    CHECK(!memcmp(&effect_frames,&empty,sizeof(effect_frames)));
+    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,10,8,&effect_frames)==-1);
+    CHECK(!memcmp(&effect_frames,&empty,sizeof(effect_frames)));
     memcpy(game->sprites.offsets+frame,offsets,sizeof(offsets));
     CHECK(!memcmp(game,before,sizeof(*game)) && !memcmp(vga,vga_before,sizeof(*vga)) && !calls);
     CHECK(effect_page_read(vga->field_page,actual)==0 && !memcmp(saved,actual,FD2_FIELD_PAGE_SIZE));
-    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,0,8,&frames)==-1);
-    CHECK(!memcmp(&frames,&empty,sizeof(frames)) && !memcmp(game,before,sizeof(*game)));
+    CHECK(fd2_field_game_prepare_stage_transition(game,vga,84,88,0,8,&effect_frames)==-1);
+    CHECK(!memcmp(&effect_frames,&empty,sizeof(effect_frames)) && !memcmp(game,before,sizeof(*game)));
     CHECK(!memcmp(vga,vga_before,sizeof(*vga)));
 
     /* 在正式入口之前已收到hostquit，任何候选/视觉/业务均不得启动。 */

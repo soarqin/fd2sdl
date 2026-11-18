@@ -8,15 +8,41 @@
 |---|---|---|
 | Python 3 | `python`；先用 `python --version` 确认版本 | `python3` |
 | CMake 构建目录 | `src/build-win` | `src/build` |
-| 主程序 | Visual Studio Debug：`./src/Debug/fd2sdl.exe`；Release：`./src/Release/fd2sdl.exe` | `./src/fd2sdl` |
-| Windows Ninja 主程序 | `./src/fd2sdl.exe`；需在已配置编译器的终端中构建 | 不适用 |
+| 主程序 | Visual Studio Debug 为 `./src/build-win/Debug/fd2sdl.exe`，Release 为 `./src/build-win/Release/fd2sdl.exe` | `./src/build/fd2sdl` |
+| Windows Ninja 主程序 | 单配置生成器直接写入 `-B` 目录，例如 `./src/build-ucrt64/fd2sdl.exe` | 不适用 |
 | CTest 配置参数 | Visual Studio 等多配置生成器需 `-C Debug`，与构建配置相同 | 单配置生成器不需要 `-C` |
 | Python 虚拟环境激活 | `./.venv/Scripts/Activate.ps1` | `source .venv/bin/activate` |
 | PATH 中的程序 | `Get-Command cmake, python` | `command -v cmake python3` |
 
 Windows 的 `python3` 可能是 Microsoft Store 执行别名。本文档中的 Bash 示例使用 `python3`；在 PowerShell 中使用实际安装的 Python 3 对应命令 `python`。激活虚拟环境后，两平台也可统一使用 `python`。依赖安装使用同一解释器的 `-m pip`，避免把包装进另一套 Python。
 
-CMake 配置包含编译器、生成器和绝对路径，不能跨平台复制构建目录，也不要在原构建目录更换生成器。Visual Studio 构建必须显式使用 `--config Debug` 或 `--config Release`；CTest 使用相同配置。多套构建仍会写同一配置的主程序输出，不能并发构建并运行这个输出。
+CMake 配置包含编译器、生成器和绝对路径。切换编译器、工具集、生成器或平台时使用新的 `-B` 目录。Visual Studio 构建和 CTest 使用同一配置，例如 `--config Debug` 和 `-C Debug`。每套构建的可执行文件、库、PDB、对象文件和生成的冷定义均保存在自己的构建目录。
+
+### Windows x64 工具链
+
+Visual Studio 可通过 `-A x64 -T v142,host=x64` 选择已安装的 64 位 v142 工具，v143 和 v145 同理。v142 需 MSVC 19.28 及以上。v140 和 v141 缺少本项目需要的 C11 支持。14.44 属于 v143，Visual Studio 2026 使用 v145。
+
+MSYS2 在两个独立 PowerShell 中分别配置。GCC 使用 UCRT64 的 `gcc`／`g++`，Clang 使用 CLANG64 的 `clang`／`clang++`。各自使用同一环境的 Ninja、SDL3 和运行库。
+
+```powershell
+# GCC（UCRT64）
+$env:Path = "C:\msys64\ucrt64\bin;$env:Path"
+cmake -S src -B src/build-ucrt64 -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_PREFIX_PATH=C:/msys64/ucrt64 -DCMAKE_BUILD_TYPE=Release
+cmake --build src/build-ucrt64 --parallel
+
+# Clang（CLANG64，在另一个 PowerShell 中执行）
+$env:Path = "C:\msys64\clang64\bin;$env:Path"
+cmake -S src -B src/build-clang64 -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_PREFIX_PATH=C:/msys64/clang64 -DCMAKE_BUILD_TYPE=Release
+cmake --build src/build-clang64 --parallel
+```
+
+从项目根目录运行程序。链接 MSYS2 的 SDL3 DLL 时，运行环境的 `PATH` 需要包含对应的 `bin` 目录。配置时加 `-DBUILD_TESTING=ON` 可构建无窗口回归。Windows WGC 和进程音频测试工具使用 MSVC 的 Windows SDK。
+
+### 静态运行库与链接时优化
+
+- `-DFD2SDL_STATIC_RUNTIME=ON` 在 MSVC 构建中选择 `/MT`，Debug 选择 `/MTd`。通过 CPM 编译的静态 SDL3 使用同一 CRT。使用预编译静态 SDL3 时，SDK 的 CRT 必须匹配，或加 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 让 CPM 从源码构建。
+- 在 MSYS2 上，静态运行库开关使用 `-static` 链接编译器运行库。系统 SDL3 仍按 CMake 选中的目标链接，选中共享 SDL3 时运行仍需要对应 DLL。Linux 的 GCC／Clang 静态链接编译器运行库，保留系统 C 库的默认链接方式。
+- `-DFD2SDL_LTO=ON` 启用项目目标的链接时优化。配置阶段会检查 C 和 C++ 工具链的 IPO 支持，检查失败时报告编译器或链接器的诊断。
 
 ### Windows 迭代构建的路径
 
@@ -44,7 +70,7 @@ $oldAudio = $env:SDL_AUDIODRIVER
 try {
     $env:SDL_VIDEODRIVER = 'dummy'
     $env:SDL_AUDIODRIVER = 'dummy'
-    ./src/Debug/fd2sdl.exe --field-play-once
+    ./src/build-win/Debug/fd2sdl.exe --field-play-once
 } finally {
     $env:SDL_VIDEODRIVER = $oldVideo
     $env:SDL_AUDIODRIVER = $oldAudio
@@ -54,7 +80,7 @@ try {
 Linux（Bash）：
 
 ```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/fd2sdl --field-play-once
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/build/fd2sdl --field-play-once
 ```
 
 写存档的检查必须使用独立副本，不把 `FD2SDL_SAVE_PATH` 指向 `original_game/`。
@@ -68,7 +94,7 @@ Copy-Item -LiteralPath original_game/FD2.SAV -Destination (Join-Path $work 'FD2.
 $oldSave = $env:FD2SDL_SAVE_PATH
 try {
     $env:FD2SDL_SAVE_PATH = Join-Path $work 'FD2.SAV'
-    ./src/Debug/fd2sdl.exe --field-play 0
+    ./src/build-win/Debug/fd2sdl.exe --field-play 0
 } finally {
     $env:FD2SDL_SAVE_PATH = $oldSave
 }
@@ -79,7 +105,7 @@ Linux（Bash）：
 ```bash
 work=$(mktemp -d "${TMPDIR:-/tmp}/fd2-check.XXXXXX")
 cp original_game/FD2.SAV "$work/FD2.SAV"
-FD2SDL_SAVE_PATH="$work/FD2.SAV" ./src/fd2sdl --field-play 0
+FD2SDL_SAVE_PATH="$work/FD2.SAV" ./src/build/fd2sdl --field-play 0
 ```
 
 临时目录保留供检查；确认不再需要后，只删除这次创建的目录。历史证据中的 `/tmp/...` 路径是 Linux 当时的产物位置，Windows 重跑应指向新建工作目录，不把旧路径当作仍存在的输入。

@@ -11,7 +11,7 @@
 static int f4_reader_run(const char *root);
 #include "f4_reader_probe.h"
 
-static int f4_remainder_fx(unsigned entry) {
+static inline int f4_remainder_fx(unsigned entry) {
     static const unsigned entries[]={18,19,20,21,22,23,24,25,26,27,28,30,32,33,
         34,37,38,39,43,44,45,54,58,65,66,67,68,79};
     for(size_t i=0;i<sizeof(entries)/sizeof(entries[0]);i++)if(entry==entries[i])return 1;

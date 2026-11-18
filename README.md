@@ -8,16 +8,16 @@
 
 ## 准备与构建
 
-需要 CMake 3.16+、Python 3.9+（仅标准库，用于构建期生成冷定义）、C11／C++14 编译器，以及合法取得的原版游戏数据。Windows 使用带 C++ 桌面开发组件和 Windows SDK 的 Visual Studio Build Tools；图形测试驱动另需 C++17 与 C++/WinRT SDK。Linux 使用 GCC 或 Clang。将数据文件放入 `original_game/`；本仓库不分发原版资源。
+需要 CMake 3.21+、Python 3.9+（仅标准库，用于生成冷定义）和 C11／C++14 编译器。Windows 可用带 C++ 桌面开发组件和 Windows SDK 的 MSVC v142（19.28 及以上），也可用 MSYS2 的 GCC 或 Clang。Linux 使用 GCC 或 Clang。将合法取得的原版游戏数据放入 `original_game/`；本仓库不分发这些数据。
 
 从项目根目录执行。两平台使用独立构建目录，不复用另一平台的 `CMakeCache.txt`。
 
 Windows（PowerShell，Visual Studio 生成器）：
 
 ```powershell
-cmake -S src -B src/build-win
+cmake -S src -B src/build-win -A x64
 cmake --build src/build-win --config Debug --parallel
-./src/Debug/fd2sdl.exe
+./src/build-win/Debug/fd2sdl.exe
 ```
 
 Linux（Bash，单配置生成器）：
@@ -25,12 +25,14 @@ Linux（Bash，单配置生成器）：
 ```bash
 cmake -S src -B src/build
 cmake --build src/build --parallel
-./src/fd2sdl
+./src/build/fd2sdl
 ```
 
 CMake 优先查找系统 SDL3（CMake package，其次 pkg-config）；找不到时通过 CPM.cmake 下载并构建，回退路径需要网络。离线构建应预装 SDL3，必要时设置 `SDL3_DIR`；`-DFD2SDL_USE_SYSTEM_SDL3=OFF` 可强制使用下载路径。
 
-启动时保持工作目录为项目根目录，以便找到 `original_game/`。Visual Studio 的 Release 输出为 `src/Release/fd2sdl.exe`；Windows Ninja 单配置生成器的输出为 `src/fd2sdl.exe`。生成器、Python、环境变量与临时目录的对应方式见[跨平台命令约定](docs/tools/platforms.md)。
+主程序、中间文件和生成的冷定义都在 `-B` 指定的构建目录内。Visual Studio 按配置分目录，例如 `src/build-win/Release/fd2sdl.exe`。Ninja 单配置构建的可执行文件直接位于构建目录。运行时仍以项目根目录为工作目录，以便找到 `original_game/`。
+
+静态链接编译器运行库和链接时优化默认关闭。配置时分别传入 `-DFD2SDL_STATIC_RUNTIME=ON` 和 `-DFD2SDL_LTO=ON` 开启。工具链选择、运行库和 SDL3 的组合见[跨平台构建约定](docs/tools/platforms.md)。
 
 ## 使用
 
@@ -39,15 +41,15 @@ CMake 优先查找系统 SDL3（CMake package，其次 pkg-config）；找不到
 Windows（PowerShell）：
 
 ```powershell
-./src/Debug/fd2sdl.exe --new-game-play
-./src/Debug/fd2sdl.exe --field-play 0
+./src/build-win/Debug/fd2sdl.exe --new-game-play
+./src/build-win/Debug/fd2sdl.exe --field-play 0
 ```
 
 Linux（Bash）：
 
 ```bash
-./src/fd2sdl --new-game-play
-./src/fd2sdl --field-play 0
+./src/build/fd2sdl --new-game-play
+./src/build/fd2sdl --field-play 0
 ```
 
 `--new-game-play` 播放完整新游戏引导后进入应用层战场流程。`--field-play 0` 是跳过引导的独立部署态调试入口，角色还没有执行开场移动，也不执行应用层跨关交接。正式应用流程按已证绑定支持stage0—29的相应战斗／END、准备交接、活动恢复与四槽；标题CONTINUE与LOAD按同一能力门恢复。26坏结局与29终章保持原非返回出口，resource30不作为普通战场。默认turn255拒绝及外来32人credits边界保留，具体见统一计划。不能把调试入口截图当作自然新游戏的第一关初始画面。
@@ -83,19 +85,25 @@ Give选择相邻目标，有空槽时直接转交，满槽时选择对方物品�
 
 ## 测试与开发文档
 
+测试默认关闭。首次配置测试构建时传入 `-DBUILD_TESTING=ON`，再构建并运行 CTest。
+
 Windows（PowerShell）：
 
 ```powershell
-ctest --test-dir src/build-win -C Debug --output-on-failure
+cmake -S src -B src/build-win -A x64 -DBUILD_TESTING=ON
+cmake --build src/build-win --config Debug --parallel
+ctest --test-dir src/build-win -C Debug --output-on-failure --no-tests=error
 ```
 
 Linux（Bash）：
 
 ```bash
-ctest --test-dir src/build --output-on-failure
+cmake -S src -B src/build -DBUILD_TESTING=ON
+cmake --build src/build --parallel
+ctest --test-dir src/build --output-on-failure --no-tests=error
 ```
 
-部分测试需要本地原版资源。窗口自动化的环境要求、运行命令、覆盖范围和截图证据见[图形自动化测试](docs/tools/gui-testing.md)；Windows 使用可交互桌面，Linux 使用 X11／Xvfb 和 XTest。无窗口验证、Python 测试及调试入口见[工具速查](docs/tools/README.md)。DOSBox 原版可在独立副本中自动操作和取证；SDL 自测通过仍需对应原版场景和判据才能证明一致。
+部分测试需要本地原版资源。Windows 窗口和进程音频测试工具使用 MSVC、C++17、C++/WinRT 和 Windows SDK，窗口测试需要可交互桌面。Linux 窗口测试使用 X11／Xvfb 和 XTest。环境要求、覆盖范围和截图证据见[图形自动化测试](docs/tools/gui-testing.md)，无窗口回归和调试入口见[工具速查](docs/tools/README.md)。DOSBox 原版对照使用独立副本、相同场景和明确的通过判据。
 
 - [文档索引](docs/README.md)：计划、格式、系统设计和逆向依据。
 - [AGENTS.md](AGENTS.md)：Agent 开发规则与修改前必读事项。

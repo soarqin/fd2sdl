@@ -830,7 +830,8 @@ static void restore_image_rect(uint8_t *dst,const uint8_t *saved,const battle_im
         int x,int y) {
     int left=x<0 ? 0:x,top=y<0 ? 0:y;
     int right=x+image->image.width,bottom=y+image->image.height;
-    if (right>320) right=320;if (bottom>200) bottom=200;
+    if (right>320) right=320;
+    if (bottom>200) bottom=200;
     if (right<=left || bottom<=top) return;
     for (int row=top;row<bottom;row++)
         memcpy(dst+row*320+left,saved+row*320+left,(size_t)(right-left));
@@ -1678,7 +1679,7 @@ static int map_actor_page(fd2_battle_magic_exchange *e,const fd2_field_game *gam
 
 static int magic_map_base(fd2_battle_magic_exchange *e,const fd2_vga *vga) {
     fd2_field_page_destroy(e->map_base);e->map_base=NULL;
-    if (vga->field_page && !(e->map_base=fd2_field_page_clone(vga->field_page))) return -1;
+    if (vga->field_page && (e->map_base = fd2_field_page_clone(vga->field_page)) == NULL) return -1;
     return 0;
 }
 

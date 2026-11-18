@@ -32,13 +32,13 @@ void fd2_field_command_assets_close(fd2_field_command_assets *assets) {
 }
 
 int fd2_field_command_assets_open(fd2_field_command_assets *assets,
-                                  const fd2_archive *fdother) {
-    if (!assets || !fdother) return -1;
+                                  const fd2_archive *archive) {
+    if (!assets || !archive) return -1;
     memset(assets, 0, sizeof(*assets));
 
     const uint8_t *data;
     size_t size;
-    if (fd2_archive_get(fdother, FD2_FIELD_COMMAND_RESOURCE_INDEX,
+    if (fd2_archive_get(archive, FD2_FIELD_COMMAND_RESOURCE_INDEX,
                         &data, &size) != 0 || size < 4)
         return -1;
 

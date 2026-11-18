@@ -1039,7 +1039,7 @@ static void test_core_cell_early_key_across_delay_and_status_clear(void) {
 
 static void test_clear_pump_quit_stops_real_continuation(void) {
     fd2_vga vga;reset(&vga);fd2_field_game game={0};game.ready=1;
-    field_runtime_presentation plain={&vga,NULL,0,0,NULL};
+    field_runtime_presentation plain={.vga=&vga,.audio=NULL};
     vga.info_panel_suppressed=173;
     CHECK(play_runtime_step(&game,FD2_FIELD_RUNTIME_CLEAR_KEYS,0,&plain)==0 &&
         vga.info_panel_suppressed==173 && !rng_calls && !test_frames);
@@ -1052,7 +1052,7 @@ static void test_clear_pump_quit_stops_real_continuation(void) {
     CHECK(play_runtime_step(&game,FD2_FIELD_RUNTIME_INFO_VISIBLE,1,&plain)==1 &&
         plain.host_quit && vga.info_panel_suppressed==173);
     reset(&vga);
-    field_runtime_presentation runtime={&vga,NULL,0,0,NULL};quit_during_clear=1;
+    field_runtime_presentation runtime={.vga=&vga,.audio=NULL};quit_during_clear=1;
     vga.info_panel_suppressed=1;
     CHECK(play_runtime_step(&game,FD2_FIELD_RUNTIME_CLEAR_KEYS,0,&runtime)==1 && runtime.host_quit &&
         vga.input.quit_requested && vga.info_panel_suppressed==1 && !rng_calls && !test_frames);
@@ -1220,7 +1220,7 @@ static void test_cell_open_secondary_cue(void) {
     fd2_field_audio audio={.player=&primary,.secondary_player=&secondary,.ui_bank=&bank};
     fd2_vga vga;reset(&vga);
     fd2_field_game game={0};game.ready=1;game.option_values[1]=1;
-    field_runtime_presentation runtime={&vga,&audio,0,0,NULL};
+    field_runtime_presentation runtime={.vga=&vga,.audio=&audio};
     cell_secondary=&secondary;cell_ui_bank=&bank;cell_pcm_calls=0;cell_pcm_failure=0;
     CHECK(play_runtime_step(&game,FD2_FIELD_RUNTIME_CELL_OPEN_CUE,12,&runtime)==0 && cell_pcm_calls==1);
     CHECK(!test_frames && !rng_calls && !runtime.host_quit);

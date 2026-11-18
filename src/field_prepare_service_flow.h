@@ -145,7 +145,8 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
             for (size_t actor=0;actor<state->unit_count;actor++) {
                 if (prepare_domain_read(state,(int)actor,&unit)!=0) goto fatal;
                 int compatible=item[0]<32u ? fd2_field_item_equip_compatibility(unit.movement_profile,s->product_id):1;
-                if (compatible<0) goto fatal;if (compatible) candidates[count++]=(uint8_t)actor;
+                if (compatible<0) goto fatal;
+                if (compatible) candidates[count++]=(uint8_t)actor;
             }
         } else if (kind==1) {
             if (prepare_domain_read(state,s->member,&unit)!=0 || fd2_field_prepare_item_visible_ids(&unit,ids,8u,&count)!=0) goto fatal;
@@ -201,7 +202,8 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         if (!strcmp(op,"item_remove")) result=s->raw_slot<0 ? -1:fd2_field_prepare_item_remove(&unit,(size_t)s->raw_slot);
         else if (!strcmp(op,"equipment_set")) result=prepare_domain_equipment(&unit,node->args[0],s->raw_slot);
         else result=fd2_field_prepare_item_recompute(&unit);
-        if (result) goto fatal;prepare_domain_write(state,s->member,&unit);s->irreversible=1;
+        if (result) goto fatal;
+        prepare_domain_write(state,s->member,&unit);s->irreversible=1;
     } else if (!strcmp(op,"equipment_compatible")) {
         uint8_t id;if (prepare_domain_read(state,s->member,&unit)!=0 || s->raw_slot<0 ||
             fd2_field_prepare_item_selected_id(&unit,(size_t)s->raw_slot,&id)!=0) goto fatal;
@@ -210,17 +212,20 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
     } else if (!strcmp(op,"money_add") || !strcmp(op,"money_sub")) {
         s->previous_money=state->gold_or_flags;int subtract=!strcmp(op,"money_sub");
         result=subtract ? fd2_field_prepare_money_subtract(&state->gold_or_flags,s->price):fd2_field_prepare_money_add(&state->gold_or_flags,s->price);
-        if (result) goto fatal;s->irreversible=1;
+        if (result) goto fatal;
+        s->irreversible=1;
         result=prepare_service_money_animate(ui,subtract);if (result) goto feedback_error;
     } else if (!strcmp(op,"revive_flags_clear") || !strcmp(op,"revive_hp")) {
         if (s->member<0) goto fatal;
         result=!strcmp(op,"revive_flags_clear") ? fd2_field_prepare_revive_clear_flags(state,(size_t)s->member):fd2_field_prepare_revive_restore_hp(state,(size_t)s->member);
-        if (result) goto fatal;s->irreversible=1;
+        if (result) goto fatal;
+        s->irreversible=1;
     } else if (!strcmp(op,"promotion_item_consume") || !strcmp(op,"promotion_identity") || !strcmp(op,"promotion_finalize")) {
         if (!strcmp(op,"promotion_item_consume")) result=fd2_field_prepare_promotion_consume(state,&s->promotion);
         else if (!strcmp(op,"promotion_identity")) {result=fd2_field_prepare_promotion_identity(state,&s->promotion);if (!result) s->growth_line=1;}
         else result=fd2_field_prepare_promotion_finalize(state,&s->promotion);
-        if (result) goto fatal;s->irreversible=1;
+        if (result) goto fatal;
+        s->irreversible=1;
     } else if (!strcmp(op,"growth_select") || !strcmp(op,"movement_prepare")) {
         int gain=!strcmp(op,"movement_prepare") ? 5:node->args[0];uint16_t delta;
         if (gain<0 || gain>5 || fd2_field_prepare_promotion_gain_value(&s->promotion,(fd2_field_prepare_gain)gain,&delta)!=0) goto fatal;
@@ -230,23 +235,28 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         unsigned gain=!strcmp(op,"movement_commit") ? 5u:s->growth_index;
         if (gain>5u || (!strcmp(op,"growth_commit") && gain>=5u) ||
             fd2_field_prepare_promotion_gain_apply(state,&s->promotion,(fd2_field_prepare_gain)gain)!=0) goto fatal;
-        if (gain<5u) s->growth_line++;s->irreversible=1;
+        if (gain<5u) s->growth_line++;
+        s->irreversible=1;
     } else if (!strcmp(op,"cache_rebuild")) {
         if (fd2_field_prepare_assets_bind_roster(ui->assets,state)!=0) goto fatal;
     } else if (!strcmp(op,"preflight")) {
         result=prepare_domain_preflight(ui,node->args[0]);if (result) goto feedback_error;
     } else if (!strcmp(op,"quota_set")) {
-        if (node->args[0]!=16 && node->args[0]!=20) goto fatal;s->quota=(size_t)node->args[0];
+        if (node->args[0]!=16 && node->args[0]!=20) goto fatal;
+        s->quota=(size_t)node->args[0];
     } else if (!strcmp(op,"deployment_mode")) {
-        if (node->args[0]<0 || node->args[0]>1) goto fatal;s->notown_mode=node->args[0];
+        if (node->args[0]<0 || node->args[0]>1) goto fatal;
+        s->notown_mode=node->args[0];
     } else if (!strcmp(op,"is_notown")) next=s->notown_mode ? FD2_FLOW_YES:FD2_FLOW_NO;
     else if (!strcmp(op,"roster_exceeds_quota")) {
-        if (s->quota!=16u && s->quota!=20u) goto fatal;next=state->unit_count>s->quota ? FD2_FLOW_YES:FD2_FLOW_NO;
+        if (s->quota!=16u && s->quota!=20u) goto fatal;
+        next=state->unit_count>s->quota ? FD2_FLOW_YES:FD2_FLOW_NO;
     } else if (!strcmp(op,"stage_is") || !strcmp(op,"stage_at_least")) {
         if (node->args[0]<0 || node->args[0]>32) goto fatal;
         int matches=!strcmp(op,"stage_is") ? state->stage_id==node->args[0]:state->stage_id>=node->args[0];next=matches ? FD2_FLOW_YES:FD2_FLOW_NO;
     } else if (!strcmp(op,"roster_has_text")) {
-        if (node->args[0]<0 || node->args[0]>255) goto fatal;int found=0;
+        if (node->args[0]<0 || node->args[0]>255) goto fatal;
+        int found=0;
         for (size_t i=0;i<state->unit_count;i++) if (state->unit_area[i*80u+8u]==(uint8_t)node->args[0]) found=1;
         next=found ? FD2_FLOW_YES:FD2_FLOW_NO;
     } else if (!strcmp(op,"required_member")) {
@@ -257,7 +267,8 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         if (node->args[0]<0 || node->args[0]>255 || fd2_field_prepare_roster_front(state,(uint8_t)node->args[0])!=1) goto fatal;
         s->irreversible=1;
     } else if (!strcmp(op,"selection_reset")) {
-        if (fd2_field_prepare_selection_init(s->selection)!=0) goto fatal;s->cursor=0;
+        if (fd2_field_prepare_selection_init(s->selection)!=0) goto fatal;
+        s->cursor=0;
     } else if (!strcmp(op,"selection_toggle")) {
         int cursor=s->cursor;
         if (fd2_field_prepare_selection_step(state->unit_count,s->selection,&cursor,FD2_FIELD_PREPARE_SELECT_TOGGLE)!=1) goto fatal;
@@ -269,9 +280,11 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         size_t count;if ((s->quota!=16u && s->quota!=20u) || fd2_field_prepare_selection_count(state->unit_count,s->selection,&count)!=0) goto fatal;
         next=count==s->quota-1u ? FD2_FLOW_YES:FD2_FLOW_NO;
     } else if (!strcmp(op,"selection_reorder")) {
-        if (fd2_field_prepare_roster_reorder(state,s->selection,s->quota)!=0) goto fatal;s->irreversible=1;
+        if (fd2_field_prepare_roster_reorder(state,s->selection,s->quota)!=0) goto fatal;
+        s->irreversible=1;
     } else if (!strcmp(op,"finish")) {
-        if (node->args[0]<-1 || node->args[0]>1) goto fatal;s->done=1;s->result=node->args[0];
+        if (node->args[0]<-1 || node->args[0]>1) goto fatal;
+        s->done=1;s->result=node->args[0];
     } else return 0;
     *port=next;return 1;
 feedback_error:

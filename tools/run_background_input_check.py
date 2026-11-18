@@ -3,7 +3,7 @@
 
 接口：--root ROOT --game EXE --driver EXE --dosbox EXE --artifacts NEWDIR。
 例如：driver.exe run-job 600000 python -B tools/run_background_input_check.py
-      --root . --game src/Debug/fd2sdl.exe --driver driver.exe
+      --root . --game src/build-win/Debug/fd2sdl.exe --driver driver.exe
       --dosbox dosbox-x.exe --artifacts <新的隔离目录>。
 
 原版／SDL串行使用既有标题和菜单资源门；同文件--sentinel子模式仅供内部

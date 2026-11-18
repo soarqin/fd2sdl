@@ -107,7 +107,8 @@ static int common_event_project_write(const fd2_field_game *game,
         if(a[1]<0 || !(p->known[at]&128u)){p->uncertain=1;return 0;}
         int result=!strcmp(op,"event_item_append")?fd2_field_event_item_append(&p->units,at,(uint8_t)a[1]):
             fd2_field_event_item_remove(&p->units,at,(uint8_t)a[1]);
-        if(result<0)return -1;*port=result?FD2_FLOW_YES:FD2_FLOW_NO;
+        if(result<0)return -1;
+        *port=result?FD2_FLOW_YES:FD2_FLOW_NO;
     } else if(!strcmp(op,"ai_anchor")) {
         if(a[0]<0 || a[1]<a[0] || (size_t)a[1]>=p->units.count)return -1;
     } else if(!strcmp(op,"physical_exchange") || !strcmp(op,"finalize_defeated") ||
@@ -168,7 +169,7 @@ static int common_event_preflight_identity(const fd2_field_game *game,
                     port=FD2_FLOW_YES;
                 }
             } else if(common_event_leaf(n.op)) {
-                fd2_field_event_resource_view view={&p.units,p.roster,p.roster_count,p.map_entry,p.shape_index,p.map_entry>=0};
+                fd2_field_event_resource_view view={&p.units,p.roster,p.roster_count,p.map_entry,p.shape_index,p.map_entry>=0,.text_override=NULL};
                 int movement_stop=0;
                 if(!strcmp(n.op,"move")) {
                     const uint8_t *bytes;size_t length,groups;

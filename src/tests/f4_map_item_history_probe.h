@@ -145,7 +145,7 @@ static int f4_map_history_cli(const char *root) {
 #endif
     if(f4_path(path,root,"FDOTHER.DAT") || fd2_archive_open(&other,path) ||
        f4_path(path,root,"FDICON.B24") || fd2_map_sprite_bank_open(&game.sprites,path) ||
-       !(old_other=malloc(other.size)) || !(old_icon=malloc(game.sprites.size)))goto done;
+       (old_other = malloc(other.size)) == NULL || (old_icon = malloc(game.sprites.size)) == NULL)goto done;
     memcpy(old_other,other.data,other.size);memcpy(old_icon,game.sprites.data,game.sprites.size);
     if(f4_input_receipt("FDOTHER.DAT",other.data,other.size) ||
        f4_input_receipt("FDICON.B24",game.sprites.data,game.sprites.size))goto done;

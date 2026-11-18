@@ -8,6 +8,7 @@
 #include "field_rng.h"
 #include "save.h"
 #include "scene.h"
+#include "static_data.h"
 
 fd2_field_game s2_layout_game;
 volatile unsigned s2_layout_phase;

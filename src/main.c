@@ -35,29 +35,29 @@
 #define WINDOW_W 960
 #define WINDOW_H 600
 
-_Static_assert((int)FD2_FIELD_PLAY_RETURN_COMPLETE == (int)FD2_APP_FIELD_COMPLETE &&
-               (int)FD2_FIELD_PLAY_RETURN_LEAVE_GAME == (int)FD2_APP_FIELD_LEAVE_GAME &&
-               (int)FD2_FIELD_PLAY_RETURN_HOST_QUIT == (int)FD2_APP_FIELD_HOST_QUIT &&
-               (int)FD2_FIELD_PLAY_RETURN_ERROR == (int)FD2_APP_FIELD_ERROR &&
-               (int)FD2_FIELD_PLAY_RETURN_VICTORY == (int)FD2_APP_FIELD_VICTORY &&
-               (int)FD2_FIELD_PLAY_RETURN_DEFEAT == (int)FD2_APP_FIELD_DEFEAT,
+_Static_assert((0 + FD2_FIELD_PLAY_RETURN_COMPLETE) == (0 + FD2_APP_FIELD_COMPLETE) &&
+               (0 + FD2_FIELD_PLAY_RETURN_LEAVE_GAME) == (0 + FD2_APP_FIELD_LEAVE_GAME) &&
+               (0 + FD2_FIELD_PLAY_RETURN_HOST_QUIT) == (0 + FD2_APP_FIELD_HOST_QUIT) &&
+               (0 + FD2_FIELD_PLAY_RETURN_ERROR) == (0 + FD2_APP_FIELD_ERROR) &&
+               (0 + FD2_FIELD_PLAY_RETURN_VICTORY) == (0 + FD2_APP_FIELD_VICTORY) &&
+               (0 + FD2_FIELD_PLAY_RETURN_DEFEAT) == (0 + FD2_APP_FIELD_DEFEAT),
                "field/app flow result mapping changed");
 
-_Static_assert((int)FD2_FIELD_PREPARE_ERROR == (int)FD2_APP_PREPARE_ERROR &&
-               (int)FD2_FIELD_PREPARE_DEPART == (int)FD2_APP_PREPARE_DEPART &&
-               (int)FD2_FIELD_PREPARE_TITLE == (int)FD2_APP_PREPARE_TITLE &&
-               (int)FD2_FIELD_PREPARE_HOST_QUIT == (int)FD2_APP_PREPARE_HOST_QUIT &&
-               (int)FD2_FIELD_PREPARE_LEAVE_GAME == (int)FD2_APP_PREPARE_LEAVE_GAME,
+_Static_assert((0 + FD2_FIELD_PREPARE_ERROR) == (0 + FD2_APP_PREPARE_ERROR) &&
+               (0 + FD2_FIELD_PREPARE_DEPART) == (0 + FD2_APP_PREPARE_DEPART) &&
+               (0 + FD2_FIELD_PREPARE_TITLE) == (0 + FD2_APP_PREPARE_TITLE) &&
+               (0 + FD2_FIELD_PREPARE_HOST_QUIT) == (0 + FD2_APP_PREPARE_HOST_QUIT) &&
+               (0 + FD2_FIELD_PREPARE_LEAVE_GAME) == (0 + FD2_APP_PREPARE_LEAVE_GAME),
                "prepare/app result ABI changed");
 
 /* 独立战场CLI不带App准备owner；只报告结果，不冒充已执行跨关链。 */
 static int field_result_status(fd2_field_play_result result, size_t stage) {
     switch (fd2_app_flow_from_field((fd2_app_field_result)result)) {
         case FD2_APP_FLOW_BATTLE_VICTORY:
-            fprintf(stderr, "独立战场到达 victory（stage=%zu），未执行App跨关链。\n", stage);
+            fprintf(stderr, u8"独立战场到达 victory（stage=%zu），未执行App跨关链。\n", stage);
             return 2;
         case FD2_APP_FLOW_BATTLE_DEFEAT:
-            fprintf(stderr, "独立战场到达 defeat（stage=%zu），未执行App败北返回标题流程。\n", stage);
+            fprintf(stderr, u8"独立战场到达 defeat（stage=%zu），未执行App败北返回标题流程。\n", stage);
             return 2;
         case FD2_APP_FLOW_LEAVE_GAME:
         case FD2_APP_FLOW_EXIT:
@@ -789,8 +789,8 @@ title_screen:
     goto done;
 
 resource_error:
-    if(fd2_bios_clock_error())fprintf(stderr,"标题时钟推进失败：%d\n",fd2_bios_clock_error());
-    else fprintf(stderr,"标题流程失败\n");
+    if(fd2_bios_clock_error())fprintf(stderr,u8"标题时钟推进失败：%d\n",fd2_bios_clock_error());
+    else fprintf(stderr,u8"标题流程失败\n");
     goto done;
 host_quit:
     result = FD2_TITLE_ACTION_HOST_QUIT;
@@ -930,14 +930,14 @@ static int check_startup_resources(unsigned mode, const char *directory,
         if (!failed) fputs("无法启动：原版数据检查失败。\n", errors);
         failed = 1;
         if (error == ENOENT || error == ENOTDIR)
-            fprintf(errors, "  缺少文件：%s/%s\n", directory, files[i].name);
+            fprintf(errors, u8"  缺少文件：%s/%s\n", directory, files[i].name);
         else if (error == EINVAL)
-            fprintf(errors, "  格式损坏：%s/%s\n", directory, files[i].name);
+            fprintf(errors, u8"  格式损坏：%s/%s\n", directory, files[i].name);
         else
-            fprintf(errors, "  无法读取或格式损坏：%s/%s\n", directory, files[i].name);
+            fprintf(errors, u8"  无法读取或格式损坏：%s/%s\n", directory, files[i].name);
     }
     if (failed) {
-        fprintf(errors, "请将合法取得的原版游戏数据放入 %s/，并从其上级目录启动。\n",
+        fprintf(errors, u8"请将合法取得的原版游戏数据放入 %s/，并从其上级目录启动。\n",
                 directory);
         fputs("不需要 FD2.EXE；程序不会下载或修改原版数据。\n", errors);
     }
@@ -1071,7 +1071,7 @@ int main(int argc, char **argv) {
     /* AIL建立一次，早于MDI→DIG；H完成调用边界把program0后的完整PIT
      * 计数显式设为65536，真实安装CPU耗时/首IRQ相位仍须原版资格。 */
     if (fd2_bios_clock_ail_attach(SDL_GetTicksNS(), 65536u) != 0) {
-        fprintf(stderr, "AIL时钟初始化失败\n");
+        fprintf(stderr, u8"AIL时钟初始化失败\n");
         rc = -1;
         goto cleanup;
     }
@@ -1224,7 +1224,7 @@ application_title:
                 if (fd2_save_file_open(&save, save_path) != 0 ||
                     fd2_save_file_get_battle_snapshot(&save, &snapshot) != 0 ||
                     !fd2_field_stage_is_supported(snapshot.meta[FD2_SAVE_BATTLE_META_STAGE])) {
-                    fprintf(stderr, "活动快照无法恢复：%s\n", save_path);
+                    fprintf(stderr, u8"活动快照无法恢复：%s\n", save_path);
                     flow = FD2_APP_FLOW_ERROR;
                 } else {
                     stage = snapshot.meta[FD2_SAVE_BATTLE_META_STAGE];
@@ -1253,7 +1253,7 @@ cleanup:
     if(fd2_bios_clock_close()!=0) {
         /* 未归还的源栈借用不能继续释放其userdata。先停止SDL设备/窗口，
          * 保所有被借对象至进程退出；仅灾难性宿主错误，不伪签清理成功。 */
-        fprintf(stderr,"App时钟关闭失败，停止宿主且保留被借对象\n");
+        fprintf(stderr,u8"App时钟关闭失败，停止宿主且保留被借对象\n");
         SDL_Quit();return 1;
     }
     /* 仅测试capture环境记录同一Audio全生命周期；不是WAV窗口/可听推算。

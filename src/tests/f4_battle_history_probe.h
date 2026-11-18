@@ -144,7 +144,7 @@ static int f4_history_loaded_cli(const char *root,int (*parse)(char *,unsigned[4
     if(_setmode(_fileno(stdout),_O_BINARY)<0)return 1;
 #endif
     for(unsigned i=0;i<5;i++) {
-        if(f4_path(path,root,names[i]) || fd2_archive_open(archives[i],path) || !(saved[i]=malloc(archives[i]->size)))goto done;
+        if(f4_path(path,root,names[i]) || fd2_archive_open(archives[i],path) || (saved[i] = malloc(archives[i]->size)) == NULL)goto done;
         memcpy(saved[i],archives[i]->data,archives[i]->size);
         if(f4_input_receipt(names[i],archives[i]->data,archives[i]->size))goto done;
     }

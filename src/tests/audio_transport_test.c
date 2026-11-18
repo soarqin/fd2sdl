@@ -143,7 +143,7 @@ static int reset_test(void) {
     CHECK(fd2_bios_clock_init() == 0); return 1;
 }
 static fd2_audio *make_audio(int rate, int live, int allow) {
-    fd2_audio_config config = { rate, live, allow }; return fd2_audio_create(&config);
+    fd2_audio_config config = { rate, live, allow, 0 }; return fd2_audio_create(&config);
 }
 static int test_exact_fraction(void) {
     CHECK(reset_test());

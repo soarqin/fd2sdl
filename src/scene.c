@@ -1845,7 +1845,7 @@ int fd2_scene_arrival_visual_prepare(fd2_scene_arrival_visual **scope,
     fd2_scene_arrival_visual *owned=calloc(1,sizeof(*owned));
     if(!owned)return -1;
     if(arrival_images_open(owned,fdother)!=0 ||
-        !(owned->base=fd2_field_page_create()) ||
+        (owned->base = fd2_field_page_create()) == NULL ||
         fd2_field_page_copy_pixels(owned->base,vga->field_page)!=0) {
         fd2_scene_arrival_visual_close(&owned);return -1;
     }

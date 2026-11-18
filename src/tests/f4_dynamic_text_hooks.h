@@ -14,7 +14,7 @@ static struct {
     fd2_vga *vga;
     uint8_t prefix[64000];
 } f4_dynamic;
-static int f4_dynamic_font_linear(uint8_t *p,size_t n,const fd2_font *font,
+static inline int f4_dynamic_font_linear(uint8_t *p,size_t n,const fd2_font *font,
     uint32_t glyph,int64_t at,uint32_t stride,uint8_t fg,uint8_t shadow,uint8_t bg) {
     int result=fd2_font_draw_glyph_linear(p,n,font,glyph,at,stride,fg,shadow,bg);
     if(!result && f4_dynamic.active && f4_dynamic.negative && !f4_dynamic.prefix_captured &&
@@ -45,7 +45,7 @@ static int f4_dynamic_take_key(fd2_input *input,fd2_input_event *event) {
     }
     return fd2_input_take_key(input,event);
 }
-static void f4_dynamic_upload(fd2_vga *vga) {
+static inline void f4_dynamic_upload(fd2_vga *vga) {
     if(!f4_dynamic.active)fd2_vga_upload_current_frame(vga);
 }
 #endif

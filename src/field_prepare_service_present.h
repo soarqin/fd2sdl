@@ -176,7 +176,8 @@ static int prepare_service_notice_open(prepare_ui *ui,int kind) {
     for(size_t i=0;i<4u;i++)fd2_image_free(&candidate[i]);
     return result;
 fail:
-    for(size_t i=0;i<4u;i++)fd2_image_free(&candidate[i]);return -1;
+    for(size_t i=0;i<4u;i++)fd2_image_free(&candidate[i]);
+    return -1;
 }
 
 /* 16c57准备caller的53A51=0：箭头x143（不是战场x191）。18/19起点181，
@@ -214,7 +215,8 @@ static int prepare_service_wait_event(prepare_ui *ui,fd2_input_event *event,int 
                 if (prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
                 countdown=fd2_field_rng_next(&ui->context->rng)%30u+2u;blink=0;
             } else if (countdown--==0u) {
-                if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;blink=1;
+                if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;
+                blink=1;
             }
             if(prepare_clock_tick(ui->vga,&last)<0)return -1;
         }
@@ -250,7 +252,8 @@ static int prepare_service_read_key(prepare_ui *ui,fd2_input_event *event,
                 if (prepare_service_portrait(ui,ui->vga,0,0)!=0) return -1;
                 countdown=fd2_field_rng_next(&ui->context->rng)%30u+2u;blink=0;
             } else if (countdown--==0u) {
-                if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;blink=1;
+                if (prepare_service_portrait(ui,ui->vga,3,0)!=0) return -1;
+                blink=1;
             }
             if(prepare_clock_tick(ui->vga,&last)<0)return -1;
         }
@@ -355,7 +358,8 @@ static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
             {int presented=prepare_service_present_ticks(ui,1);if(presented)return presented;}
         }
     }
-    if(fd2_vga_present(ui->vga)<0)return -1;return prepare_service_host_quit(ui);
+    if(fd2_vga_present(ui->vga)<0)return -1;
+    return prepare_service_host_quit(ui);
 }
 
 static int prepare_service_money_redraw(prepare_ui *ui) {
@@ -453,7 +457,8 @@ static int prepare_service_animate(prepare_ui *ui) {
         for(int value=0;value<64;value+=2) {
             for(size_t i=0;i<VGA_PALETTE_SIZE;i++) {
                 unsigned channel=(unsigned)ui->vga->palette[i]+(unsigned)value;
-                if(channel>63u)channel=63u;ui->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
+                if(channel>63u)channel=63u;
+                ui->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
             }
             {int presented=prepare_service_present(ui,4);if(presented)return presented;}
         }
@@ -461,7 +466,8 @@ static int prepare_service_animate(prepare_ui *ui) {
         for(int value=62;value>=0;value-=2) {
             for(size_t i=0;i<VGA_PALETTE_SIZE;i++) {
                 unsigned channel=(unsigned)ui->vga->palette[i]+(unsigned)value;
-                if(channel>63u)channel=63u;ui->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
+                if(channel>63u)channel=63u;
+                ui->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
             }
             {int presented=prepare_service_present(ui,4);if(presented)return presented;}
         }

@@ -590,7 +590,8 @@ static int read_key_state(prepare_ui *ui, fd2_input_event *event, int wait_rng,
     uint64_t host_deadline=0;
     if (quit(ui)) return 1;
     if (!state->initialized) {
-        if(prepare_clock_tick(ui->vga,&state->last)<0)return -1; state->portrait = 0;
+        if(prepare_clock_tick(ui->vga,&state->last)<0)return -1;
+        state->portrait = 0;
         state->countdown = !wait_rng ? 0 : wait_rng == 2 ?
             (int)(fd2_field_rng_next(&ui->context->rng) % 50u) + 8 :
             (int)(fd2_field_rng_next(&ui->context->rng) % 30u) + 2;
@@ -757,7 +758,8 @@ static int prepare_choice_step(fd2_field_choice_step step,int value,void *userda
             scope->result=2;if(scope->port)*scope->port=FD2_FLOW_CANCEL;return 2;
         } else if (confirm_key(event.key)) {
             scope->result=scope->selected?2:0;
-            if(scope->port)*scope->port=scope->selected?FD2_FLOW_NO:FD2_FLOW_YES;return 1;
+            if(scope->port)*scope->port=scope->selected?FD2_FLOW_NO:FD2_FLOW_YES;
+            return 1;
         }
     } else if (step==FD2_FIELD_CHOICE_TICK) {
         if (fd2_field_water_tick_live(ui->vga)<0) return -1;
@@ -811,7 +813,7 @@ static int choice(prepare_ui *ui, int depart) {
     }
     if (!result) result=text_draw(page,ui->assets,depart?513u:415u,
         depart?95:12,119,205,74,ui->context->message_number);
-    prepare_choice_scope scope={ui,page,0,depart,0,0,2};
+    prepare_choice_scope scope={.ui=ui,.page=page,.depart=depart,.result=2};
     if (!result) {
         int played=fd2_field_choice_run(prepare_choice_step,&scope);
         prepare_choice_release(&scope);
@@ -1179,17 +1181,17 @@ static int prepare_service_execute(prepare_ui *ui,const char *flow_id,
         if(!handled)handled=prepare_service_pick(ui,node,&port);
         if(!handled)handled=prepare_service_ui(ui,node,&port);
         if(handled<0) {
-            if(!s->host_quit)fprintf(stderr,"准备流程失败：%s/%s op=%s port=%u committed=%d\n",
+            if(!s->host_quit)fprintf(stderr,u8"准备流程失败：%s/%s op=%s port=%u committed=%d\n",
                 flow_id,node->id,node->op,port,s->irreversible);
             break;
         }
         if(!handled) {
-            fprintf(stderr,"未知准备操作：%s/%s/%s\n",flow_id,node->id,node->op);break;
+            fprintf(stderr,u8"未知准备操作：%s/%s/%s\n",flow_id,node->id,node->op);break;
         }
         if(s->done){result=s->result;break;}
         if(s->input_epoch!=epoch){epoch=s->input_epoch;steps=0;}
         pc=fd2_static_flow_edge(flow,node,port);
-        if(pc<0){fprintf(stderr,"准备流程缺少出口：%s/%s port=%u\n",flow_id,node->id,port);break;}
+        if(pc<0){fprintf(stderr,u8"准备流程缺少出口：%s/%s port=%u\n",flow_id,node->id,port);break;}
     }
     if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ui ? ui->vga:NULL)<0))result=-1;
     else if(s->host_quit)result=-2;
@@ -1217,7 +1219,7 @@ fd2_field_prepare_result fd2_field_prepare_run(fd2_vga *vga, const fd2_archive *
         fd2_field_prepare_assets_bind_roster(assets,&context->preparation)!=0) {
         fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_ERROR;
     }
-    prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1};
+    prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1, {0}};
     uint64_t host_deadline=0;
     fd2_field_prepare_result result = FD2_FIELD_PREPARE_ERROR;
     if(prepare_is_notown(context->preparation.stage_id)) {
@@ -1300,7 +1302,7 @@ fd2_field_prepare_result fd2_field_prepare_load_title(fd2_vga *vga,
     fd2_field_prepare_assets *assets = calloc(1, sizeof(*assets));
     if (!assets) return FD2_FIELD_PREPARE_ERROR;
     if (fd2_field_prepare_assets_open(assets, fdother) != 0) { free(assets); return FD2_FIELD_PREPARE_ERROR; }
-    prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1};
+    prepare_ui ui = {vga, fdother, assets, context, audio, save_path, -1, 0, -1, {0}};
     /* title_action_dispatch @0x25ebb（原登记同名）：LOAD先fade-out，
      * 再换FDOTHER0、清VGA0并恢复normal DAC；不能借标题底图/标题palette。
      * 容器与完整四行页面均先在局部预检，失败不动live VGA/准备owner。 */

@@ -202,11 +202,6 @@ static int detail_present(fd2_vga *vga) {
     if (control.clock > 5000) { control.bad_route = 1; vga->input.quit_requested = 1; }
 return 0;
 }
-static int detail_wait(fd2_vga *vga) {
-    control.tail_waits++;
-    vga->frame_deadline_ns = vga->frame_interval_ns = 0;
-return 0;
-}
 static uint64_t detail_ticks(void) { return control.clock; }
 static int detail_delay(uint32_t ms) { control.clock += ms; return 0;
 }
@@ -250,7 +245,6 @@ static void detail_copy_pump(fd2_input *input) {
 #define fd2_vga_present detail_present
 #define fd2_vga_upload_current_frame detail_copy_upload
 #define fd2_vga_present_timed detail_timed
-#define fd2_vga_wait_frame_deadline detail_wait
 #include "field_game.c"
 #undef fd2_field_game_open
 #undef fd2_field_game_close
@@ -259,12 +253,21 @@ static void detail_copy_pump(fd2_input *input) {
 #undef fd2_field_game_animate_detail
 #undef fd2_field_game_animate_detail_magic_page
 
+/* 测试回调只在 open/close 之间借 Game。保留入口，避免 GCC 将借用误判为悬空。 */
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((noinline))
+#endif
 int fd2_field_game_open(fd2_field_game *game, fd2_vga *vga,
                         const fd2_archive *archive, size_t stage) {
     int result = detail_real_open(game, vga, archive, stage);
-    if (result == 0) result = fd2_field_game_load_active(game, "original_game/START.SAV");
+    if (result != 0) return result;
+    result = fd2_field_game_load_active(game, "original_game/START.SAV");
+    if (result != 0) {
+        detail_real_close(game);
+        return result;
+    }
     live_game = game;
-    if (result == 0 && control.route) {
+    if (control.route) {
         game->cursor_cell_x = game->units.items[control.route_actor].x;
         game->cursor_cell_y = game->units.items[control.route_actor].y;
         if (control.route == 2) game->units.items[control.route_actor].flags |= FD2_FIELD_UNIT_FLAG_ACTED;
@@ -325,7 +328,6 @@ uint64_t detail_ticks_ns(void);
 #undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
-#undef fd2_vga_wait_frame_deadline
 #undef SDL_GetTicks
 #undef fd2_delay_ms
 #undef fd2_vga_delay_ms
@@ -698,7 +700,8 @@ int main(int argc,char **argv) {
     if(argc==2 && !strcmp(argv[1],"--output-errors")){
         int result=test_march_output_error_prefix();
         fd2_archive_close(&detail_other_archive);fd2_field_page_destroy(detail_app_page);
-        if(!result)puts("field detail output errors: ok");return result;
+        if(!result)puts("field detail output errors: ok");
+        return result;
     }
     CHECK(test_any_key_routes_and_controller() == 0);
     CHECK(test_flip_early_key_survives_to_second_wait()==0);

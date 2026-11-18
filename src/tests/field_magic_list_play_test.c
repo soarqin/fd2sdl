@@ -68,11 +68,6 @@ static uint32_t modal_rng(void *userdata) {
 }
 
 static uint64_t modal_ticks(void) { return controls.now; }
-static int modal_wait(fd2_vga *vga) {
-    controls.waits++;
-    vga->frame_deadline_ns = vga->frame_interval_ns = 0;
-return 0;
-}
 static void *modal_malloc(size_t size) {
     controls.allocations++;
     if (controls.allocations == controls.fail_alloc) return NULL;
@@ -345,7 +340,6 @@ uint64_t modal_ticks_ns(void);
 #define fd2_vga_present modal_present
 #define fd2_vga_upload_current_frame modal_copy_upload
 #define fd2_vga_present_timed modal_present_timed
-#define fd2_vga_wait_frame_deadline modal_wait
 #include "field_play.c"
 #undef malloc
 #undef calloc
@@ -367,7 +361,6 @@ uint64_t modal_ticks_ns(void);
 #undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
-#undef fd2_vga_wait_frame_deadline
 
 static fd2_archive other, text_archive;
 static fd2_field_game fixture;

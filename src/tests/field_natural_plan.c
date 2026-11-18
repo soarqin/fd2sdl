@@ -455,7 +455,8 @@ static int settle_event_leaf(fd2_field_game *g) {
     if(fd2_field_game_common_event_peek(g,&node,&actor)!=1)return -1;
     if(!strcmp(node.op,"pan")) {
         int max_x=g->map.width-FD2_FIELD_VIEW_CELLS_X,max_y=g->map.height-FD2_FIELD_VIEW_CELLS_Y;
-        if(max_x<0)max_x=0;if(max_y<0)max_y=0;
+        if(max_x<0)max_x=0;
+        if(max_y<0)max_y=0;
         int x=node.args[0]<0?0:node.args[0]>max_x?max_x:node.args[0];
         int y=node.args[1]<0?0:node.args[1]>max_y?max_y:node.args[1];
         g->cursor_cell_x+=x-g->camera_cell_x;g->cursor_cell_y+=y-g->camera_cell_y;
@@ -548,17 +549,17 @@ int main(int argc,char **argv) {
     for(int i=1;i<argc;i++) {
         if(!strcmp(argv[i],"--save") && i+1<argc)path=argv[++i];
         else if(!strcmp(argv[i],"--simulate"))simulate=1;
-        else if(!strcmp(argv[i],"--seed") && i+1<argc) {if(parse_number(argv[++i],65535,&seed)!=0){fprintf(stderr,"种子参数无效：要求0..65535。\n");return 2;}}
-        else if(!strcmp(argv[i],"--max-turns") && i+1<argc) {if(parse_number(argv[++i],1000,&max_turns)!=0){fprintf(stderr,"回合上限参数无效：要求1..1000。\n");return 2;}}
-        else {fprintf(stderr,"未知参数或缺值：%s\n",argv[i]);return 2;}
+        else if(!strcmp(argv[i],"--seed") && i+1<argc) {if(parse_number(argv[++i],65535,&seed)!=0){fprintf(stderr,u8"种子参数无效：要求0..65535。\n");return 2;}}
+        else if(!strcmp(argv[i],"--max-turns") && i+1<argc) {if(parse_number(argv[++i],1000,&max_turns)!=0){fprintf(stderr,u8"回合上限参数无效：要求1..1000。\n");return 2;}}
+        else {fprintf(stderr,u8"未知参数或缺值：%s\n",argv[i]);return 2;}
     }
-    if(!path || !max_turns || max_turns>1000u) {fprintf(stderr,"用法：field_natural_plan --save PATH [--simulate --seed N --max-turns N]\n");return 2;}
+    if(!path || !max_turns || max_turns>1000u) {fprintf(stderr,u8"用法：field_natural_plan --save PATH [--simulate --seed N --max-turns N]\n");return 2;}
     fd2_save_file save={0};fd2_save_battle_snapshot snapshot;fd2_archive fdother={0};fd2_field_game *g=calloc(1,sizeof(*g));
     int rc=1;
     if(!g || fd2_save_file_open(&save,path)!=0 || fd2_save_file_get_battle_snapshot(&save,&snapshot)!=0 ||
         snapshot.meta[2]>1 || fd2_archive_open(&fdother,"original_game/FDOTHER.DAT")!=0 ||
         fd2_field_game_open_resources(g,&fdother,snapshot.meta[2])!=0 || fd2_field_game_import_battle_snapshot(g,&snapshot)!=0) {
-        fprintf(stderr,"活动存档或已支持的关卡资源无效，未规划/未写入。\n");goto done;
+        fprintf(stderr,u8"活动存档或已支持的关卡资源无效，未规划/未写入。\n");goto done;
     }
     fd2_field_rng rng;fd2_field_rng_seed(&rng,(uint16_t)seed);
     if(fd2_field_game_set_attack_hooks(g,NULL,NULL,NULL,NULL,fd2_field_rng_next,&rng)!=0)goto done;
@@ -596,7 +597,8 @@ int main(int argc,char **argv) {
             g->units.items[i].side==2 && !g->units.items[i].detail_status[1] && (int)i!=choices.actions[0].actor)phase_remaining++;
         for(size_t i=0;i<g->units.count;i++)if((int)i!=choices.actions[0].actor && actionable(&g->units.items[i])) {
             natural_action rest;if(plan_rest(&rest_query,i,&rest)!=0)goto done;
-            if(rest_count++)putchar(',');print_action(g,&rest_query,&rest,--phase_remaining==0);
+            if(rest_count++)putchar(',');
+            print_action(g,&rest_query,&rest,--phase_remaining==0);
         }
         printf("],\"rest_tail_policy\":\"Hero0 only may move WAIT to minimal known+pending-wave coverage, then damage heuristic/path cost; primary movement occupancy only, no assumed kill; all other REST stationary; skip END after phase; no MP recovery assumed\"}\n");
         if(memcmp(g,&before,sizeof(*g)) || rng.state!=state)goto done;
@@ -616,7 +618,8 @@ int main(int argc,char **argv) {
                     g->units.items[raw].unit_id!=source_units.items[raw].unit_id ||
                     g->units.items[raw].x!=source_units.items[raw].x ||
                     g->units.items[raw].y!=source_units.items[raw].y)){failed=1;break;}
-                if(count++)putchar(',');printf("{\"turn\":%u,\"role\":\"%s\",\"action\":",g->turn_number,
+                if(count++)putchar(',');
+                printf("{\"turn\":%u,\"role\":\"%s\",\"action\":",g->turn_number,
                     turn.hero_then_effect?"turn_actions":step?"rest_tail":"primary");
                 print_action(&source_game,&query,&action,-1);printf("}");
                 if(apply(g,&action)<0 || settle(g)<0){failed=1;break;}
@@ -632,7 +635,8 @@ int main(int argc,char **argv) {
             g->turn_number,result,g->failure,failed?"true":"false",g->units.count,g->roster_count,g->units.items[0].hp,(g->units.items[0].flags&1u)?"true":"false");
         int records=0;
         for(size_t i=0;i<g->units.count;i++)if(living(&g->units.items[i])) {
-            if(records++)putchar(',');printf("{\"raw\":%zu,\"record_hex\":",i);hex_record(&g->units.items[i]);printf("}");
+            if(records++)putchar(',');
+            printf("{\"raw\":%zu,\"record_hex\":",i);hex_record(&g->units.items[i]);printf("}");
         }
         printf("]}\n");
         rc=!failed && result==FD2_FIELD_BATTLE_VICTORY?0:1;

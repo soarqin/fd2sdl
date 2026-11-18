@@ -20,8 +20,8 @@ static int inject_local_disconnect(fd2_audio *audio) {
     backend_wasapi = backend && !strcmp(backend, "wasapi");
     if (!backend_wasapi || !audio || !audio->stream) return -1;
     uint64_t deadline = SDL_GetTicks() + 2000; /* 整段仍沿原2s上界，不扩预算。 */
-    syncs_before_loss = atomic_load(&observed_syncs);
-    puts_before_loss = atomic_load(&observed_put_successes);
+    syncs_before_loss = SDL_GetAtomicInt(&observed_syncs);
+    puts_before_loss = SDL_GetAtomicInt(&observed_put_successes);
     if(fd2_private_disconnect_owned_stream(audio->stream,&loss)!=0)return -1;
     /* 必须在Zombie确认返回之后取得正队列；否则减少可能发生在断连之前。 */
     do {
@@ -33,12 +33,12 @@ static int inject_local_disconnect(fd2_audio *audio) {
         SDL_Delay(2);
     } while(SDL_GetTicks()<deadline);
     if(queue_after_disconnect<=0)return -1;
-    unsigned puts_at_drain_start=atomic_load(&observed_puts);
+    int puts_at_drain_start=SDL_GetAtomicInt(&observed_puts);
     /* 不Put区间的正队列减少才是Zombie消费证据；sync计数本身不能证明消费。 */
     do {
         if(SDL_GetTicks()>=deadline)return -1;
         queue_after_drain=SDL_GetAudioStreamQueued(audio->stream);
-        if(queue_after_drain<0 || atomic_load(&observed_puts)!=puts_at_drain_start)return -1;
+        if(queue_after_drain<0 || SDL_GetAtomicInt(&observed_puts)!=puts_at_drain_start)return -1;
         if(queue_after_drain<queue_after_disconnect){queue_drain_observed=1;break;}
         SDL_Delay(2);
     } while(SDL_GetTicks()<deadline);
@@ -46,8 +46,8 @@ static int inject_local_disconnect(fd2_audio *audio) {
     do {
         if(SDL_GetTicks()>=deadline)return -1;
         if(probe_sync(audio)!=0)return -1;
-        syncs_after_loss = atomic_load(&observed_syncs);
-        puts_after_loss = atomic_load(&observed_put_successes);
+        syncs_after_loss = SDL_GetAtomicInt(&observed_syncs);
+        puts_after_loss = SDL_GetAtomicInt(&observed_put_successes);
         if (syncs_after_loss > syncs_before_loss && puts_after_loss > puts_before_loss) {
             loss_progress = 1;
             return 0;

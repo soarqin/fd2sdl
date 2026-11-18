@@ -58,13 +58,13 @@ int main(void) {
     }
     fd2_title_sfx_handle handle;
     size_t sample;
-    CHECK(FD2_TITLE_SFX_BANK == 77);
-    CHECK(FD2_TITLE_SCROLL_DELAY_MS == 30);
-    CHECK(FD2_TITLE_ANIM_DELAY_SLOW_MS == 90);
-    CHECK(FD2_TITLE_ANIM_DELAY_MEDIUM_MS == 50);
-    CHECK(FD2_TITLE_ANIM_DELAY_FAST_MS == 15);
-    CHECK(FD2_TITLE_LETTER_FLY_SFX_BANK == 78);
-    CHECK(FD2_TITLE_LETTER_FLY_SFX_SAMPLE == 0);
+    _Static_assert(FD2_TITLE_SFX_BANK == 77, "FD2_TITLE_SFX_BANK == 77");
+    _Static_assert(FD2_TITLE_SCROLL_DELAY_MS == 30, "FD2_TITLE_SCROLL_DELAY_MS == 30");
+    _Static_assert(FD2_TITLE_ANIM_DELAY_SLOW_MS == 90, "FD2_TITLE_ANIM_DELAY_SLOW_MS == 90");
+    _Static_assert(FD2_TITLE_ANIM_DELAY_MEDIUM_MS == 50, "FD2_TITLE_ANIM_DELAY_MEDIUM_MS == 50");
+    _Static_assert(FD2_TITLE_ANIM_DELAY_FAST_MS == 15, "FD2_TITLE_ANIM_DELAY_FAST_MS == 15");
+    _Static_assert(FD2_TITLE_LETTER_FLY_SFX_BANK == 78, "FD2_TITLE_LETTER_FLY_SFX_BANK == 78");
+    _Static_assert(FD2_TITLE_LETTER_FLY_SFX_SAMPLE == 0, "FD2_TITLE_LETTER_FLY_SFX_SAMPLE == 0");
     CHECK(fd2_title_sfx_resolve((fd2_title_sfx)99, &handle, &sample) != 0);
 
     static const int flight_trigger_y[FD2_TITLE_FLIGHT_TRIGGER_COUNT] = {
@@ -117,8 +117,8 @@ int main(void) {
         CHECK(fd2_title_lightning_state_advance(&lightning, -1));
     CHECK(!fd2_title_lightning_state_advance(&lightning, -1));
 
-    CHECK(FD2_TITLE_CONFIRM_FLASH_FRAMES == 8);
-    CHECK(FD2_TITLE_CONFIRM_FLASH_DELAY_MS == 80);
+    _Static_assert(FD2_TITLE_CONFIRM_FLASH_FRAMES == 8, "FD2_TITLE_CONFIRM_FLASH_FRAMES == 8");
+    _Static_assert(FD2_TITLE_CONFIRM_FLASH_DELAY_MS == 80, "FD2_TITLE_CONFIRM_FLASH_DELAY_MS == 80");
     for (int frame = 0; frame < FD2_TITLE_CONFIRM_FLASH_FRAMES; frame++)
         CHECK(fd2_title_confirm_highlight_for_frame(frame) == (frame & 1));
     CHECK(fd2_title_confirm_highlight_for_frame(-1) == -1);

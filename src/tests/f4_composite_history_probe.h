@@ -75,7 +75,8 @@ static int f4_ch_one(const fd2_archive *other,const fd2_archive *figani,
     event.action_kind=FD2_FIELD_MAGIC_ACTION_MAGIC;event.presentation_mode=FD2_FIELD_MAGIC_MODE_COMPOSITE;event.group_pass=UINT8_MAX;
     event.targets=e->targets;event.target_count=event.effect_target_count=2;event.cast_cost_count=(uint8_t)cost_markers;
     event.actor_before=&initial_caster;event.phase=FD2_FIELD_MAGIC_PRESENT_CAST;
-    if(v[3]==1)ctx.skip=1;if(v[3]==2)runtime_failure=1;
+    if(v[3]==1)ctx.skip=1;
+    if(v[3]==2)runtime_failure=1;
     if(v[3]==3){composite_capture=1;composite_quit_after_return=1;}
     expected_primary=&primary;expected_secondary=&secondary;*saved=*e;*vb=screen;*gb=game;*pb=*page;
     f4_promotion_observe=f4_ch_present;render_status=fd2_battle_animation_magic_present(&game,&event,&ctx);

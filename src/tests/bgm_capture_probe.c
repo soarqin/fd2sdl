@@ -36,7 +36,7 @@ int main(int argc,char **argv) {
     const char *paths[]={argv[3]};
     fd2_probe_outputs *destination=fd2_probe_outputs_prepare("original_game",paths,1);
     if(!destination)return 2;
-    fd2_audio_config ac={44100,0,1};
+    fd2_audio_config ac={44100,0,1,0};
     fd2_bgm_config bc={"original_game/FDMUS.DAT","original_game/SAMPLE.AD",44100,0};
     fd2_audio *audio=fd2_audio_create(&ac);
     fd2_bgm_player *bgm=audio && fd2_test_audio_clock_prepare(audio)==0 ? fd2_bgm_create(audio,&bc) : NULL;
@@ -69,6 +69,6 @@ done:
     fd2_audio_destroy(audio);
     fd2_bgm_destroy(bgm);
     fd2_probe_outputs_close(destination);
-    if(result) fprintf(stderr,"离线曲目素材生成失败：track=%lu。保留已有现场，下一次使用新输出路径。\n",track);
+    if(result) fprintf(stderr,u8"离线曲目素材生成失败：track=%lu。保留已有现场，下一次使用新输出路径。\n",track);
     return result;
 }

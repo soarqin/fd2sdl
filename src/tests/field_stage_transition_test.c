@@ -195,7 +195,8 @@ static int test_script_bytes(void) {
 }
 static int test_group_landing(void){
     fd2_field_unit_template t={{0}};t.bytes[0]=1;t.bytes[1]=134;t.bytes[4]=3;t.bytes[5]=0xff;t.bytes[6]=0x80;
-    for(size_t i=7;i<13;i++)t.bytes[i]=0xff;t.bytes[0x15]=1;t.bytes[0x16]=0xff;
+    for(size_t i=7;i<13;i++)t.bytes[i]=0xff;
+    t.bytes[0x15]=1;t.bytes[0x16]=0xff;
     fd2_field_metadata m={0};m.unit_templates=&t;m.unit_template_count=1;m.unknown_02=1;
     fd2_field_placement pos={1,1,134};fd2_field_placements p={1,&pos};
     uint32_t cells[9]={0};fd2_field_map map={3,3,cells};fd2_field_units units={0};

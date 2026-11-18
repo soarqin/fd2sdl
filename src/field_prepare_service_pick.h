@@ -372,7 +372,8 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         /* caller_kind来自冷图：0=26152 NoTown直键/无660，1=29300酒店。 */
         if(node->args[0]<0 || node->args[0]>1){*port=FD2_FLOW_ERROR;return -1;}
         int result=slots_run(ui,1,node->args[0] ? PREPARE_SLOT_HOTEL:PREPARE_SLOT_NOTOWN_SAVE);
-        if(result==1)s->host_quit=1;return result==0 ? 1:-1;
+        if(result==1)s->host_quit=1;
+        return result==0 ? 1:-1;
     }
     return 0;
 }

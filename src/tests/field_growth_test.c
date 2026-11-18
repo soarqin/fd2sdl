@@ -233,7 +233,7 @@ static void test_signed_reward_bits_and_ack(void) {
         CHECK(fd2_field_unit_reward_preview(&unit,gains[i],NULL,NULL,&output)==1);
         unchanged(&unit,&before);unchanged(&output,&expected);
         fd2_reward_cursor cursor={0};const fd2_static_flow *flow=fd2_reward_graph();
-        CHECK(flow);cursor.step=flow->entry;fd2_reward_notice notice;
+        CHECK(flow);cursor.step=(uint8_t)flow->entry;fd2_reward_notice notice;
         CHECK(fd2_reward_advance(flow,&unit,gains[i],&cursor,&notice,NULL,NULL,NULL,NULL)==0);
         CHECK(notice.kind==1 && notice.fragment==488 && notice.value==gains[i]);
         unchanged(&unit,&before);
@@ -274,7 +274,7 @@ static void test_reward_data_controls_branch_and_ack_edge(void) {
     CHECK(gain >= 0 && close >= 0);
     /* 仅改冷图ACK边：奖励直接进入关框，C执行器不得仍硬跑升级分支。 */
     nodes[gain].edges[FD2_FLOW_ACK] = (int16_t)close;
-    fd2_reward_cursor cursor = {0}; cursor.step = flow.entry;
+    fd2_reward_cursor cursor = {0}; cursor.step = (uint8_t)flow.entry;
     fd2_reward_notice notice;
     CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 0);
     CHECK(notice.fragment == 488 && fd2_reward_ack(&flow, &cursor) == 0);
@@ -285,11 +285,11 @@ static void test_reward_data_controls_branch_and_ack_edge(void) {
     /* 修改gate参数立即改变入口；未知操作和错误PC必须失败且不写单位。 */
     memcpy(nodes, original->nodes, original->count * sizeof(nodes[0]));
     nodes[flow.entry].args[0] = 1;
-    unit = actor(9, 1, 0); expected = unit; cursor = (fd2_reward_cursor){0}; cursor.step = flow.entry;
+    unit = actor(9, 1, 0); expected = unit; cursor = (fd2_reward_cursor){0}; cursor.step = (uint8_t)flow.entry;
     CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == 2);
     unchanged(&unit, &expected);
     nodes[flow.entry].op = "unknown_required_operation";
-    cursor.step = flow.entry;
+    cursor.step = (uint8_t)flow.entry;
     CHECK(fd2_reward_advance(&flow, &unit, 200, &cursor, &notice, NULL, NULL, NULL, NULL) == -1);
     unchanged(&unit, &expected);
     cursor.step = 255;
@@ -299,7 +299,7 @@ static void test_reward_data_controls_branch_and_ack_edge(void) {
 }
 
 int main(void) {
-    CHECK(sizeof(fd2_field_unit) == 80);
+    _Static_assert(sizeof(fd2_field_unit) == 80, "sizeof(fd2_field_unit) == 80");
     test_complete_tables(748, 11, 1, UINT64_C(0x12a56491fb722c5a));
     test_complete_tables(240, 12, 0, UINT64_C(0x095482fa653a43a5));
     test_fixed_upper_and_write_set(); test_nonlevel_and_entry_gates();

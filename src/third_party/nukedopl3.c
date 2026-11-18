@@ -910,7 +910,7 @@ static void OPL3_SlotGenerate(opl3_slot *slot)
     {
         level += ((phase ^ neg) & 0x3ff) << 3;
     }
-    slot->out = exprom[level & 0xff] >> (level >> 8) ^ neg;
+    slot->out = (int16_t)(exprom[level & 0xff] >> (level >> 8) ^ neg);
 }
 #else
 static void OPL3_SlotGenerate(opl3_slot *slot)

@@ -372,7 +372,8 @@ static fd2_field_play_result chain_battle(fd2_vga *vga, const fd2_archive *fdoth
 static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *fdother,
         fd2_field_play_context *context, const char *save_path, fd2_field_audio *audio) {
     (void)vga;(void)fdother;(void)save_path;(void)audio;
-    if(context!=chain_context)abort();chain_preparations++;return chain_prepare_result;
+    if(context!=chain_context)abort();
+    chain_preparations++;return chain_prepare_result;
 }
 
 static int title_test_wait_ticks(uint32_t ticks) {

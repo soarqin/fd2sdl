@@ -465,7 +465,7 @@ static int test_clear_cuts_off_already_posted_down_without_recreating_press(void
 static int test_buffer_wrap_and_full_drop_new_keep_old_order(void) {
     fd2_input input;fd2_input_init(&input);
     uint64_t now=0;
-    CHECK(FD2_INPUT_KEY_QUEUE_CAPACITY==15u);
+    _Static_assert(FD2_INPUT_KEY_QUEUE_CAPACITY==15u, "FD2_INPUT_KEY_QUEUE_CAPACITY==15u");
     for(unsigned i=0;i<FD2_INPUT_KEY_QUEUE_CAPACITY;i++) {
         SDL_Scancode source=(SDL_Scancode)(SDL_SCANCODE_A+i);
         fd2_input_set_test_key_state(&input,source,1);fd2_input_begin_test_frame(&input,now++);
@@ -770,7 +770,7 @@ static int test_modifier_make_arbitrates_but_is_not_an_ack(void) {
 
 static int test_repeat_runs_while_consumer_waits_and_keeps_tick_phase(void) {
     fd2_input input;fd2_input_init(&input);fd2_input_event event;
-    CHECK(FD2_INPUT_INITIAL_REPEAT_MS==500 && FD2_INPUT_REPEAT_MS==33);
+    _Static_assert(FD2_INPUT_INITIAL_REPEAT_MS==500 && FD2_INPUT_REPEAT_MS==33, "FD2_INPUT_INITIAL_REPEAT_MS==500 && FD2_INPUT_REPEAT_MS==33");
     fd2_input_set_test_key_state(&input,SDL_SCANCODE_DOWN,1);
     fd2_input_begin_test_frame(&input,100);CHECK(fd2_input_take_key(&input,&event));
     fd2_input_begin_test_frame(&input,1600);

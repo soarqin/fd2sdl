@@ -37,7 +37,7 @@
 #include "third_party/nukedopl3.h"
 #include "third_party/opl_models.h"
 
-namespace {
+namespace fd2_bgm_detail {
 
 constexpr size_t kChannels = 18;
 constexpr size_t kLogicalVoices = 20;
@@ -898,7 +898,7 @@ static void initialize_driver_registers(AilDriver *voice) {
         }
     }
 }
-static void reset_driver(AilDriver *voice) { reset_driver_state(voice);initialize_driver_registers(voice); }
+inline void reset_driver(AilDriver *voice) { reset_driver_state(voice);initialize_driver_registers(voice); }
 
 /* ail_sequence_event_state_reset @43160（原sub_43160）：只写原reset字段。
  * S+10 EVNT指针、+14 cursor、+34/+38 volume以及note/remaining不在此写集。
@@ -1296,7 +1296,9 @@ static void chip_retire(void *userdata, fd2_audio_retire_reason reason) {
     driver->source_live=false;
     if(driver->active_sequence)bgm_retire(driver->active_sequence,reason);
 }
-} // namespace
+} // namespace fd2_bgm_detail
+
+using namespace fd2_bgm_detail;
 
 struct fd2_bgm_player : fd2_bgm_player_impl {};
 

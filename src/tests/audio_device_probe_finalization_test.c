@@ -3,7 +3,6 @@
  * 同步retire-once及destroy后counter不变；不能回签旧callback捕获记录。 */
 #include <SDL3/SDL.h>
 #include <stdarg.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 static SDL_AudioStream *SDLCALL pure_open(SDL_AudioDeviceID,const SDL_AudioSpec *,SDL_AudioStreamCallback,void *);
@@ -85,7 +84,8 @@ static const char *SDLCALL pure_backend(void){return "pure-mocked-backend";}
 static SDL_AudioDeviceID *SDLCALL pure_devices(int *n){*n=0;return NULL;}
 static SDL_AudioDeviceID SDLCALL pure_device(SDL_AudioStream *s){return s==stream()?1:0;}
 static bool SDLCALL pure_format(SDL_AudioDeviceID id,SDL_AudioSpec *s,int *f){
-    if(id!=1)return false;*s=(SDL_AudioSpec){SDL_AUDIO_F32,2,48000};*f=8;return true;
+    if(id!=1)return false;
+    *s=(SDL_AudioSpec){SDL_AUDIO_F32,2,48000};*f=8;return true;
 }
 static SDL_AudioStream *SDLCALL pure_open(SDL_AudioDeviceID id,const SDL_AudioSpec *s,
                                         SDL_AudioStreamCallback callback,void *user){
@@ -97,7 +97,8 @@ static bool SDLCALL pure_resume(SDL_AudioStream *s){return s==stream();}
 static bool SDLCALL pure_put(SDL_AudioStream *s,const void *data,int bytes){
     if(s!=stream()||!data||bytes<=0||bytes%8){fake.bad++;return false;}
     if(fake.paused)fake.post_pause_puts++;
-    return observed_puts!=fake.fail_put_at && !(fake.paused&&fake.arm_failure_at_pause);
+    return (unsigned)SDL_GetAtomicInt(&observed_puts)!=fake.fail_put_at &&
+        !(fake.paused&&fake.arm_failure_at_pause);
 }
 static int SDLCALL pure_queued(SDL_AudioStream *s){
     if(s!=stream()){fake.bad++;return -1;}
@@ -115,7 +116,7 @@ static bool SDLCALL pure_pause(SDL_AudioStream *s){
     fake.all_retired_at_pause=fake.source_count==3;
     for(unsigned i=0;i<fake.source_count;i++){
         probe_source *source=fake.sources[i]; /* main仍在scope；返回后不再解引用。 */
-        fake.all_retired_at_pause&=atomic_load(&source->retires)==1;
+        fake.all_retired_at_pause&=SDL_GetAtomicInt(&source->retires)==1;
     }
     fake.sync_rejected=active_audio && fd2_audio_sync(active_audio)==-1;
     return s==stream();
@@ -123,9 +124,9 @@ static bool SDLCALL pure_pause(SDL_AudioStream *s){
 static void SDLCALL pure_destroy(SDL_AudioStream *s){if(s==stream())fake.destroys++;else fake.bad++;}
 static int run_case(unsigned fail_at,int armed){
     memset(&fake,0,sizeof(fake));fake.fail_put_at=fail_at;fake.arm_failure_at_pause=armed;
-    atomic_store(&observed_syncs,0);atomic_store(&observed_puts,0);
-    atomic_store(&observed_put_successes,0);atomic_store(&rejected_nonzero_submissions,0);
-    atomic_store(&observed_queue_peak,0);atomic_store(&wrong_owner_calls,0);callback_binding_errors=0;
+    SDL_SetAtomicInt(&observed_syncs,0);SDL_SetAtomicInt(&observed_puts,0);
+    SDL_SetAtomicInt(&observed_put_successes,0);SDL_SetAtomicInt(&rejected_nonzero_submissions,0);
+    SDL_SetAtomicInt(&observed_queue_peak,0);SDL_SetAtomicInt(&wrong_owner_calls,0);callback_binding_errors=0;
     fd2_bios_clock_reset(0,0); /* 本用例明确external输入，非墙钟等待。 */
     char *argv[]={(char *)"pure-probe",(char *)"--execute",(char *)"100"};
     int result=actual_probe_main(3,argv);
@@ -133,13 +134,13 @@ static int run_case(unsigned fail_at,int armed){
     CHECK(fake.opens==1&&fake.pauses==1&&fake.destroys==1&&!fake.bad);
     CHECK(fake.all_retired_at_pause&&fake.closed_at_pause&&fake.sync_rejected);
     CHECK(active_audio==NULL && fake.post_pause_puts==0);
-    CHECK(atomic_load(&observed_puts)>3 && !atomic_load(&wrong_owner_calls));
-    CHECK(atomic_load(&observed_puts)==atomic_load(&observed_put_successes)+(fail_at?1u:0u));
+    CHECK(SDL_GetAtomicInt(&observed_puts)>3 && !SDL_GetAtomicInt(&wrong_owner_calls));
+    CHECK(SDL_GetAtomicInt(&observed_puts)==SDL_GetAtomicInt(&observed_put_successes)+(fail_at?1:0));
     CHECK(strstr(fake.output,"fd2-a8-device-probe-v2")&&strstr(fake.output,"\"device_callback_bound\":false"));
     CHECK(strstr(fake.output,fail_at?"\"first_error_before_destroy\":3":"\"first_error_before_destroy\":0"));
     CHECK(strstr(fake.output,fail_at?"\"ok\":false":"\"ok\":true"));
-    unsigned puts_before=atomic_load(&observed_puts);
-    CHECK(fd2_bios_clock_advance(pure_ns()+1)==-1&&atomic_load(&observed_puts)==puts_before);
+    int puts_before=SDL_GetAtomicInt(&observed_puts);
+    CHECK(fd2_bios_clock_advance(pure_ns()+1)==-1&&SDL_GetAtomicInt(&observed_puts)==puts_before);
     return 0;
 }
 int main(void){

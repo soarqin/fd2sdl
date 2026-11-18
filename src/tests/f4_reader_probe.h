@@ -18,13 +18,13 @@
 #include <io.h>
 #endif
 
-static void f4_seed(uint8_t *dst,size_t n,unsigned stride,int uniform,int complement) {
+static inline void f4_seed(uint8_t *dst,size_t n,unsigned stride,int uniform,int complement) {
     for(size_t i=0;i<n;i++) {
         uint8_t value=uniform?83u:(uint8_t)(i*17u+i/stride+83u);
         dst[i]=complement?(uint8_t)(value^255u):value;
     }
 }
-static int f4_mask(uint8_t *mask,const uint8_t *a,const uint8_t *b,
+static inline int f4_mask(uint8_t *mask,const uint8_t *a,const uint8_t *b,
         size_t n,unsigned stride,int uniform,unsigned *count) {
     *count=0;
     for(size_t i=0;i<n;i++) {
@@ -35,7 +35,7 @@ static int f4_mask(uint8_t *mask,const uint8_t *a,const uint8_t *b,
     }
     return 0;
 }
-static int f4_palette_mask(uint8_t mask[768],const uint8_t a[768],
+static inline int f4_palette_mask(uint8_t mask[768],const uint8_t a[768],
         const uint8_t b[768],unsigned *count) {
     *count=0;
     for(unsigned i=0;i<768;i++) {
@@ -45,7 +45,7 @@ static int f4_palette_mask(uint8_t mask[768],const uint8_t a[768],
     }
     return 0;
 }
-static int f4_vga_guard(const fd2_vga *before,const fd2_vga *after,int afm) {
+static inline int f4_vga_guard(const fd2_vga *before,const fd2_vga *after,int afm) {
     fd2_vga normalized=*after;
     memcpy(normalized.framebuffer,before->framebuffer,sizeof(normalized.framebuffer));
     if(afm) {
@@ -56,7 +56,7 @@ static int f4_vga_guard(const fd2_vga *before,const fd2_vga *after,int afm) {
     }
     return memcmp(before,&normalized,sizeof(normalized))?-1:0;
 }
-static int f4_emit(const char *op,unsigned a,unsigned b,unsigned variant,
+static inline int f4_emit(const char *op,unsigned a,unsigned b,unsigned variant,
         unsigned stride,unsigned height,const uint8_t *pixels,const uint8_t palette[768],
         const uint8_t *mask,const uint8_t palette_mask[768],unsigned written,unsigned pal_written) {
     size_t n=(size_t)stride*height;
@@ -69,7 +69,7 @@ static int f4_emit(const char *op,unsigned a,unsigned b,unsigned variant,
        fwrite(mask,1,n,stdout)!=n || fwrite(palette_mask,1,768,stdout)!=768)return -1;
     return fflush(stdout)?-1:0;
 }
-static int f4_parse(char *line,char op[16],unsigned values[3]) {
+static inline int f4_parse(char *line,char op[16],unsigned values[3]) {
     char *p=line,*end;size_t n=0;
     while(isspace((unsigned char)*p))p++;
     while(isalpha((unsigned char)*p)) {if(n>=15u)return -1;op[n++]=*p++;}

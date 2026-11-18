@@ -5,16 +5,25 @@
 #include <new>
 #include <cstdio>
 #if defined(_WIN32)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
 #endif
 static bool bank_fail=false;static unsigned bank_faults=0;
+/* 保留自定义分配和释放入口，避免 GCC 内联后把配对的 new/delete 当成错配。 */
+#if defined(__GNUC__)
+[[gnu::noinline]]
+#endif
 void*operator new(std::size_t n){if(bank_fail&&n==3242){bank_fail=false;++bank_faults;throw std::bad_alloc();}if(void*p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
-void operator delete(void*p)noexcept{std::free(p);}void operator delete(void*p,std::size_t)noexcept{std::free(p);}
-void*operator new[](std::size_t n){return ::operator new(n);}void operator delete[](void*p)noexcept{std::free(p);}void operator delete[](void*p,std::size_t)noexcept{std::free(p);}
+#if defined(__GNUC__)
+[[gnu::noinline]]
+#endif
+void operator delete(void*p)noexcept{std::free(p);}
+void operator delete(void*p,std::size_t)noexcept{::operator delete(p);}
 #include "../bgm.cpp"
 #include "audio_clock_fixture.h"
 #define CHECK(x) do{if(!(x)){std::fprintf(stderr,"line%d %s\n",__LINE__,#x);return 1;}}while(0)

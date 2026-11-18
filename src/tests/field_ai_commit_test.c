@@ -133,7 +133,7 @@ static int build_plan(fd2_field_game *game,
 
 static int test_commit(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -175,7 +175,7 @@ static int failing_critical_hook(
 
 static int test_common_tail_resets_all_directions(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -197,7 +197,7 @@ static int test_common_tail_resets_all_directions(void) {
 
 static int test_automatic_mode0(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -246,7 +246,7 @@ static int test_ai_focus_before_effect_at_map_edge(void) {
         uint32_t cells[24 * 24] = {0};
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
-        focus_rng rng = {{rolls, 16, 0}, &game, 15, top ? 0 : 7, 5, top ? 0 : 2, 0};
+        focus_rng rng = {{.values = rolls, .count = 16}, &game, 15, top ? 0 : 7, 5, top ? 0 : 2, 0};
         init_game(&game, cells, attrs, &rng.rolls);
         game.stage = UINT8_MAX; game.map.width = game.map.height = 24;
         game.cursor_cell_x = 15; game.cursor_cell_y = top ? 1 : 0;
@@ -301,7 +301,7 @@ static int test_ai_line_item_and_no_action_focus(void) {
     uint32_t cells[24 * 24] = {0};
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
-    focus_rng rng = {{rolls, 16, 0}, &game, 15, 7, 5, 1, 0};
+    focus_rng rng = {{.values = rolls, .count = 16}, &game, 15, 7, 5, 1, 0};
     init_game(&game, cells, attrs, &rng.rolls);
     game.stage = UINT8_MAX; game.map.width = game.map.height = 24;
     game.cursor_cell_x = 15; game.cursor_cell_y = 0; game.camera_cell_x = 5;
@@ -411,7 +411,7 @@ static int observe_ai_ray_magic(const fd2_field_game *game,
  * 原20c6f仍独立执行一次，H/error前缀不继续费用、RNG、loot或acted。 */
 static int test_ai_ray_item_caller_order_and_stop(void) {
     for(int stop=0;stop<7;stop++) {
-        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        static const uint32_t rolls[16]={0};test_rng rng={.values = rolls, .count = 16};
         uint32_t cells[24*24]={0};fd2_terrain_attr attrs[1];fd2_field_game game;
         init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;
         game.map.width=game.map.height=24;game.units.count=3;
@@ -459,7 +459,7 @@ static int test_ai_ray_item_caller_order_and_stop(void) {
 
 static int test_magic_commit(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -529,7 +529,7 @@ static int observe_ai_map(const fd2_field_game *game,
 
 static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
     static const uint32_t rolls[16] = {0};
-    test_rng rng = {rolls, 16, 0};
+    test_rng rng = {.values = rolls, .count = 16};
     uint32_t cells[8 * 8]; fd2_terrain_attr attrs[1]; fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
     game.stage = UINT8_MAX; game.units.count = 3;
@@ -539,7 +539,7 @@ static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
     game.units.items[1].hp = game.units.items[1].hp_max = 1000;
     game.units.items[2] = game.units.items[1];
     game.units.items[2].movement_profile = 0; /* 原MAP9根本不读后项profile。 */
-    ai_map_observer seen = {&rng, FD2_FIELD_MAGIC_ACTION_MAGIC, 0};
+    ai_map_observer seen = {.rng = &rng, .kind = FD2_FIELD_MAGIC_ACTION_MAGIC, .code = 0};
     game.magic_present = observe_ai_map; game.magic_present_userdata = &seen;
     fd2_field_ai_magic_candidate plan;
     CHECK(fd2_field_ai_choose_magic_candidate(&game.map, &game.terrain, &game.units, 0, 0, &plan) == 0 && plan.magic_id == 9);
@@ -549,7 +549,7 @@ static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
     CHECK(game.units.items[1].hp < 1000 && game.units.items[2].hp == 1000);
     static const uint8_t ids[] = {192,40,56,38,79};
     for (size_t i = 0; i < sizeof(ids); i++) {
-        rng = (test_rng){rolls,16,0}; init_game(&game, cells, attrs, &rng);
+        rng = (test_rng){.values = rolls, .count = 16}; init_game(&game, cells, attrs, &rng);
         game.stage = UINT8_MAX; game.active_side = game.units.items[0].side = 1;
         const uint8_t *item = fd2_field_item_record_get(ids[i]);
         int heals = item[0x0d] == 5 || item[0x0d] == 13;
@@ -560,7 +560,7 @@ static int test_ai_map9_full_visual_list_and_item_present_owner(void) {
         game.units.items[1].hp = heals ? 10 : 1000; game.units.items[1].hp_max = 1000;
         uint8_t *raw = (uint8_t *)&game.units.items[0];
         memset(raw + 0x0a, 0x80, 0x10); raw[0x0a] = 0; raw[0x0b] = ids[i];
-        seen = (ai_map_observer){&rng, FD2_FIELD_MAGIC_ACTION_ITEM, item[0x0d]};
+        seen = (ai_map_observer){.rng = &rng, .kind = FD2_FIELD_MAGIC_ACTION_ITEM, .code = item[0x0d]};
         game.magic_present = observe_ai_map; game.magic_present_userdata = &seen;
         fd2_field_ai_item_candidate candidate;
         CHECK(fd2_field_ai_choose_item_candidate(&game.map, &game.terrain,
@@ -594,7 +594,7 @@ static int test_magic_cast_cost_before_targets(void) {
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
-        test_rng unused = {rolls, 16, 0};
+        test_rng unused = {.values = rolls, .count = 16};
         init_game(&game, cells, attrs, &unused);
         game.stage = UINT8_MAX;
         game.units.count = 3;
@@ -611,7 +611,7 @@ static int test_magic_cast_cost_before_targets(void) {
                 game.units.items[i].detail_status[id - 20u] = 1;
             if (id == 22u) teach_magic(&game.units.items[i], 0);
         }
-        magic_cost_rng check = {{rolls, 16, 0}, &game.units.items[0],
+        magic_cost_rng check = {{.values = rolls, .count = 16}, &game.units.items[0],
                                (uint16_t)(200u - cost[5]), 0};
         game.experience_value = 7;check.rng.owner = &game;
         game.attack_rng = cost_observing_roll;
@@ -648,7 +648,7 @@ static int test_magic_cast_cost_before_targets(void) {
 static int test_magic_miss_and_immunity_still_cost(void) {
     static const uint32_t rolls[] = {99};
     for (int immune = 0; immune < 2; immune++) {
-        test_rng rng = {rolls, 1, 0};
+        test_rng rng = {.values = rolls, .count = 1};
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
@@ -672,7 +672,7 @@ static int test_magic_miss_and_immunity_still_cost(void) {
 static int test_magic_preflight_preserves_cost(void) {
     static const uint32_t rolls[] = {0, 0};
     for (int failure = 0; failure < 5; failure++) {
-        test_rng rng = {rolls, 2, 0};
+        test_rng rng = {.values = rolls, .count = 2};
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
@@ -699,7 +699,7 @@ static int test_magic_preflight_preserves_cost(void) {
 
 static int test_magic_damage_dispatch_boundaries(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, 2, 0};
+    test_rng rng = {.values = rolls, .count = 2};
     fd2_field_units units = {0};
     units.count = 1;
     units.items[0].hp = units.items[0].hp_max = 2000;
@@ -732,7 +732,7 @@ static int test_magic_damage_dispatch_boundaries(void) {
 
 static int test_magic_heal_boundaries(void) {
     static const uint32_t rolls[] = {0, 99};
-    test_rng rng = {rolls, 2, 0};
+    test_rng rng = {.values = rolls, .count = 2};
     fd2_field_units units = {0};
     units.count = 1;
     units.items[0].hp_max = 1000;
@@ -752,7 +752,7 @@ static int test_magic_heal_boundaries(void) {
 
     /* HP cap 在提交中执行；即使已满 HP，core 仍消费一次 RNG 并返回。 */
     static const uint32_t cap_rolls[] = {99, 50};
-    rng = (test_rng){cap_rolls, 2, 0};
+    rng = (test_rng){.values = cap_rolls, .count = 2};
     units.items[0].hp = 990;
     CHECK(fd2_field_magic_apply_known_effect(
         15, 0, &units, next_roll, &rng) == 1);
@@ -767,7 +767,7 @@ static int test_magic_heal_boundaries(void) {
 
 static int test_unknown_magic_rejected(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -788,7 +788,7 @@ static int test_unknown_magic_rejected(void) {
 
 static int test_magic_status_commit(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -870,7 +870,7 @@ static int test_magic_status_commit(void) {
     CHECK(game.units.items[0].detail_status[1] == 0);
     CHECK(rng.cursor == 1);
 
-    game.units.items[0].flags &= (uint8_t)~FD2_FIELD_UNIT_FLAG_ACTED;
+    fd2_field_unit_set_acted(&game.units.items[0], 0);
     CHECK(fd2_field_magic_apply_known_effect(
         25, 0, &game.units, next_roll, &rng) == 0);
     game.units.items[0].flags = FD2_FIELD_UNIT_FLAG_AI_INELIGIBLE |
@@ -881,7 +881,7 @@ static int test_magic_status_commit(void) {
     CHECK(rng.cursor == 1);
 
     static const uint32_t status_rolls[] = {0, 0, 0};
-    rng = (test_rng){status_rolls, 3, 0};
+    rng = (test_rng){.values = status_rolls, .count = 3};
     game.units.items[0].movement_profile = 1;
     game.units.items[0].hp = 50;
     CHECK(fd2_field_magic_apply_known_effect(
@@ -893,7 +893,7 @@ static int test_magic_status_commit(void) {
     /* IDs 26/27 只是共享 0x22cda 的状态 offset wrappers，RNG 顺序与
      * ID 22 完全相同：gate、raw damage spread、duration。 */
     static const uint32_t shared_rolls[] = {0, 99, 3};
-    rng = (test_rng){shared_rolls, 3, 0};
+    rng = (test_rng){.values = shared_rolls, .count = 3};
     game.units.items[0].hp = 50;
     game.units.items[0].detail_status[0] = 0;
     CHECK(fd2_field_magic_apply_known_effect(
@@ -919,7 +919,7 @@ static int test_magic_status_commit(void) {
     CHECK(rng.cursor == 0);
 
     static const uint32_t miss_rolls[] = {50};
-    rng = (test_rng){miss_rolls, 1, 0};
+    rng = (test_rng){.values = miss_rolls, .count = 1};
     game.units.items[0].movement_profile = 1;
     CHECK(fd2_field_magic_apply_known_effect(
         27, 0, &game.units, next_roll, &rng) == 0);
@@ -930,7 +930,7 @@ static int test_magic_status_commit(void) {
 
 static int test_item_magic_commit(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -963,7 +963,7 @@ static int test_item_magic_commit(void) {
 static int test_magic_item_tail_failure_preserves_commit(void) {
     static const uint32_t rolls[] = {0, 0};
     for (int item_case = 0; item_case < 2; item_case++) {
-        test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+        test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
@@ -1012,7 +1012,7 @@ static int test_magic_item_tail_failure_preserves_commit(void) {
 
 static int test_item_magic_wrapper_boundaries(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, 2, 0};
+    test_rng rng = {.values = rolls, .count = 2};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1067,7 +1067,7 @@ static int test_item_magic_wrapper_boundaries(void) {
 
 static int test_item_heal_boundaries(void) {
     static const uint32_t rolls[] = {99, 50};
-    test_rng rng = {rolls, 2, 0};
+    test_rng rng = {.values = rolls, .count = 2};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1114,7 +1114,7 @@ static int test_shared_item_hp_core_preserves_caller_tail(void) {
     static const uint32_t rolls[] = {0, 99};
     const uint8_t ids[] = {192, 40}; /* code5 power40消耗；code13 power100保留。 */
     for (size_t c = 0; c < sizeof(ids); c++) {
-        test_rng rng = {rolls, 2, 0};
+        test_rng rng = {.values = rolls, .count = 2};
         uint32_t cells[8 * 8];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
@@ -1170,7 +1170,7 @@ static int test_shared_item_hp_core_preserves_caller_tail(void) {
 
 static int test_shared_item_hp_core_tail_failure_keeps_commit(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1210,7 +1210,7 @@ static int test_shared_item_hp_core_tail_failure_keeps_commit(void) {
 
 static int test_item_commit(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1250,7 +1250,7 @@ static int test_item_commit(void) {
 
 static int test_behavior5_cell_action_commit(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     /* 闭箱0与开箱1：原测试只有一个attr且没有frame边界，无法检出12263遗漏。 */
     fd2_terrain_attr attrs[2] = {{0}};
@@ -1350,7 +1350,7 @@ static int test_behavior5_real_chest_and_focus(void) {
     fprintf(stderr, "behavior5 regression: %s\n", (text)); errors++; } } while (0)
     static const uint32_t rolls[] = {0};
     for (int full = 0; full <= 1; full++) {
-        test_rng rng = {rolls, 1, 0};
+        test_rng rng = {.values = rolls, .count = 1};
         uint32_t cells[8 * 8]; fd2_terrain_attr unused[1]; fd2_field_game game;
         init_game(&game, cells, unused, &rng);
         game.terrain = terrain; /* 只借只读已解码资源，测试不close此Game。 */
@@ -1381,7 +1381,7 @@ static int test_behavior5_real_chest_and_focus(void) {
                   "inventory/raw item and RNG0 must remain correct");
     }
     {
-        test_rng rng = {rolls, 1, 0};
+        test_rng rng = {.values = rolls, .count = 1};
         uint32_t cells[64], before_cells[64]; fd2_terrain_attr unused[1]; fd2_field_game game;
         init_game(&game, cells, unused, &rng); game.terrain = terrain;
         for (size_t i = 0; i < 64; i++) cells[i] = (uint32_t)grass;
@@ -1411,7 +1411,7 @@ static int test_behavior5_real_chest_and_focus(void) {
         }
     }
     {
-        test_rng rng = {rolls, 1, 0}; uint32_t cells[24 * 24];
+        test_rng rng = {.values = rolls, .count = 1}; uint32_t cells[24 * 24];
         fd2_terrain_attr unused[1]; fd2_field_game game;
         init_game(&game, cells, unused, &rng); game.terrain = terrain;
         for (size_t i = 0; i < 24 * 24; i++) cells[i] = (uint32_t)grass;
@@ -1438,7 +1438,7 @@ static int test_behavior5_real_chest_and_focus(void) {
 
 static int test_behavior2_recover_after_queries(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1547,7 +1547,7 @@ static int observe_recovery_probe(const fd2_field_game *game,
 
 static int test_ai_recovery_probe_before_effects(void) {
     for (int cure=0;cure<2;cure++) for (int reject=0;reject<2;reject++) {
-        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        static const uint32_t rolls[16]={0};test_rng rng={.values = rolls, .count = 16};
         uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
         init_ai11_fallback(&game,cells,attrs,&rng,0,0,40,cure ? 3u:0u);
         fd2_field_unit *actor=&game.units.items[0];
@@ -1576,7 +1576,7 @@ static int test_ai_recovery_probe_before_effects(void) {
     }
     /* 这是保守环境预检：缺bank31可早拒本来会攻击而不恢复的行为0，
      * 不自称精确预测最终分支；probe本身无mode/focus/HP/MP/RNG副作用。 */
-    static const uint32_t rolls[]={50,0,99,0};test_rng rng={rolls,4,0};
+    static const uint32_t rolls[]={50,0,99,0};test_rng rng={.values = rolls, .count = 4};
     uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
     init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;game.ordinary_display_mode=1;
     game.units.items[0].hp=40;game.units.items[0].hp_max=100;
@@ -1595,7 +1595,7 @@ static int ai11_fallback_case(const char *name, unsigned movement,
         unsigned cost_class, unsigned hp, unsigned poison,
         int witness, unsigned expected_x, unsigned expected_hp, int expected_mode) {
     static const uint32_t rolls[16] = {0};
-    test_rng rng = {rolls, 16, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    test_rng rng = {.values = rolls, .count = 16}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
     fd2_field_game game;
     init_ai11_fallback(&game, cells, attrs, &rng, movement, cost_class, hp, poison);
     CHECK(check_ai11_fallback_queries(&game, witness) == 0 && rng.cursor == 0);
@@ -1627,7 +1627,7 @@ static int test_behavior11_post_cast_fallback_matrix(void) {
 
 static int ai11_story_fallback_case(unsigned movement) {
     static const uint32_t rolls[16] = {0};
-    test_rng rng = {rolls, 16, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    test_rng rng = {.values = rolls, .count = 16}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
     fd2_field_game game; init_ai11_fallback(&game, cells, attrs, &rng, movement, 0, 40, 0);
     game.stage = 0; /* 已有mode3/fragment8的合法纯续态合同。 */
     CHECK(check_ai11_fallback_queries(&game, 1) == 0);
@@ -1708,7 +1708,7 @@ static int observe_followup_physical(const fd2_field_game *game,
 static int test_ai11_physical_environment_probe_before_magic(void) {
     for (int full=0;full<2;full++) for (int reject=0;reject<2;reject++)
     for (unsigned distinct_retained=0;distinct_retained<2;distinct_retained++) {
-        static const uint32_t rolls[]={0,0,50,0,99,0};test_rng rng={rolls,6,0};
+        static const uint32_t rolls[]={0,0,50,0,99,0};test_rng rng={.values = rolls, .count = 6};
         uint32_t cells[64];fd2_terrain_attr attrs[2];fd2_field_game game;
         init_game(&game,cells,attrs,&rng);game.option_values[2]=(uint8_t)!full;
         attrs[1]=attrs[0];attrs[1].attr2=1;game.terrain.attr_count=2;
@@ -1749,7 +1749,7 @@ static int test_ai11_physical_environment_probe_before_magic(void) {
 
 static int test_behavior11_magic_then_physical(void) {
     static const uint32_t rolls[] = {0, 0, 50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1774,7 +1774,7 @@ static int test_behavior11_magic_then_physical(void) {
 /* B5的mode3剧情先完成，再从同一个scheduler入口续原AI11物理段。 */
 static int test_behavior11_loot_story_then_physical(void) {
     static const uint32_t rolls[] = {0, 0, 50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[64]; fd2_terrain_attr attrs[1]; fd2_field_game game;
     init_game(&game, cells, attrs, &rng);
     game.units.items[0].ai_behavior_raw = 11;
@@ -1800,7 +1800,7 @@ static int test_behavior11_loot_story_then_physical(void) {
 
 static int test_behavior11_terminal_story_still_finishes_actor(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, 2, 0}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
+    test_rng rng = {.values = rolls, .count = 2}; uint32_t cells[64]; fd2_terrain_attr attrs[1];
     fd2_field_game game; init_game(&game,cells,attrs,&rng);
     fd2_field_unit enemy=game.units.items[0],hero=game.units.items[1];
     game.units.items[0]=hero;game.units.items[0].hp=1;
@@ -1822,7 +1822,7 @@ static int test_behavior11_terminal_story_still_finishes_actor(void) {
 
 static int test_behavior11_magic_without_physical_candidate(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1854,7 +1854,7 @@ static int external_critical_base(const fd2_field_unit *unit, void *userdata,
 
 static int test_behavior11_committed_magic_then_physical_failure_stops(void) {
     static const uint32_t rolls[] = {0, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1882,7 +1882,7 @@ static int test_behavior11_committed_magic_then_physical_failure_stops(void) {
 
 static int test_behavior7_hide_on_arrival(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1902,7 +1902,7 @@ static int test_behavior7_hide_on_arrival(void) {
 
 static int test_phase_status_tick(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1967,7 +1967,7 @@ static int test_phase_status_tick(void) {
 
 static int test_ai_flag_gate(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -1984,7 +1984,7 @@ static int test_ai_flag_gate(void) {
 
 static int test_behavior8_outer_loop_boundary(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2040,7 +2040,7 @@ static int test_behavior8_outer_loop_boundary(void) {
 
 static int test_phase_acted_lifecycle(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2082,7 +2082,7 @@ static int test_phase_acted_lifecycle(void) {
 
 static int test_stage0_handler_gate_preempts_ai(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2113,7 +2113,7 @@ static int test_stage0_handler_gate_preempts_ai(void) {
 
 static int test_battle_result_query(void) {
     static const uint32_t rolls[] = {0};
-    test_rng rng = {rolls, 1, 0};
+    test_rng rng = {.values = rolls, .count = 1};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2143,7 +2143,7 @@ static int test_battle_result_query(void) {
 
 static int test_ai_cell_event_pending_then_tail(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2198,7 +2198,7 @@ static int test_ai_cell_event_pending_then_tail(void) {
 static int test_ai_pending_last_match_and_no_path(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
     for (int final_match = 0; final_match < 2; final_match++) {
-        test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+        test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
         uint32_t cells[64];
         fd2_terrain_attr attrs[1];
         fd2_field_game game;
@@ -2250,7 +2250,7 @@ static int test_ai_pending_last_match_and_no_path(void) {
         game.move_path = NULL;
     }
 
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[64];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2280,7 +2280,7 @@ static int test_ai_pending_last_match_and_no_path(void) {
 }
 
 static int test_ai_outer_pending_dispatch_without_rng(void) {
-    test_rng rng = {NULL, 0, 0};
+    test_rng rng = {.values = NULL, .count = 0};
     uint32_t cells[64];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2321,7 +2321,7 @@ static int test_ai_outer_pending_dispatch_without_rng(void) {
 
 static int test_stale_plan(void) {
     static const uint32_t rolls[] = {50, 0, 99, 0};
-    test_rng rng = {rolls, sizeof(rolls) / sizeof(rolls[0]), 0};
+    test_rng rng = {.values = rolls, .count = sizeof(rolls) / sizeof(rolls[0])};
     uint32_t cells[8 * 8];
     fd2_terrain_attr attrs[1];
     fd2_field_game game;
@@ -2358,7 +2358,7 @@ static int reject_story_resource(const fd2_field_game *game,
 static int test_ai_effect_unknown_loot_is_before_first_rng(void) {
     static const uint32_t rolls[]={0,0};
     for(int item_case=0;item_case<2;item_case++) {
-        test_rng r={rolls,2,0};uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
+        test_rng r={.values = rolls, .count = 2};uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
         init_game(&game,cells,attrs,&r);game.units.items[1].x=2;game.units.items[1].y=1;
         game.units.items[1].hp=10;game.units.items[1].hp_max=100;
         ((uint8_t*)&game.units.items[1])[0x31]=3;
@@ -2424,7 +2424,7 @@ static int synchronous_item_fixture(fd2_field_game *game, uint32_t cells[64],
 static int test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once(void) {
     int failures=0;
     for(int scheduler=0;scheduler<=1;scheduler++)for(uint8_t mode=0;mode<2;mode++) {
-        static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+        static const uint32_t rolls[16]={0};test_rng rng={.values = rolls, .count = 16};
         uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
         fd2_field_ai_item_candidate plan;
         CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,mode,&plan)==0);
@@ -2451,7 +2451,7 @@ static int test_item_synchronous_loot_keeps_direct_and_scheduler_tail_once(void)
     CHECK(failures==0);return 0;
 }
 static int test_item_async_loot_and_rejection_boundaries_remain(void) {
-    static const uint32_t rolls[16]={0};test_rng rng={rolls,16,0};
+    static const uint32_t rolls[16]={0};test_rng rng={.values = rolls, .count = 16};
     uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;fd2_field_ai_item_candidate plan;
     CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);
     CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==0);
@@ -2470,11 +2470,11 @@ static int test_item_async_loot_and_rejection_boundaries_remain(void) {
         !game.event_log_count && !game.event_total_count && game.units.items[13].side==1 && rng.cursor==4);
     before=game;
     CHECK(fd2_field_game_loot_reply(&game,FD2_FIELD_LOOT_ACK,-1)==-1 && !memcmp(&before,&game,sizeof(game)));
-    rng=(test_rng){rolls,16,0};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);
+    rng=(test_rng){.values = rolls, .count = 16};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,3,&plan)==0);
     game.loot_preflight=reject_story_resource;before=game;
     CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==-1 && game.failure==FD2_FIELD_FAILURE_ACTION &&
         !memcmp(&game.units,&before.units,sizeof(game.units)) && rng.cursor==0 && game.experience_value==7 && !game.loot.source);
-    rng=(test_rng){rolls,16,0};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,0,&plan)==0);
+    rng=(test_rng){.values = rolls, .count = 16};CHECK(synchronous_item_fixture(&game,cells,attrs,&rng,0,&plan)==0);
     ((uint8_t*)&game.units.items[0])[11]=38;before=game;
     CHECK(fd2_field_game_commit_ai_item(&game,0,1,&plan)==-1 && !memcmp(&before,&game,sizeof(game)) && rng.cursor==0);
     puts("async item resume/cancel/double ACK/preflight/stale boundaries: ok");
@@ -2487,7 +2487,7 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
     static const uint32_t rolls[32] = {0};
     for (unsigned initial = 0; initial < 2; initial++) {
         for (unsigned scenario = 0; scenario < 11; scenario++) {
-            test_rng rng = {rolls, 32, 0};
+            test_rng rng = {.values = rolls, .count = 32};
             uint32_t cells[64];
             fd2_terrain_attr attrs[2] = {{0}};
             fd2_field_game game;
@@ -2564,7 +2564,7 @@ static int test_ai_ordinary_display_caller_boundaries(void) {
 /* 原142d5→immune19与188f9→unit_id28 profile16是不同caller policy。
  * 1f183首先排unit_id28，不能因race5将其错误归immune。 */
 static int test_source_movement_profile_caller_policies(void) {
-    static const uint32_t rolls[]={0};test_rng rng={rolls,1,0};
+    static const uint32_t rolls[]={0};test_rng rng={.values = rolls, .count = 1};
     uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
     init_game(&game,cells,attrs,&rng);game.units.count=1;
     fd2_field_unit *u=&game.units.items[0];u->unit_id=7;u->race=4;u->movement_profile=2;
@@ -2617,7 +2617,7 @@ static int test_physical_selected_target_after_different_profile_move(void) {
      * 原154c6返回后154de聚焦已选(7,1)，155a9/1561f直接进SHORT/FULL；
      * 没有再次验相邻。此为原caller参数的受控正常接口夹具，非自然输入链。 */
     for(int full=0;full<2;full++)for(int reject=0;reject<2;reject++) {
-        static const uint32_t rolls[]={50,0,99,0};test_rng rng={rolls,4,0};
+        static const uint32_t rolls[]={50,0,99,0};test_rng rng={.values = rolls, .count = 4};
         uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
         init_game(&game,cells,attrs,&rng);game.stage=UINT8_MAX;
         attrs[0].movement_cost_class=4;game.option_values[2]=(uint8_t)!full;
@@ -2659,7 +2659,7 @@ static int test_c11_map_host_preserves_public_ai_prefix(void) {
         for(unsigned phase=0;phase<3;phase++) {
             if(id==10 && phase==0)continue;
             uint32_t cells[64];fd2_terrain_attr attrs[1];fd2_field_game game;
-            test_rng rng={rolls,32,0};init_game(&game,cells,attrs,&rng);
+            test_rng rng={.values = rolls, .count = 32};init_game(&game,cells,attrs,&rng);
             game.units.count=3;game.experience_value=77;
             if(automatic)game.phase_ai_pass=1; /* 正常side0第二pass进入behavior11。 */
             game.units.items[0].ai_behavior_raw=11;
@@ -2682,7 +2682,7 @@ static int test_c11_map_host_preserves_public_ai_prefix(void) {
                 fd2_field_game_commit_ai_magic(&game,0,0,&plan);
             CHECK(result==(automatic?1:0) && !seen.bad && seen.captured && game.runtime_host_quit && !game.failure);
             CHECK(seen.prepared==1 && seen.finished==1 && !seen.failed_finishes &&
-                seen.preludes==(id!=10) && seen.casts==(phase!=0) && seen.targets==(phase==2));
+                seen.preludes==(unsigned)(id!=10) && seen.casts==(unsigned)(phase!=0) && seen.targets==(unsigned)(phase==2));
             CHECK(rng.cursor==(phase==2?2u:0u) && !fd2_field_unit_has_acted(&game.units.items[0]));
             before[0].mp=(uint16_t)(200u-(phase==0?0u:cost[id-10u]));
             if(phase==2) {before[1].hp=(uint16_t)(1000u-damage[id-10u]);CHECK(seen.target_order[0]==1);}

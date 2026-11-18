@@ -17,7 +17,7 @@ Windows 驱动按本轮 PID／HWND 定向投递 `WM_KEYDOWN`／`WM_KEYUP`，不�
 永久入口为 `tools/run_background_input_check.py`，必须用拥有整个子进程树的 `run-job 600000` 包装，且每次使用尚不存在的产物目录。内部哨兵由脚本管理，不单独运行 `--sentinel`。Windows PowerShell：
 
 ```powershell
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python -B tools/run_background_input_check.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts "$env:TEMP/fd2-background-input-check"
 ```
 
 永久脚本最初由已运行的私有校准脚本等价迁入，AST 对照与 10 项纯回归已通过。后续新增哨兵 HWND 的实际 PID 所有权检查，覆盖登记、审计、遮挡移动／恢复和关闭；失配时只清理自身子进程，不操作失配窗口。当前版已不与旧校准脚本 AST 等同，新增保护仅有 13 项纯回归证据，没有新增 GUI 执行次数；实际 GUI 证据仍来自原候选。`HOST_W` 录音只验证原版后台热键被识别，不代表 A5 曲目或 A7 声音保真验收。
@@ -57,9 +57,9 @@ python3 -B -m unittest discover -s tools/tests -p test_natural_foreground.py -v
 Windows 的完整 B3 图形集合使用 `--b3-only`，共35种场景，包括菜单、草药、Drop、Equip、Give、20类 Use 的原表实例及两格范围／低 MP 补充，不调用历史完整套件。修复后可用 `--b3-scenarios` 只补受影响场景；它必须与 `--b3-only` 合用，未知项和重复项在创建目录前拒绝。每次执行均生成新证据，不导入旧报告冒充本轮运行。例如：
 
 ```powershell
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only --b3-scenarios give-moved
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only --b3-scenarios use-23 use-23-mp0 use-area2
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only --b3-scenarios give-moved
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b3-only --b3-scenarios use-23 use-23-mp0 use-area2
 ```
 
 无窗口验证同样按改动选择 CTest 和 Python 测试，物品工具可运行 `python -B -m unittest discover -s tools/tests -p test_original_item_list.py`。Linux 使用 `python3` 执行相同纯逻辑命令；本轮不在 Linux 运行上述 WGC 对照。大阶段统一实机回归移除 `--b3-only`，按后文完整套件执行。
@@ -93,7 +93,7 @@ $f3Driver = 'src/build-win/Debug/fd2_field_play_input_driver.exe'
 $f3Dosbox = 'C:/path/to/dosbox-x.exe'
 $f3Bootstrap = 'C:/path/to/dosbox-x-version.conf'
 $f3Fixture = 'C:/path/to/existing-valid-FD2.SAV'
-& $f3Driver run-job 240000 python -B tools/run_f3_load_check.py --root . --game src/Debug/fd2sdl.exe --driver $f3Driver --dosbox $f3Dosbox --bootstrap $f3Bootstrap --save-fixture $f3Fixture --artifacts build/f3/load-native-next
+& $f3Driver run-job 240000 python -B tools/run_f3_load_check.py --root . --game src/build-win/Debug/fd2sdl.exe --driver $f3Driver --dosbox $f3Dosbox --bootstrap $f3Bootstrap --save-fixture $f3Fixture --artifacts build/f3/load-native-next
 ```
 
 Linux不执行该Windows WGC入口。工具纯合同测试可使用`python3 -m unittest tools.tests.test_original_load tools.tests.test_f3_load_check`；当前运行平台、原生候选和实际结果只见[F3报告](../plans/f3-gameplay-lifecycle.md)，不从命令示例推定通过。默认构建路径、当前Windows普通独立构建路径和两者驱动均须按实际二进制身份登记。
@@ -147,7 +147,7 @@ Windows PowerShell 示例在已构建的独立候选 `source` 根目录执行；
 $Root = (Get-Location).Path
 $Build = Join-Path $Root 'src/build-win'
 $Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
-$App = Join-Path $Root 'src/Debug/fd2sdl.exe'
+$App = Join-Path $Build 'Debug/fd2sdl.exe'
 $Planner = Join-Path $Build 'Debug/fd2_field_natural_plan.exe'
 $Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
 $Runner = Join-Path $Root 'tools/run_original_stage1_complete.py'
@@ -201,7 +201,7 @@ python3 -B -m unittest discover -s tools/tests -p 'test_stage2_storage.py'
 $Build = 'E:/Projects/fd2sdl-work/b6/build'
 $Driver = "$Build/Debug/fd2_field_play_input_driver.exe"
 $Recorder = "$Build/Debug/fd2_process_audio_capture.exe"
-& $Driver run-job 1800000 python -B tools/run_original_battle_animation.py --root . --sdl src/Debug/fd2sdl.exe --driver $Driver --audio-recorder $Recorder --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --scenario physical-full-hit --verify-core --artifacts "$Build/graphics-artifacts/b6-physical"
+& $Driver run-job 1800000 python -B tools/run_original_battle_animation.py --root . --sdl src/build-win/Debug/fd2sdl.exe --driver $Driver --audio-recorder $Recorder --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --scenario physical-full-hit --verify-core --artifacts "$Build/graphics-artifacts/b6-physical"
 ```
 
 其他核心场景为 `player-magic0`、`player-heal13`。Suite 的 `--b6-only` 串行执行这三场并复核实际报告，`--b6-scenarios` 仅选择其中子集；可显式传 `--audio-recorder`，默认在 driver 同目录寻找。它不要求 B5 planner／fixture，阶段参数互斥，非法或重复选择在创建输出前拒绝。默认全套也登记三场；登记不表示已实测。源码及增量构建目录遵循[Windows 迭代构建约定](platforms.md)，每次输出使用新目录。所示命令不是已经执行的证据，实际候选与结果登记在阶段记录。
@@ -262,7 +262,7 @@ $Root = (Get-Location).Path
 $Build = Join-Path $Root 'src/build-win'
 cmake --build $Build --config Release --target fd2sdl fd2_field_play_input_driver
 if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
-$App = Join-Path $Root 'src/Release/fd2sdl.exe'
+$App = Join-Path $Build 'Release/fd2sdl.exe'
 $Driver = Join-Path $Build 'Release/fd2_field_play_input_driver.exe'
 $Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
 $Bootstrap = 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf'
@@ -305,8 +305,8 @@ python3 -B -m unittest discover -s tools/tests -p test_audio_checks.py -v
 `--b4-only` 仅运行本阶段六个场景：`physical-cap`（玩家奖励封顶99）、`physical-overwrite`（两击贡献覆盖而非累加）、`heal`（不升级）、`learn`（成长并学习17）、`counter-multi`（AI回合反击奖励630、连续六级）与 `status`（中毒及六类状态到期）。`--b4-scenarios` 可选择受修复影响的子集，必须与 `--b4-only` 合用；未知项、重复项及 B3/B4 组合在创建目录前拒绝。登记场景不代表实机通过，实际候选与结果见阶段记录。
 
 ```powershell
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only --b4-scenarios learn
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b4-only --b4-scenarios learn
 python -B -m unittest discover -s tools/tests -p '*reward*.py'
 ```
 
@@ -404,10 +404,10 @@ Drop 实测后的 raw16B 与 AP／DP／AC／EV 属于所列分支证据；Use �
 
 ```powershell
 cmake --build src/build-win --config Debug --target fd2sdl fd2_field_play_input_driver fd2_field_natural_plan --parallel
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios prepare-controlled stage1-turn3 stage1-villager-defeat
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios stage1-turn3 --b5-save-fixture 'C:/fd2-evidence/stage1-entry-measured.SAV'
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios natural-stage0 --planner src/build-win/Debug/fd2_field_natural_plan.exe
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios prepare-controlled stage1-turn3 stage1-villager-defeat
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios stage1-turn3 --b5-save-fixture 'C:/fd2-evidence/stage1-entry-measured.SAV'
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --b5-only --b5-scenarios natural-stage0 --planner src/build-win/Debug/fd2_field_natural_plan.exe
 ```
 
 `--planner` 可省略，默认先查 `build-dir/CONFIG/fd2_field_natural_plan.exe`，再查单配置构建目录下的同名文件；显式路径优先。自然场景所需规划器不存在或指向目录时，在创建产物及启动任何窗口前拒绝。规划器只读取每轮实际 UI Save 以选择下一动作；它不是原版结果 oracle，不能用预估 HP 代替实际资源门或存档。
@@ -478,11 +478,11 @@ F1 动态标记使用完整帧判据识别相位；等待指定相位时，未�
 
 ```powershell
 python -m pip install Pillow capstone
-cmake -S src -B src/build-win -DBUILD_TESTING=ON -DFD2SDL_REQUIRE_GUI_TESTS=ON
+cmake -S src -B src/build-win -A x64 -DBUILD_TESTING=ON -DFD2SDL_REQUIRE_GUI_TESTS=ON
 cmake --build src/build-win --config Debug --parallel
 ctest --test-dir src/build-win -C Debug --output-on-failure
 python -m unittest discover -s tools/tests -p 'test_*.py'
-python tools/run_graphics_tests.py --game src/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
+python tools/run_graphics_tests.py --game src/build-win/Debug/fd2sdl.exe --build-dir src/build-win --config Debug
 ```
 
 DOSBox-X 不在 `PATH` 时，最后一条追加 `--dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe'`。系统 SDL3 的使用与首次下载见 [README](../../README.md)，其他 shell 差异见 [跨平台命令](platforms.md)。不要把另一个生成器的缓存目录复用为 Windows 构建目录。
@@ -492,25 +492,25 @@ DOSBox-X 不在 `PATH` 时，最后一条追加 `--dosbox 'C:/Tools/DOSBox-X/dos
 正式输入与原版对照可单独复跑：
 
 ```powershell
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 1500000 python tools/run_original_opening.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-opening
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_focus.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-focus
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 1500000 python tools/run_original_opening.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-opening
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_focus.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-focus
 ctest --test-dir src/build-win -C Debug -R '^field_play_input$' --output-on-failure
-python tools/run_original_comparison.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-comparison
-python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-battle-menu
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_end_turn.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-end-turn
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_load.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-load
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_leave.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-leave
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_overview.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-overview
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_player.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-player
+python tools/run_original_comparison.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-comparison
+python tools/run_original_battle_menu.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --save-fixture 'path/to/stage0-FD2.SAV' --artifacts src/build-win/original-battle-menu
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_end_turn.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-end-turn
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_load.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-load
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 300000 python tools/run_original_leave.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-leave
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 600000 python tools/run_original_overview.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-overview
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_player.py --root . --game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-player
 ```
 
-重构类改动可用 `tools/compare_field_play_builds.py` 对比旧版与新版 SDL 程序的执行结果。先在 `build/` 下用 `git worktree` 检出基线提交并只构建 `fd2sdl`（旧版程序生成在该检出的 `src/Debug/`），再运行：
+重构类改动可用 `tools/compare_field_play_builds.py` 对比两份 SDL 程序。先在 `build/` 下用 `git worktree` 检出基线提交并只构建 `fd2sdl`。下例的基线仍将程序写入检出的 `src/Debug/`。若基线已经调整输出路径，将 `--old-game` 指向其实际构建目录。
 
 ```powershell
 git worktree add --detach build/ab/old-src <基线提交>
 cmake -S build/ab/old-src/src -B build/ab/old-build -DCPM_SOURCE_CACHE=E:/Projects/fd2sdl/build/_deps
 cmake --build build/ab/old-build --config Debug --target fd2sdl --parallel
-python tools/compare_field_play_builds.py --root . --old-game build/ab/old-src/src/Debug/fd2sdl.exe --new-game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --artifacts build/ab/runs
+python tools/compare_field_play_builds.py --root . --old-game build/ab/old-src/src/Debug/fd2sdl.exe --new-game src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --artifacts build/ab/runs
 ```
 
 `--artifacts` 指向新目录或空目录。脚本保留已有文件，拒绝在 `original_game/` 下写入。每个场景只有在全部按键步骤完成、进程正常退出，且旧版两次与新版一次的日志原始字节和存档均相同时才通过。截图比较按实际像素计数，忽略 BMP 行尾填充。
@@ -858,7 +858,7 @@ Windows PowerShell（从项目根执行，每个目录必须尚不存在；前�
 
 ```powershell
 $Driver = 'src/build-win/Debug/fd2_field_play_input_driver.exe'
-$App = 'src/Debug/fd2sdl.exe'
+$App = 'src/build-win/Debug/fd2sdl.exe'
 $Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
 & $Driver run-job 600000 python -B tools/run_g2_map_action_check.py --root . --sdl $App --driver $Driver --dosbox $Dosbox --artifacts build/g2/recovery-new
 if ($LASTEXITCODE -ne 0) { throw 'G2 recovery failed; inspect the retained receipt' }
@@ -890,7 +890,7 @@ Windows PowerShell（本轮实际版本路径；其它机器替换为已核的�
 
 ```powershell
 cmake --build src/build-win --config Debug --target fd2sdl fd2_field_save_test fd2_field_play_input_driver --parallel 8
-& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 900000 python -B tools/run_s0_result_check.py --root . --original E:/Projects/fd2sdl/original_game --sdl src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe --scenario leader-hp0-visible --artifacts build/s0/new-native-leader --run
+& src/build-win/Debug/fd2_field_play_input_driver.exe run-job 900000 python -B tools/run_s0_result_check.py --root . --original E:/Projects/fd2sdl/original_game --sdl src/build-win/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe --scenario leader-hp0-visible --artifacts build/s0/new-native-leader --run
 ```
 
 其它`--scenario`为`hostile-hp0-visible`、`hidden-defeat-priority`、`hidden-victory`、`active-load-hidden-defeat`、`stage1-villager-priority`。stage1还需`--stage1-source`与`--stage1-report`指向真实原版entry来源，复用原有严格来源／资源核验；来源身份与路径登记于本地manifest，不生成假自然存档。每次使用尚不存在的目录；原用户档及资源只读，活动Load场只替换测试副本的FD2.SAV。
@@ -1027,7 +1027,7 @@ $Build = 'F:/fd2sdl-work/s5-elegant-pasteur/build-win'
 $Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
 $Snapshot = Join-Path $Build 'Debug/fd2_field_s5_owner_test.exe'
 $Evidence = 'F:/fd2sdl-evidence/s5-20261114'
-$Common = @('--root', '.', '--sdl', 'src/Debug/fd2sdl.exe', '--driver', $Driver,
+$Common = @('--root', '.', '--sdl', 'src/build-win/Debug/fd2sdl.exe', '--driver', $Driver,
     '--dosbox', 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe', '--build-dir', $Build, '--run')
 $Runs = @(
     @('tools/run_s5_stage_check.py', '--artifacts', "$Evidence/native-stage21-new"),
@@ -1076,7 +1076,7 @@ Windows PowerShell复跑模板（输出目录必须不存在）：
 ```powershell
 $Build = 'src/build-win'
 $Driver = Join-Path $Build 'Debug/fd2_field_play_input_driver.exe'
-& $Driver run-job 900000 python -B tools/run_f1_coalesced82_check.py --root . --artifacts build/f1/coalesced82-native-NEW --sdl src/Debug/fd2sdl.exe --driver $Driver --dosbox 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe' --build-dir $Build --snapshot-probe "$Build/Debug/fd2_field_s5_owner_test.exe" --bootstrap-config 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf' --run
+& $Driver run-job 900000 python -B tools/run_f1_coalesced82_check.py --root . --artifacts build/f1/coalesced82-native-NEW --sdl src/build-win/Debug/fd2sdl.exe --driver $Driver --dosbox 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe' --build-dir $Build --snapshot-probe "$Build/Debug/fd2_field_s5_owner_test.exe" --bootstrap-config 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf' --run
 ```
 
 这是Windows原生入口及Windows归档依赖，不提供未经验证的Linux原生等价命令；Linux常规构建／逻辑检查见[跨平台约定](platforms.md)，本轮未执行。实际运行、失败保留、检查器修正及当前资格统一记在[F1报告](../plans/f1-reference-domain.md#合并82正式代表的失败与检查器修正)，上述复跑模板不表示本场已通过。

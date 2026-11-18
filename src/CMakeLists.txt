@@ -1,9 +1,29 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
+
+get_filename_component(FD2_STATIC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." REALPATH)
+get_filename_component(fd2_source_dir "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
+get_filename_component(fd2_binary_dir "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
+if(fd2_binary_dir STREQUAL fd2_source_dir OR fd2_binary_dir STREQUAL FD2_STATIC_ROOT)
+    message(FATAL_ERROR "Choose a separate build directory with cmake -S src -B <build-dir>.")
+endif()
+
 project(fd2sdl C CXX)
+
+if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION LESS 1928)
+    message(FATAL_ERROR "fd2sdl requires MSVC 19.28 (v142) or newer for C11.")
+endif()
+
+option(BUILD_TESTING "构建并注册 fd2sdl 测试" OFF)
+option(FD2SDL_STATIC_RUNTIME "静态链接编译器运行库" OFF)
+option(FD2SDL_LTO "启用 fd2sdl 目标的链接时优化" OFF)
+
+# CPM 静态 SDL 与项目目标使用同一种 MSVC CRT。
+if(FD2SDL_STATIC_RUNTIME AND MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 # 已确认冷定义以 JSON 为唯一输入；构建不读取 FD2.EXE 或原版资源。
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
-set(FD2_STATIC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 file(GLOB FD2_STATIC_TABLES CONFIGURE_DEPENDS "${FD2_STATIC_ROOT}/data/static/tables/*.json")
 file(GLOB FD2_STATIC_FLOWS CONFIGURE_DEPENDS "${FD2_STATIC_ROOT}/data/static/flows/*.json")
 set(FD2_STATIC_INCLUDE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -31,7 +51,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
@@ -105,6 +125,17 @@ if(NOT FD2SDL_SDL3_TARGET)
         GIT_TAG ${FD2SDL_SDL3_GIT_TAG}
     )
 
+    # Clang 23 新增的诊断由固定版本 SDL 的事件和 Vulkan 源码触发。
+    if(MINGW AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+       CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 23 AND
+       FD2SDL_SDL3_GIT_TAG STREQUAL "release-3.4.20" AND TARGET SDL3-static)
+        get_target_property(fd2_sdl_source SDL3-static SOURCE_DIR)
+        set_property(SOURCE
+            "${fd2_sdl_source}/src/events/SDL_events.c"
+            "${fd2_sdl_source}/src/render/vulkan/SDL_render_vulkan.c"
+            TARGET_DIRECTORY SDL3-static APPEND PROPERTY COMPILE_OPTIONS -Wno-unused-but-set-global)
+    endif()
+
     if(TARGET SDL3::SDL3)
         set(FD2SDL_SDL3_TARGET SDL3::SDL3)
     elseif(TARGET SDL3::SDL3-static)
@@ -122,6 +153,29 @@ if(NOT FD2SDL_SDL3_TARGET)
     message(FATAL_ERROR "SDL3 target was not created by system search or CPM.cmake fallback.")
 endif()
 
+if(FD2SDL_STATIC_RUNTIME AND NOT MSVC)
+    if(MINGW)
+        add_link_options(-static)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_link_options(-static-libgcc "$<$<LINK_LANGUAGE:CXX>:-static-libstdc++>")
+    else()
+        message(FATAL_ERROR "FD2SDL_STATIC_RUNTIME is unavailable with this toolchain.")
+    endif()
+endif()
+
+if(FD2SDL_LTO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT fd2_ipo_supported OUTPUT fd2_ipo_error LANGUAGES C CXX)
+    if(NOT fd2_ipo_supported)
+        message(FATAL_ERROR "FD2SDL_LTO is unavailable: ${fd2_ipo_error}")
+    endif()
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+    if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # Windows 上的 Ninja 构建不要求 PATH 另有 GNU make 来调度 LTRANS。
+        add_link_options(-flto=1 -flto-partition=one)
+    endif()
+endif()
+
 # magic_fx 使用 sin/cos；引用 core 的 TARGET_OBJECTS 不传递链接依赖。
 # 在项目目标创建前显式链接 libm，覆盖主程序及同目录的状态机测试。
 if(UNIX)
@@ -129,7 +183,9 @@ if(UNIX)
 endif()
 
 if(MSVC)
-    add_compile_options(/utf-8 /experimental:c11atomics /std:c11)
+    add_compile_options(/utf-8)
+    # 使用有显式长度或返回值检查的标准 C 库接口，保留跨平台调用。
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS=)
 endif()
 
 # 单一游戏时间与音频调度；不链接DOS硬件研究。
@@ -278,7 +334,7 @@ if(BUILD_TESTING)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
         add_test(NAME field_play_input_harness
-            COMMAND ${Python3_EXECUTABLE}
+            COMMAND ${Python3_EXECUTABLE} -B
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_input_test.py --self-test)
     endif()
     add_executable(fd2_resource_test
@@ -390,7 +446,7 @@ if(BUILD_TESTING)
     target_include_directories(fd2_audio_transport_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_audio_transport_test PRIVATE ${FD2SDL_SDL3_TARGET})
     if(MSVC)
-        target_compile_options(fd2_audio_transport_test PRIVATE /W4 /utf-8)
+        target_compile_options(fd2_audio_transport_test PRIVATE /W4)
     else()
         target_compile_options(fd2_audio_transport_test PRIVATE -Wall -Wextra -Wpedantic)
         target_link_libraries(fd2_audio_transport_test PRIVATE m)
@@ -583,7 +639,7 @@ if(BUILD_TESTING)
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30)
     if(Python3_Interpreter_FOUND)
         add_test(NAME audio_probe_output_paths
-            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/audio_probe_output_paths_test.py
+            COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/audio_probe_output_paths_test.py
                 --trace-probe $<TARGET_FILE:fd2_bgm_opl_trace_probe>
                 --wav-probe $<TARGET_FILE:fd2_bgm_capture_probe>
                 --original "${CMAKE_CURRENT_SOURCE_DIR}/../original_game")
@@ -885,7 +941,7 @@ if(BUILD_TESTING)
     set_tests_properties(field_defeat PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
     if(Python3_Interpreter_FOUND)
         add_test(NAME field_defeat_probe_output_paths
-            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_defeat_probe_output_paths_test.py
+            COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_defeat_probe_output_paths_test.py
                 --probe $<TARGET_FILE:fd2_field_defeat_test>)
         set_tests_properties(field_defeat_probe_output_paths PROPERTIES TIMEOUT 30
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
@@ -1430,20 +1486,14 @@ if(BUILD_TESTING)
         target_link_libraries(fd2_field_play_input_driver_focus_test PRIVATE user32 shell32)
         if(MSVC)
             target_compile_options(fd2_field_play_input_driver_focus_test PRIVATE /W4)
-            target_compile_definitions(fd2_field_play_input_driver_focus_test PRIVATE
-                _CRT_SECURE_NO_WARNINGS)
         else()
             target_compile_options(fd2_field_play_input_driver_focus_test PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
         add_test(NAME field_play_input_driver_focus COMMAND fd2_field_play_input_driver_focus_test)
         set_tests_properties(field_play_input_driver_focus PROPERTIES TIMEOUT 30)
-        if(NOT Python3_Interpreter_FOUND)
-            if(FD2SDL_REQUIRE_GUI_TESTS)
-                message(FATAL_ERROR "Windows GUI tests require Python 3")
-            endif()
-            message(WARNING "field_play_input not registered: install Python 3 and reconfigure")
-        else()
+        # WGC 和进程音频工具依赖 MSVC 的 Windows SDK、C++/WinRT 和 WRL。
+        if(MSVC)
             add_executable(fd2_field_play_input_driver
                 tests/field_play_input_driver.c tests/window_capture.cpp)
             # C++/WinRT 只用于测试工具，音乐生产后端保持 C++14。
@@ -1452,23 +1502,15 @@ if(BUILD_TESTING)
                 user32 d3d11 dxgi windowsapp dwmapi windowscodecs ole32 shell32)
             add_executable(fd2_process_audio_capture tests/process_audio_capture_win.cpp)
             target_link_libraries(fd2_process_audio_capture PRIVATE mmdevapi ole32 uuid)
-            if(MSVC)
-                target_link_options(fd2_process_audio_capture PRIVATE
-                    /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup)
-            elseif(MINGW)
-                target_link_options(fd2_process_audio_capture PRIVATE -mwindows -municode)
-            endif()
+            target_link_options(fd2_process_audio_capture PRIVATE
+                /SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup)
             add_executable(fd2_process_audio_capture_test tests/process_audio_capture_test.cpp)
             add_executable(fd2_window_capture_series_test tests/window_capture_series_test.cpp)
             foreach(fd2_test IN ITEMS fd2_process_audio_capture fd2_process_audio_capture_test fd2_window_capture_series_test)
                 set_target_properties(${fd2_test} PROPERTIES CXX_STANDARD 17)
                 target_compile_definitions(${fd2_test} PRIVATE
                     _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A00000A)
-                if(MSVC)
-                    target_compile_options(${fd2_test} PRIVATE /W4)
-                else()
-                    target_compile_options(${fd2_test} PRIVATE -Wall -Wextra -Wpedantic)
-                endif()
+                target_compile_options(${fd2_test} PRIVATE /W4)
             endforeach()
             target_link_libraries(fd2_process_audio_capture_test PRIVATE mmdevapi ole32 uuid)
             target_link_libraries(fd2_window_capture_series_test PRIVATE
@@ -1478,14 +1520,14 @@ if(BUILD_TESTING)
             set_tests_properties(process_audio_capture window_capture_series PROPERTIES
                 TIMEOUT 30 LABELS "process;evidence")
             add_test(NAME graphics_job
-                COMMAND ${Python3_EXECUTABLE}
+                COMMAND ${Python3_EXECUTABLE} -B
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_job_test.py
                     --driver $<TARGET_FILE:fd2_field_play_input_driver>
                     --artifacts ${CMAKE_BINARY_DIR}/test-artifacts/graphics-job)
             set_tests_properties(graphics_job PROPERTIES
                 TIMEOUT 60 LABELS "integration;process" RUN_SERIAL TRUE)
             add_test(NAME field_play_input
-                COMMAND ${Python3_EXECUTABLE}
+                COMMAND ${Python3_EXECUTABLE} -B
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/field_play_input_test.py
                     --driver $<TARGET_FILE:fd2_field_play_input_driver>
                     --game $<TARGET_FILE:fd2sdl>
@@ -1493,6 +1535,10 @@ if(BUILD_TESTING)
                     --artifacts ${CMAKE_BINARY_DIR}/test-artifacts/field-play-input)
             set_tests_properties(field_play_input PROPERTIES
                 TIMEOUT 180 LABELS "e2e;graphics" RUN_SERIAL TRUE)
+        elseif(FD2SDL_REQUIRE_GUI_TESTS)
+            message(FATAL_ERROR "Windows GUI tests require MSVC with the Windows SDK and C++/WinRT.")
+        else()
+            message(STATUS "Windows WGC and process-audio tests require an MSVC build.")
         endif()
     endif()
 
@@ -1876,7 +1922,6 @@ if(BUILD_TESTING)
     add_test(NAME audio_sb_bridge COMMAND fd2_audio_sb_test)
 
     add_executable(fd2_sb_dma_provider_test tests/sb_dma_provider_test.c)
-    target_compile_definitions(fd2_sb_dma_provider_test PRIVATE _CRT_SECURE_NO_WARNINGS)
     add_test(NAME sb_dma_provider COMMAND fd2_sb_dma_provider_test
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/sb_dma_requests.txt")
 
@@ -1887,7 +1932,6 @@ if(BUILD_TESTING)
             --output "${fd2_mixdown_vectors}"
         DEPENDS "${FD2_STATIC_ROOT}/tools/testing/mixdown_dc_vectors.py" VERBATIM)
     add_executable(fd2_mixdown_dc_test tests/mixdown_dc_test.c "${fd2_mixdown_vectors}")
-    target_compile_definitions(fd2_mixdown_dc_test PRIVATE _CRT_SECURE_NO_WARNINGS)
     add_test(NAME mixdown_dc COMMAND fd2_mixdown_dc_test "${fd2_mixdown_vectors}")
     foreach(fd2_numeric IN ITEMS fd2_sb_channel_test fd2_audio_sb_test fd2_sb_dma_provider_test fd2_mixdown_dc_test)
         if(MSVC)
@@ -1920,7 +1964,6 @@ if(BUILD_TESTING)
     target_include_directories(fd2_pcm_shared_dig_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(fd2_pcm_shared_dig_test PRIVATE ${FD2SDL_SDL3_TARGET})
     foreach(fd2_control IN ITEMS fd2_audio_original_test fd2_pcm_shared_dig_test)
-        target_compile_definitions(${fd2_control} PRIVATE _CRT_SECURE_NO_WARNINGS)
         if(MSVC)
             target_compile_options(${fd2_control} PRIVATE /W4 /fp:strict)
         else()
@@ -2036,18 +2079,17 @@ if(BUILD_TESTING)
     foreach(fd2_target IN LISTS fd2_targets)
         if(fd2_target MATCHES "^fd2_.*_test$")
             if(MSVC)
-                target_compile_options(${fd2_target} PRIVATE /UNDEBUG)
+                target_compile_options(${fd2_target} PRIVATE
+                    "/FI${CMAKE_CURRENT_SOURCE_DIR}/tests/test_asserts.h")
             else()
                 target_compile_options(${fd2_target} PRIVATE -UNDEBUG)
             endif()
         endif()
     endforeach()
+else()
+    # 复用已有构建目录时，CTest 仍会读取上次开启测试留下的清单。
+    file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/CTestTestfile.cmake")
 endif()
-
-# 让可执行文件能在源码树根目录运行并找到 original_game/
-set_target_properties(fd2sdl PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
 
 # 部分回归独立列出 .c，不经过 core；统一保证头生成先于任何本目录编译。
 get_directory_property(fd2_static_consumers BUILDSYSTEM_TARGETS)

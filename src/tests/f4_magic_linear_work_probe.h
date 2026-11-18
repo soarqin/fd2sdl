@@ -84,7 +84,7 @@ static int f4_mwork_cli(const char *root) {
 #endif
     if(f4_path(path,root,"FDOTHER.DAT") || fd2_archive_open(&other,path) ||
        f4_path(path,root,"FIGANI.DAT") || fd2_archive_open(&figani,path) ||
-       !(old_other=malloc(other.size)) || !(old_figani=malloc(figani.size)))goto done;
+       (old_other = malloc(other.size)) == NULL || (old_figani = malloc(figani.size)) == NULL)goto done;
     memcpy(old_other,other.data,other.size);memcpy(old_figani,figani.data,figani.size);
     if(f4_input_receipt("FDOTHER.DAT",other.data,other.size) || f4_input_receipt("FIGANI.DAT",figani.data,figani.size))goto done;
     while(fgets(line,sizeof(line),stdin)) {

@@ -288,7 +288,7 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
             const char *quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_QUIET");
             int suppress = audio->test_quiet || (quiet && strcmp(quiet, "1") == 0);
             if ((quiet && strcmp(quiet, "0") && strcmp(quiet, "1")) || !audio->stream ||
-                !(audio->capture = fd2_audio_pcm_capture_open(capture_dir, sample_rate, capture_ms, suppress)))
+                (audio->capture = fd2_audio_pcm_capture_open(capture_dir, sample_rate, capture_ms, suppress)) == NULL)
                 goto failed;
         }
         if (audio->stream && !SDL_ResumeAudioStreamDevice(audio->stream)) {

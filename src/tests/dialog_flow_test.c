@@ -42,7 +42,7 @@ static int test_shared_glyph_phase_survives_display_only_close_and_new_consumer(
 }
 
 static int test_wait_boundary_unit_cases(void) {
-    CHECK(FD2_DIALOG_LINE_PITCH == 19);
+    _Static_assert(FD2_DIALOG_LINE_PITCH == 19, "FD2_DIALOG_LINE_PITCH == 19");
     CHECK(fd2_dialog_flow_event_for_token(-18, 0, 0) ==
           FD2_DIALOG_FLOW_NONE);
     CHECK(fd2_dialog_flow_event_for_token(-19, 1, 0) ==

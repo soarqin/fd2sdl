@@ -481,7 +481,7 @@ static int test_full_magic_events_and_jitter_order(void) {
             f.rolls[2 + i] = (uint32_t)i;
             f.rolls[11 + i] = (uint32_t)(6 - i);
         }
-        magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+        magic_observer observer = {.f = &f, .fail_phase = -1};
         if (present) { g->magic_present = observe_magic; g->magic_present_userdata = &observer; }
         CHECK(target(&f, 0) == 0 && resolve_and_ack(g) == 0);
         CHECK(f.calls == 18 && !g->units.items[1].hp && !g->units.items[4].hp);
@@ -501,7 +501,7 @@ static int test_full_magic_events_and_jitter_order(void) {
     }
     for (int kind = 0; kind < 2; kind++) {
         fixture f; init(&f);
-        magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+        magic_observer observer = {.f = &f, .fail_phase = -1};
         f.game.magic_present = observe_magic; f.game.magic_present_userdata = &observer;
         if (!kind) f.rolls[0] = 99; /* miss不生成7次抖动，也不能重试施法。 */
         CHECK(target(&f, kind ? 13 : 0) == 0 && resolve_and_ack(&f.game) == 0);
@@ -517,7 +517,7 @@ static int test_magic_present_failure_boundaries(void) {
     for (int phase = FD2_FIELD_MAGIC_PRESENT_PREPARE;
              phase <= FD2_FIELD_MAGIC_PRESENT_FINISH; phase++) {
         fixture f; init(&f);
-        magic_observer observer = {&f, phase, {0}, 0, {0}, {{0}}};
+        magic_observer observer = {.f = &f, .fail_phase = phase};
         f.game.magic_present = observe_magic; f.game.magic_present_userdata = &observer;
         CHECK(target(&f, 0) == 0);
         fd2_field_game before = f.game;
@@ -564,7 +564,7 @@ static int test_caster_cost_markers_zero_multiple_and_wrap(void) {
             }
             g->units.items[0].mp = cases[i].before;
             f.rolls[0] = 99;
-            magic_observer observer = {&f, -1, {0}, 0, {0}, {{0}}};
+            magic_observer observer = {.f = &f, .fail_phase = -1};
             if (with_present && cases[i].before == 8) {
                 g->magic_present = observe_magic; g->magic_present_userdata = &observer;
             }
@@ -751,8 +751,8 @@ static int test_all_normal_magic_routes_and_compound_order(void) {
         int camera_x = game->camera_cell_x, camera_y = game->camera_cell_y;
         CHECK(resolve_and_ack(game) == 0 && !game->failure);
         CHECK(seen.prepared == 1 && seen.finished == 1);
-        CHECK(seen.preambles==(id>=9u && id<=27u && id!=24u));
-        CHECK(seen.wrapper_preludes==(id==11u || id==12u));
+        CHECK(seen.preambles==(unsigned)(id>=9u && id<=27u && id!=24u));
+        CHECK(seen.wrapper_preludes==(unsigned)(id==11u || id==12u));
         CHECK(game->units.items[0].mp == (uint16_t)(1000u -
             fd2_field_magic_record_get((uint8_t)(id == 17u ? 18u : id))[5] * cost_count));
         CHECK(fd2_field_unit_has_acted(&game->units.items[0]) && game->active_side == 2);
@@ -910,10 +910,10 @@ static int test_c11_map_host_preserves_player_prefix(void) {
             g->magic_present=f4_c11_host_present;g->magic_present_userdata=&seen;
             int result=fd2_field_game_resolve_player_magic(g);
             CHECK(result==(outcome? -1:0) && !seen.bad && seen.captured &&
-                seen.prepared==1 && seen.finished==1 && seen.failed_finishes==(outcome==1 || outcome==2 || outcome==4));
+                seen.prepared==1 && seen.finished==1 && seen.failed_finishes==(unsigned)(outcome==1 || outcome==2 || outcome==4));
             CHECK(!!g->runtime_host_quit==(outcome!=1 && outcome!=4));
             CHECK(g->failure==(outcome?FD2_FIELD_FAILURE_ACTION:FD2_FIELD_FAILURE_NONE));
-            CHECK(seen.preludes==(id!=10) && seen.casts==(phase!=0) && seen.targets==(phase==2));
+            CHECK(seen.preludes==(unsigned)(id!=10) && seen.casts==(unsigned)(phase!=0) && seen.targets==(unsigned)(phase==2));
             CHECK(f.calls==(phase==2?2u:0u) && g->selected_unit==0 &&
                 !fd2_field_unit_has_acted(&g->units.items[0]));
             before[0].mp=(uint16_t)(1000u-(phase==0?0u:cost[id-10u]));
@@ -941,7 +941,7 @@ static int test_c11_map_host_preserves_player_prefix(void) {
         seen.stop_phase=FD2_FIELD_MAGIC_PRESENT_CAST; /* stop_result0就是原继续合同。 */
         g->magic_present=f4_c11_host_present;g->magic_present_userdata=&seen;
         CHECK(resolve_and_ack(g)==0 && !g->failure && !g->runtime_host_quit && !seen.bad);
-        CHECK(seen.prepared==1 && seen.preludes==(id!=10) && seen.casts==1 &&
+        CHECK(seen.prepared==1 && seen.preludes==(unsigned)(id!=10) && seen.casts==1 &&
             seen.targets==2 && seen.finished==1 && !seen.failed_finishes && f.calls==4);
         CHECK(g->units.items[0].mp==1000u-cost[id-10u] && fd2_field_unit_has_acted(&g->units.items[0]));
         CHECK(g->units.items[1].hp==1000u-damage[id-10u] &&

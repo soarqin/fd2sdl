@@ -228,6 +228,7 @@ static int scene_cinematic_node(scene_flow_context *c,
         result=fd2_scene_cinematic_shake_frame(scope,(unsigned)a[0]);
     } else if(!strcmp(op,"cin_present")) {
         if(!c->fast)fd2_vga_upload_current_frame(c->vga);
+        if(fd2_bios_clock_error()<0 || fd2_vga_output_error(c->vga)<0)return -1;
         result=0;
     } else if(!strcmp(op,"cin_water")) {
         /* sub_4E31C @0x4e31c（原登记同名）：比较与DAC写后取锚

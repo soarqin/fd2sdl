@@ -1,16 +1,16 @@
 # 音频调用与对照依据
 
-本文记录已确认的原版播放语义和局部捕获，不维护开发排期。资源布局见[数据格式](../formats/data-formats.md#4-音频相关文件)，后续工作见[音频计划](../plans/audio.md)，实际组件与许可证见[第三方清单](../../src/third_party/README.md)。函数地址均采用[规范命名登记](function-names.md)中的 canonical VA。
+本文记录已确认的原版播放语义和局部捕获，不维护开发排期。资源布局见[数据格式](../formats/data-formats.md#4-音频相关文件)，当前实现与剩余资格见[F5记录](../plans/f5-audio-device.md)，历史工作见[音频计划](../plans/audio.md)，实际组件与许可证见[第三方清单](../../src/third_party/README.md)。函数地址均采用[规范命名登记](function-names.md)中的 canonical VA。
 
 ## 播放入口
 
 ### PCM
 
-`sfx_play @0x25a96` 从嵌套 bank 的 offset 表取得样本地址和长度，先结束原 sample，再设置新样本及 loop count；固定 primary AIL handle 为 `0x53ee4`。`sfx_play_secondary @0x25b45` 执行同样的 replace／stop 流程，但使用独立 handle `0x53ee8`。两者均保留 `0x53ef1`、`0x51e62` 和 `0x54133` 的原门，index `-1` 只停止。旧名 `pal_mask_set` 仅保留历史别名：完整指令中没有 DAC／palette 写入，不能据旧名解释为调色板操作。handle 不代表固定资源 bank。
+`sfx_play @0x25a96` 先调用 `ail_stop_sample @0x39805`，将playing的status4改8并保留已提交DMA，再从嵌套bank取得新样本地址和长度，执行init／source／loop／start；不是先调用真正的 `ail_end_sample @0x398df`。固定primary AIL handle为`0x53ee4`；`sfx_play_secondary @0x25b45`沿同样流程使用独立handle `0x53ee8`。两者均保留`0x53ef1`、`0x51e62`和`0x54133`的原门，index `-1`只stop。旧名`pal_mask_set`仅保留历史别名：完整指令没有DAC／palette写入。handle不代表固定资源bank。
 
 `ail_init_sample @0x39521` 直接初始化为 `11025 Hz`、loop count 1、pan 64；`sfx_play` 不覆盖 rate、format、volume 或 pan。现有样本路径为 unsigned 8-bit mono，字节中心为 `0x80`。循环参数0为无限，正数为总播放次数。已确认 sample 默认 volume100；这与最终 DIG master／DAC／OS 混音层分别登记。
 
-`ail_sample_volume_pan_tables_rebuild @0x40240` 的完整原函数 `0x40240..0x404b2` 执行向量逐项覆盖256个 U8 值：volume100／pan64的两种已测输出格式，每个声道均为 `(u-128)*202`；volume127对照为 `*256`，volume0为0。原过程使用非零 volume+1 和两次 SAR7，不是根据录音拟合 `100/127`。应用 cue 默认 gain 因而为 `101/128`，六个实际调用点共用这一默认值；通用 PCM 显式 gain1／.5 语义不变。原函数不读取 DIG master，不能补造 master127，也不能将名义 sample 层向量称为最终混音幅度已闭合。
+`ail_sample_volume_pan_tables_rebuild @0x40240` 的完整原函数 `0x40240..0x404b2` 执行向量逐项覆盖256个 U8 值：volume100／pan64的两种已测输出格式，每个声道均为 `(u-128)*202`；volume127对照为 `*256`，volume0为0。原过程使用非零volume+1和两次SAR7，不是根据录音拟合`100/127`。应用cue默认gain为`101/128`；F5正式固定profile直接使用整数scale202，不借旧通用PCM的gain1／.5浮点路径代原表。原函数不读取DIG master，不能补造master127，也不能将名义sample层向量称为最终混音幅度已闭合。
 
 | bank | 已确认调用 |
 |---|---|
@@ -73,11 +73,11 @@ FIGANI／动画 metadata 与 caller 决定 bank；`0x5414b`、`0x54153` 是相�
 
 ## SDL 实现边界
 
-- `audio.[ch]` 管理一个 SDL3 device／stream、float32 stereo 混音、master/music/sfx 增益、有界单生产者命令队列和 null/offline 输出。
-- `audio_pcm.[ch]` 管理借用型 bank、24 项无分配 voice pool、rate conversion、replace／stop 和 retirement。
+- `audio.[ch]`由App主线程管理唯一device／stream、源的render／retire和null／offline输出。正式固定48000 profile在SB与Nuked合流前保持整数Q13，经过唯一共同DC／record／S16夹幅后，以S16/32768精确F32载体提交；普通float profile只供有限诊断。SDL callback不生成未来声音，旧命令队列已删除。
+- `audio_pcm.[ch]`管理借用bank和同一DIG的两个P视图；`audio_dig`按原服务片段重置半相位，写唯一build／两DMA半块，`audio_sb`／`sb_dma_provider`／`sb_channel`负责物理消费与持续转换。已删除旧24声部线性PCM路径；stop8保已提交DMA，第三空service请求pause。
 - `bgm.cpp` 直接按原 EVNT／32 duration 槽推进，读取 `SAMPLE.AD`，复现已配置 SBPRO2.MDI 的20个逻辑槽／默认18个 OPL3 硬件 channel及14字节双算子音色分支；复用 OPL AIL model 和 Nuked OPL3，不再在运行路径引用 BW sequencer／XMIDI converter，也不链接完整 libADLMIDI core。
-- 主线程准备资源；render/retire 回调禁止文件 I/O、动态分配、锁等待和阻塞。retire 只发布可回收状态，bank/source 数据必须活到最后一次引用退休。
-- 无设备时允许 null/discard 降级，但不能因此把坏资源解释为合法。音频不可用、静音或跳过演出不能改变单位、phase 或 RNG。
+- 资源、控制、render和retire均由App线程持有；bank/source的借用须活到对应owner终态。唯一bios_clock提交AIL／输出前缀，音乐render不自增120Hz，控制请求同步更新原S／packet。实际CPU／端口／IF及首相位尚待资格，不以完成调用政策称原PIC一致。
+- 无OS设备时允许逻辑null并继续源／timer；虚拟DIG可用性不从OS stream反推。积压首错丢新输出但保已提交前缀，不能据此把坏资源解释为合法，也不能额外消费业务RNG。
 
 播放器 API 以 `src/audio.h`、`audio_pcm.h`、`bgm.h` 为准，不另维护伪接口。失焦、Load、切曲与释放工作边界见[session 设计](../systems/battle-session.md)。
 
@@ -89,7 +89,7 @@ Music 开关 `field_options_menu_execute @0x1728c` 对原字节执行零→1／�
 
 B5 已通过应用持有的 `fd2_field_play_context` 连接城镇 10、酒店 13、出城淡出、stage 0／1 入口与活动 Load 的 primary，以及 phase alternate／primary 请求。stage 1 入场剧情完整返回后才请求 primary，不在剧情开始前提前播放。Game 只发同步曲目请求，绘制和音频回调不推进业务；手工 Load 恢复准备状态，出阵后按场景请求曲目，不从 SAV 恢复 sequence 播放位置。
 
-请求沿用现有 `fd2_bgm_play`／`fd2_bgm_stop`：同曲不重启；stop 将淡出请求交给音频 render，在随后 4 秒内降至零，不是立即静音或阻塞主线程等待。`current_track == -1` 仅表示已请求停止，不表示剩余 PCM 已播放完。null 路径允许无 BGM player 时继续逻辑；offline 后端可验证播放、淡变和 bus，但这些检查不替代实际设备声音对照。A5编排与恢复边界现已随B5完成受支持范围验收，声音保真和大阶段历史全面回归不在此完成声明内。
+请求沿用 `fd2_bgm_play`／`fd2_bgm_stop`：同曲不重启，stop同步登记4秒sequence渐变，由共享AIL服务更新，chip常驻至Audio终态；`current_track == -1`只表示已请求停止。原512B消息包的分派、容量前flush和service尾flush由同一driver维护。五个3B占位资源的失败init前缀与旧EVNT referent缺证另记，不能补造静默／硬停。null路径允许无BGM player继续逻辑；offline有限检查不替代设备／原版／严格时序。A5／B5旧范围保持，F5当前资格另记。
 
 ## 已有对照及限制
 

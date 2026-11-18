@@ -1,4 +1,5 @@
-/* 仅测试：直接复用SDL commit2813f263的原内部removed通知。
+/* 仅测试：直接复用固定SDL的内部removed通知。
+ * 当前89b为SDL3.2.12/commit5ac37a8；2813f263仅CPM目录名，不回签历史5d来源。
  * SDL_audio.c377..443、1474..1490和724..797规定hash/device/stream锁与ref边界。
  * 含真实私有头，不猜struct/ABI；内部头只在此TU启用dynapi_REAL映射。 */
 #include "audio/SDL_sysaudio.h"

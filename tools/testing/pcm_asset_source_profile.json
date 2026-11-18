@@ -1,0 +1,18 @@
+{
+  "schema": "fd2.f5.pcm-source-profile.v1",
+  "address_view": "canonical-relbase, object1 VA=file-image index; loader-relocated, not raw EXE offset",
+  "original_exe": {
+    "size": 509158,
+    "sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
+  },
+  "strict_image": {
+    "size": 406738,
+    "sha256": "8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"
+  },
+  "inherited_semantics": [
+    {"id": "pcm-contract-source01", "sha256": "46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379"},
+    {"id": "pcm-contract-source02", "sha256": "3f6416ed05ddbf3c7c43c24653674bf594d24876b24acf89b68d26f90fe92dd2"},
+    {"id": "pcm-contract-source03", "sha256": "c5570bf1cbe9ad8245294bc38b7a513075796bd6e9ab09abbffdfca8e57a486f"}
+  ],
+  "semantic_scope": "Inherited full-source normal fixed-profile40240/404c0/49690/49891/49923 algebra and recorded caller/binding review. A new run only rechecks exact EXE/image/chunks/resources; it does not repeat IDA semantics, guest timing or full A18/F5 qualification."
+}

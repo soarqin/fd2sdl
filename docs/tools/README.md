@@ -1,5 +1,7 @@
 # 项目工具速查
 
+2026-11-18：当前F5交付／DOS-CLEAN／F6以[游戏表现对齐](../plans/development.md)为目标。旧SOURCE／CPU／PIT／IRQ／DPMI／扫描线夹具已退出产品必做路径，其命令与候选仅见[历史研究记录](../plans/f5-source-research-history.md)，不要求重跑或接入Main。正常音频、输入、画面与owner检查继续保留。
+
 F1原版参照身份使用`tools/original_reference.py create/verify`，完整PowerShell／Bash命令、20文件／字库分母和配置链资格见[原参照规范](../formats/original-reference.md)。纯合成合同测试注册为CTest `original_reference_contract`；原文件身份通过不等于原版动态／BSS／玩法通过。
 
 F1合并81→82的正式容量代表使用`tools/run_f1_coalesced82_check.py`；完整来源、两次END、严格ON前提和复跑参数见[图形规范F1](gui-testing.md#f1-合并调度与容量传送代表)。该入口缺原C22归档不可运行；失败与当前资格只查[F1报告](../plans/f1-reference-domain.md)。
@@ -187,19 +189,21 @@ G4的30类 C／原码探针及runtime／common端口门见[冷定义工具](stat
 
 ### A8 音频生命周期验证
 
-普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put 故障和队列压力；`audio_device_probe_finalization` 覆盖实际 probe 的末次提交错误；`audio_pcm_capture_callback_order` 检查 Put 失败不能留下成功 AppMix summary。`audio_unavailable_field_quick_entry` 启动真正主程序，以 dummy video 和无效音频后端验证 discard-null 快速入口，不算原生窗口或设备播放通过。交付候选的实际结果见[阶段记录](../plans/stage-log.md#a8宿主与设备生命周期)，以下命令不自行构成通过记录。
+普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put、主线程同步与积压首错；`audio_device_probe_finalization` 覆盖提交失败及关闭时不再借用source；`audio_pcm_capture_main_order` 检查成功Put后的真实mix与失败封包。后者是F5当前登记名，旧A8的callback身份保历史记录。`audio_unavailable_field_quick_entry` 用dummy video和无效音频后端验证逻辑null入口，不算原生窗口或设备播放通过。[F5记录](../plans/f5-audio-device.md)区分当前候选与[历史A8](../plans/stage-log.md#a8宿主与设备生命周期)；以下命令本身不构成通过记录。
+
+当前AppMix为`fd2-app-mix-capture-v3`，仍在主线程成功Put之后观察；新增明确的`pcm_quantizer`及版本。量化按32768单位、half-away后S16饱和，可无损回译`S16/32768`的全部65536个F32载体值；不声称任意非整数F32与SDL设备转换逐byte相同。v1 callback及v2的32767量化只作历史读取，不能重标v3。`fd2_audio_pcm_quantizer_test`／CTest `audio_pcm_capture_quantizer`核该完整载体域，无设备或GUI。
 
 Windows（PowerShell，已配置的 Visual Studio Debug 构建）：
 
 ```powershell
 cmake --build src/build-win --config Debug --target fd2sdl fd2_audio_test fd2_audio_lifecycle_test fd2_audio_pcm_capture_test fd2_audio_pcm_capture_hook_test fd2_audio_device_probe_finalization_test fd2_audio_pcm_test fd2_bgm_test fd2_field_progress_play_test fd2_field_unit_render_test --parallel 4 -- /nodeReuse:false
-ctest --test-dir src/build-win -C Debug -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_callback_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
+ctest --test-dir src/build-win -C Debug -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_main_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
 ```
 
 Linux 使用前文的独立 `src/build` 配置和构建，再运行同一组无窗口测试；本轮 Linux 未执行：
 
 ```bash
-ctest --test-dir src/build -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_callback_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
+ctest --test-dir src/build -R '^(audio|audio_lifecycle|audio_pcm_capture_boundaries|audio_pcm_capture_main_order|audio_device_probe_finalization|audio_pcm|bgm|audio_unavailable_field_quick_entry|field_progress_play|field_unit_render)$' --output-on-failure
 ```
 
 实际设备 probe 不注册为自动 CTest。它只初始化 SDL audio，实际 render 后向设备提交等长零，检查 source 替换、两个 bus 恢复、stop／retire／close；不改变系统音量、默认端点或用户 session mixer。无参数或 `--dry-run` 不初始化 SDL。显式 `--execute 100..10000_MS` 才打开本进程的设备，须串行置于 owned Job：
@@ -213,7 +217,12 @@ cmake --build src/build-win --config Debug --target fd2_audio_device_probe fd2_f
 
 #### 固定 SDL 内部 ABI 的本地断连 probe（仅 Windows x64 Debug）
 
-`tools/testing/sdl-local-disconnect` 独立链接现有 SDL 静态库，模拟该进程收到原 SDL removed 通知，不重编 SDL、不禁用系统端点。配置必须显式提供 `SDL3_DIR`、`SDL3_SOURCE_DIR` 和 `SDL3_BUILD_CONFIG_DIR`。目前只接受已验证 commit `2813f2630904ea29806fcfaeeb3287ed555e42e2` 的特定 Debug 静态库 SHA256 `5d920411374519962ce4dacbd04c86d210a4c71dea243e5d922779392dcbb090`，并校验 `SDL_sysaudio.h`、`SDL_internal.h` 和生成的 `SDL_build_config.h` 三个头文件摘要。即使 commit 相同，另一构建的库或配置头摘要不同也会拒绝；不回退到另一套 SDK 或 DLL。
+`tools/testing/sdl-local-disconnect` 独立链接现有 SDL 静态库，模拟该进程收到原 SDL removed 通知，不重编 SDL、不禁用系统端点。配置必须显式提供 `SDL3_DIR`、`SDL3_SOURCE_DIR` 和 `SDL3_BUILD_CONFIG_DIR`。工具只接受以下两份独立固定身份，并始终校验 `SDL_sysaudio.h`、`SDL_internal.h` 和生成的 `SDL_build_config.h` 三个头文件摘要：
+
+- 历史 Debug 静态库 SHA256 `5d920411374519962ce4dacbd04c86d210a4c71dea243e5d922779392dcbb090`，保留其原验收范围；不倒推补签当时未记录的 source HEAD。
+- 当前 SDL 3.2.12 静态库 SHA256 `89b0bb041ca201c97e1e79b960c3bc642762356d0255e2886d93cb11bc5c2839`，对应干净源码 commit `5ac37a8ffcf89da390404c1016833d56e2d67ae4`（tag `release-3.2.12`），另校验实际 audio/audiocvt 源及 public atomic/audio 头摘要。2026-11-17 已独立完成 COFF/C13 生产来源绑定、九组纯检查及 quiet owned 本地断连；不据此认定与历史库等值。
+
+路径中的 `2813f2630904ea29806fcfaeeb3287ed555e42e2` 只是 CPM 缓存目录名，不是 Git commit。当前库的资格限定为该进程默认 WASAPI stream 的内部 removed→Zombie 路径；不包含物理拔插、路由恢复、可听输出或完整 F5。其它库、源码或配置摘要不同仍拒绝，不回退到另一套 SDK 或 DLL。
 
 从项目根目录执行。下面路径是本机已验证依赖位置；其它环境必须先取得同版本源码、配置头和相同静态库：
 
@@ -233,7 +242,7 @@ ctest --test-dir build-a8-sdk -C Debug -R '^private_sdl_local_disconnect$' --out
 & ./src/build-win/Debug/fd2_field_play_input_driver.exe run-job 30000 ./build-a8-sdk/Debug/fd2_audio_device_loss_probe.exe --execute 1500
 ```
 
-最终两行 JSON 都须 `ok=true`，并核同一 logical／physical owner、ref 成对、zombie0→1、Wait／GetBuffer／Play 三函数切换、断连后 callback／Put 继续、新 source／配置恢复／retire 及正常 Job 清理。probe 只操作本进程 SDL 对象；不证明真实拔插、WASAPI 恢复、默认路由迁移、完整波形或绝对时序。该私有 ABI 入口无 Linux 对应命令，不能移用其它 SDL 版本或 Release 库。
+最终两行 JSON 都须 `ok=true`，并核同一 logical／physical owner、ref 成对、zombie0→1、Wait／GetBuffer／Play 三函数切换、主线程 sync／Put 继续、Zombie 确认后的正队列在无 Put 区间减少、新 source／配置恢复／retire 及正常 Job 清理。probe 只操作本进程 SDL 对象；不证明真实拔插、WASAPI 恢复、默认路由迁移、完整波形或绝对时序。该私有 ABI 入口无 Linux 对应命令，不能移用其它 SDL 版本或 Release 库。
 
 ### 图形自动化
 
@@ -490,81 +499,22 @@ ctest --test-dir src/build -R '^(bgm_opl_trace|bgm_opl_trace_unhooked|audio_prob
 
 短离线命令只复现输出与记录接口；标题3748写序的比较仍绑定其原预声明窗口／映射，不由任意1秒trace推定。路径测试在owned临时原资源副本中验证UTF-8及已有／原目录／重名／原目录别名拒绝，不向本树 `original_game/` 写入。
 
-#### A7 事件／voice与配置回归
-
-下列无窗口目标读取现有原资源，覆盖 SBPRO2.MDI分配、整数 sequence volume、原32 duration槽、loop／fade、选项与配置恢复。原机器码向量与新交付候选测试分开登记，不能将纯回归写成真实设备或完整声音通过。Windows（PowerShell）：
+`tools/testing/sequence_fade_vectors.py` 是独立的有限渐变整数模型，按原 `449e0/43270/43230/42980` 给出六组状态及逻辑 CC7。它无需原资源、不执行原码，也不生成物理 packet 或 PIC 时间。默认输出到 stdout；`--output` 只接受原资源之外的全新文件：
 
 ```powershell
-cmake --build src/build-win --config Debug --target fd2_bgm_test fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test fd2_bgm_options_test fd2_audio_options_test fd2_audio_pcm_test --parallel 4 -- /nodeReuse:false
-ctest --test-dir src/build-win -C Debug -R '^(bgm|bgm_sbpro2|bgm_sequence_volume|bgm_native_sequence|bgm_options|audio_options|audio_pcm)$' --output-on-failure
+python tools/testing/sequence_fade_vectors.py --output "$work/sequence-fade-new.json"
 ```
 
-Linux 使用独立构建目录；本轮未执行：
+Linux 使用同一参数，将 `python` 改为 `python3`。旧原码 golden 生成器的精确观察位置尚未恢复；此模型提供新的有限源算术依据，不能补造旧运行身份或全曲声音通过。
 
-```bash
-cmake --build src/build --target fd2_bgm_test fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test fd2_bgm_options_test fd2_audio_options_test fd2_audio_pcm_test --parallel
-ctest --test-dir src/build -R '^(bgm|bgm_sbpro2|bgm_sequence_volume|bgm_native_sequence|bgm_options|audio_options|audio_pcm)$' --output-on-failure
-```
-
-R1 将 options、active-load、opening、end-turn、sfx-reenable 迁入永久入口 `tools/run_audio_checks.py`。默认只读前置检查，不启动进程、不调用显示／设备 API，也不创建产物；`--execute` 才实际运行。需要现有 Pillow、NumPy／SciPy、已验证的 DOSBox-X、测试 driver 与只读原资源，输出须为新目录。Windows（PowerShell；将路径换成当次候选）：
+`tools/testing/sequence_beat_vectors.py`从固定FDMUS原资源独立读取15曲的正常事件／meta参数，以原字段算式生成30个短状态指纹。它不生成PCM或原曲内容，不读取C输出来更新expected。输出使用新文件；正常测试同时保留原消息／状态hash：
 
 ```powershell
-$driver = './src/build-win/Release/fd2_field_play_input_driver.exe'
-$audioArgs = @('--root', '.', '--game', './src/Release/fd2sdl.exe', '--driver', $driver, '--dosbox', 'C:/Tools/DOSBox-X/dosbox-x.exe', '--artifacts', 'C:/fd2sdl-evidence/audio-release-new')
-python tools/run_audio_checks.py @audioArgs
-& $driver run-job 1800000 python -B tools/run_audio_checks.py @audioArgs --execute
+python tools/testing/sequence_beat_vectors.py --output "$work/sequence-beat-new.h"
 ```
 
-实际执行须串行且满足[显示与 owned 清理要求](gui-testing.md)。每场先原版后 SDL，原版资源／存档／采集门失败不启动 SDL。options 核四次开关及 Save 原字节；active-load 核 ESC／NO 不改 live 配置、YES 恢复完整基线；opening 只走 29 个等待点并停在 fragment 2 首等待；end-turn 只提交一次 END 并核 Round002／Save；sfx-reenable 在 Music0 下核 00→01 后有限完整样本身份。原版使用显式 HOST_W，SDL 使用真实 callback 的 pre-OS AppMix 并安静提交；闭合录音只算采集门，不把 BGM 音色、完整波形、绝对时序或扬声器输出写成通过。每个正式结果仍须核最终报告与 Job／来源守卫，不将默认 dry 当实机。
+Linux参数相同，将`python`改为`python3`；本轮未执行Linux。原EOT额外peek及CPU／PIC成本不属于这些状态指纹的通过范围。
 
-`tools/inspect_dro_v2.py` 只读解析已关闭的 DOSBox-X `b6abbd5` writer的未压缩 DRO v2，核对头、转换表、delay、bank／寄存器记录和完整长度；不播放、不调用模拟器、不恢复 loaded MDI pointer，也不判 PCM或A7行为通过。输出必须是原资源目录之外的全新文件，父目录已存在：
+[PCM真实资源复跑](../../tools/testing/PCM_ASSETS.md)维护全部26库／111样本的公开入口：固定原EXE的portable字节来源、独立继承语义、实际MSVC producer闭包与C完整packet比较分别登记。无需私有IDA导出包；不打开窗口／设备，不以226段有限DIG检查签自然cue、IRQ或完整波形。文档附Windows命令及Linux producer未支持／未验边界。
 
-```powershell
-python tools/inspect_dro_v2.py "$work/closed.dro" --output "$work/dro-structure-new.json"
-python -m unittest discover -s tools/tests -p test_dro_v2.py
-```
-
-Linux将 `python` 改为 `python3`，参数相同。writer的cache前缀、同值写过滤和尾静音未编码限制须保留，不能将结构有效或全部记录数量当完整端口史。实际标题、opening／END、options／Load和SFX重开使用[阶段记录](../plans/stage-log.md#a7当前受支持音频行为与后端边界)指向的封存 worker `commands.json` 与输入／程序事实；换候选后须重核来源，不盲重放旧fixture或把单端／联合来源称fresh pair。
-
-Windows（PowerShell；先将路径换成实际捕获和候选目录）：
-
-```powershell
-python tools/compare_fd2_sfx_capture.py "$work/capture.wav" --sample 5
-python tools/compare_fd2_music_capture.py "$work/capture.wav" "$work/xmi"
-```
-
-Linux（Bash）：
-
-```bash
-python3 tools/compare_fd2_sfx_capture.py /tmp/capture.wav --sample 5
-bash tools/render_fd2_opl_prototype.sh 1   # 也可传 all；外部评估，不是运行依赖
-python3 tools/compare_fd2_music_capture.py /tmp/capture.wav /tmp/fd2-adlmidi-prototype/xmi
-```
-
-`fd2_sfx_oracle.py` 从 FDOTHER 独立 VOICE 原字节建立候选，读取调用者预声明的查询 JSON；缺 `--wav` 只输出 pending。实际 WAV 须已关闭、至多120秒，格式为 PCM16 mono／stereo、44100／48000 Hz。依赖现有 `numpy`、`scipy`，不新增运行时游戏依赖。输出必须是新文件且位于原资源目录之外：
-
-```powershell
-python tools/fd2_sfx_oracle.py --fdother original_game/FDOTHER.DAT --request "$work/sfx-query.json" --wav "$work/closed.wav" --output "$work/sfx-observation.json"
-python tools/fd2_core_sfx_gate.py --original original_game --scenario player-magic0 --wav "$work/closed.wav" --output "$work/core-sfx.json"
-```
-
-Linux 离线分析使用相同参数并将 `python` 改为 `python3`；这不表示 Linux 采集已执行。查询窗、固定前缀和身份阈值须先声明，不能看波形后裁到好点。核心三场声明由 `fd2_battle_animation_sfx.declare()` 提供；`fd2_core_sfx_gate.py` 预声明固定60 ms前缀，并按完整样本 SHA 合并相同字节候选，只核有限 VOICE 字节身份及录音内有序存在，不证明重复 cue 的全部次数、运行 bank 指针、输入精确时延、整段声音或 A7 保真；未提供录音仍为 pending。B6三核心已有上述最低身份／顺序的实际校准；整段声音和精确时序的A7校准仍未完成，不能把这些分析参数当作完整保真容差。
-
-`render_fd2_opl_prototype.sh` 是 Linux／Bash 外部评估脚本，不是 Windows 原生构建步骤，也不是运行依赖。Windows 可直接比较已有候选 WAV；需要重新生成历史原型时，在具有 Linux 编译器、CMake、Python 3 和 Git 的 WSL 中执行 Bash 命令，证据登记为 WSL／Linux 结果。原型需要上游源码、网络和本地构建工具，默认在 `/tmp/fd2-adlmidi-prototype` 工作，可通过 `FD2_ADLMIDI_WORK`／`FD2_ADLMIDI_EMULATOR` 调整；每次会重建其 `xmi/`，不要在该目录存放捕获证据。比较全部候选前先渲染 `all`。结果范围与已否决候选见[音频依据](../reverse-engineering/audio.md)。
-
-## 二进制与工作区检查
-
-Windows 的 SHA-256、字节比较和十六进制读取见[跨平台约定](platforms.md#哈希二进制比较与发布清单)；以下二进制工具示例限定 Linux／Bash，Git 命令适用于两平台。
-
-```bash
-xxd -g1 -s $((0x36014)) -l 128 original_game/FD2.EXE
-sha256sum original_game/FD2.EXE
-cmp -s expected.bin actual.bin  # 返回 0 才相同
-
-git status --short
-git diff --stat
-git diff -- path/to/file
-git diff --check
-```
-
-生成／本地产物和提交边界遵守 AGENTS。外部规范检索遵循其中的 `ketch → Pi Web Search → 可复核本地源码` 降级规则，搜索失败不构成格式结论。
+F5 已停止将 SOURCE／DOS／DPMI／CPU／IRQ／扫描线研究作为产品构建和完成前置。原测试、工具、来源与候选完整保留在本地裁减前快照及[历史证据记录](../plans/f5-source-research-history.md)，不把旧命令误列为当前可用入口。实际产品的普通音乐、PCM 数学、传输／关闭及错误传播回归仍由 CMake／CTest 登记；[当前范围](../plans/f5-audio-device.md)不要求硬件形式等价。

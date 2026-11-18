@@ -48,16 +48,19 @@ static const uint8_t glyph_bytes[64] = {0x80,0,0,0,0,0,0,0,
     0x40};
 
 static uint64_t message_ticks(void) { return mock_ms; }
-static void message_delay(uint32_t ms) { delay_calls++; mock_ms += ms; }
-static void message_tick_wait(uint32_t ticks) {
+static int message_delay(uint32_t ms) { delay_calls++; mock_ms += ms; return 0;
+}
+static int message_tick_wait(uint32_t ticks) {
     if(glyph_tick_calls<32u)tick_args[glyph_tick_calls]=ticks;glyph_tick_calls++;
     uint64_t ns=fd2_bios_clock_deadline_ns(mock_ms*UINT64_C(1000000),ticks);
     mock_ms=(ns+UINT64_C(999999))/UINT64_C(1000000);
+return 0;
 }
-static void message_wait(fd2_vga *vga) {
+static int message_wait(fd2_vga *vga) {
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+return 0;
 }
-static void message_present(fd2_vga *vga) {
+static int message_present(fd2_vga *vga) {
     presents++;
     if (expected_present_frame && memcmp(vga->framebuffer, expected_present_frame, VGA_W * VGA_H) != 0) {
         unsigned count = 0; size_t first = 0;
@@ -82,10 +85,12 @@ static void message_present(fd2_vga *vga) {
         fd2_input_begin_test_frame(&vga->input,mock_ms);
     }
     if (in_route && backend_done) vga->input.quit_requested = 1;
+return 0;
 }
-static void message_present_timed(fd2_vga *vga, uint32_t ms) {
+static int message_present_timed(fd2_vga *vga, uint32_t ms) {
     message_present(vga);
     mock_ms += ms;
+return 0;
 }
 
 static int prepare_text(fd2_field_game *game, size_t target, int bad) {
@@ -225,7 +230,9 @@ uint64_t message_ticks_ns(void);
 #define SDL_GetTicksNS message_ticks_ns
 #define fd2_field_water_tick_live(vga_) fd2_field_water_tick((vga_),SDL_GetTicksNS())
 #define fd2_delay_ms message_delay
+#define fd2_vga_delay_ms(vga,value) message_delay(value)
 #define fd2_wait_ticks message_tick_wait
+#define fd2_vga_wait_ticks(vga,value) message_tick_wait(value)
 #define fd2_vga_present message_present
 #define fd2_vga_upload_current_frame message_copy_upload
 #define fd2_input_begin_frame message_copy_pump
@@ -242,7 +249,9 @@ uint64_t message_ticks_ns(void);
 #undef fd2_field_game_runtime_menu_refresh
 #undef fd2_field_choice_run
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef fd2_vga_upload_current_frame
 #undef fd2_input_begin_frame
 #undef fd2_vga_present
@@ -297,7 +306,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         if (mode == 6) game.ui_text.size = 7;
         if (mode == 7) game.ui_text.size = 0;
         if (mode == 1) vga.input.quit_requested=1;
-        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1);
+        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0,NULL) == -1);
         CHECK(memcmp(before, vga.framebuffer, sizeof(before)) == 0);
         CHECK(!presents && !delay_calls);
         if (mode == 1) CHECK(vga.input.quit_requested); /* 独立坏字形不能靠quit洗成HOST。 */
@@ -338,7 +347,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     /* 必须核首个真正present的整页，不能等下一轮稳态render掩盖亮色占位。 */
     expected_present_frame = NULL;
     vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=UINT64_C(23000000);
-    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == 0);
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0,NULL) == 0);
     /* 两个字形各执行原164e8 wait1，不再以两个55ms DOS delay模拟。 */
     CHECK(presents==10 && copy_pumps==8 && pumped_uploads==8 && raw_uploads==2 && !pending_copy_pump &&
         glyph_tick_calls==2 && tick_args[0]==1u && tick_args[1]==1u && !delay_calls && !unexpected_present_frames);
@@ -362,7 +371,7 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
         game.fdother = invalid ? &empty : NULL;
         memset(vga.framebuffer, 0x77, sizeof(vga.framebuffer));
         memset(expected->framebuffer, 0x77, sizeof(expected->framebuffer));
-        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1);
+        CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0,NULL) == -1);
         CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
         CHECK(!presents && !delay_calls);
     }
@@ -379,12 +388,12 @@ static int test_fragment_preflight_is_pixel_atomic(void) {
     broken.data[absolute] = broken.data[absolute + 1] = 0;
     game.fdother = &broken;
     reset_controls();
-    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0,NULL) == -1 && !presents && !delay_calls);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     free(broken.data); game.fdother = &fdother;
     size_t original_portraits = game.dato_archive.count;
     game.dato_archive.count = 75; /* END仍须原75，不能改用Hero0回退。 */
-    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0) == -1 && !presents && !delay_calls);
+    CHECK(play_system_confirmation_text(&game, &vga, &box, NULL, 419, 0,NULL) == -1 && !presents && !delay_calls);
     CHECK(memcmp(vga.framebuffer, expected->framebuffer, sizeof(vga.framebuffer)) == 0);
     game.dato_archive.count = original_portraits;
     free(game_before); free(expected);
@@ -510,13 +519,13 @@ static int test_notice_resource_owner_and_stable_page(void) {
         memcpy(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer));
         CHECK(expected_notice(expected,game,portrait,prompt,0)==0);
         memcpy(before,game,sizeof(*before));reset_controls();backend_rng_ok=1;
-        CHECK(play_system_confirmation_text(game,vga,&box,NULL,prompt,0)==0);
+        CHECK(play_system_confirmation_text(game,vga,&box,NULL,prompt,0,NULL)==0);
         CHECK(presents>6 && glyph_tick_calls>0 && box.page && backend_rng_ok);
         CHECK(!memcmp(expected->framebuffer,vga->framebuffer,sizeof(vga->framebuffer)));
         CHECK(!memcmp(before,game,sizeof(*before)));
         unsigned frames_before=(unsigned)presents,delays_before=(unsigned)delay_calls;
         size_t result=result_kind?412u:prompt+1u;
-        CHECK(play_system_confirmation_text(game,vga,&box,NULL,result,0)==0);
+        CHECK(play_system_confirmation_text(game,vga,&box,NULL,result,0,NULL)==0);
         CHECK(!box.page && (unsigned)presents>frames_before+5u && (unsigned)delay_calls>delays_before && backend_rng_ok);
         for (size_t p=0;p<sizeof(vga->framebuffer);p++) CHECK(vga->framebuffer[p]==0x77);
         CHECK(!memcmp(before,game,sizeof(*before)));

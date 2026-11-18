@@ -68,9 +68,10 @@ static uint32_t modal_rng(void *userdata) {
 }
 
 static uint64_t modal_ticks(void) { return controls.now; }
-static void modal_wait(fd2_vga *vga) {
+static int modal_wait(fd2_vga *vga) {
     controls.waits++;
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+return 0;
 }
 static void *modal_malloc(size_t size) {
     controls.allocations++;
@@ -287,12 +288,13 @@ static void modal_submit(fd2_vga *vga,uint32_t interval,int timed) {
         vga->input.quit_requested = 1;
     }
 }
-static void modal_present_timed(fd2_vga *vga,uint32_t interval) {
+static int modal_present_timed(fd2_vga *vga,uint32_t interval) {
     modal_submit(vga,interval,1);
+return 0;
 }
-static void modal_present(fd2_vga *vga) {
+static int modal_present(fd2_vga *vga) {
     if(controls.frames<12 || (controls.closing && controls.frames-controls.closing_start<12)) {
-        modal_submit(vga,16,0);return;
+        modal_submit(vga,16,0);return 0;
     }
     controls.presents++;
     if (controls.eqt_game && !controls.closing) {
@@ -309,9 +311,10 @@ static void modal_present(fd2_vga *vga) {
         reference_page = expected; /* 后续关闭必须用新flag/数值，不是最初旧页。 */
         modal_frame_input(vga, -2);
         if (controls.eqt_quit_in_present) vga->input.quit_requested = 1;
-        return;
+        return 0;
     }
     modal_frame_input(vga, -1);
+return 0;
 }
 
 static void modal_copy_upload(fd2_vga *vga) {

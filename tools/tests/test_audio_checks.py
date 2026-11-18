@@ -16,6 +16,252 @@ from PIL import Image
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import fd2_audio_checks as checks
+import fd2_app_mix_capture as app_mix
+
+class LeaveAudioTest(unittest.TestCase):
+    def test_real_messages_require_all_seven_glyphs_at_formal_origins(self):
+        import run_original_comparison as common
+        import run_original_battle_menu as menu
+        import fd2_reward_oracle as reward
+        import fd2_magic_list_oracle as magic
+        root=Path(__file__).resolve().parents[2]
+        assets=menu.resource_templates(root/'original_game/FDOTHER.DAT',root/'original_game/FDTXT.DAT')
+        tools={'run_original_comparison':common,'run_original_battle_menu':menu,
+            'fd2_reward_oracle':reward,'fd2_magic_list_oracle':magic}
+        expected=checks.prepare_leave_messages(root/'original_game',assets,tools)
+        prepared=dict(leave_messages=expected,tools=tools)
+        for fragment,y in ((415,127),(416,146)):
+            with self.subTest(fragment=fragment):
+                item=expected[fragment]
+                self.assertEqual(item['position'],(98,y));self.assertEqual(item['glyphs'],7)
+                frame=Image.new('P',(320,200),0);frame.putpalette(assets['palette'])
+                frame.paste(item['image'],item['position']);frame=frame.convert('RGB')
+                hit=checks.leave_message_match(frame,prepared,fragment)
+                self.assertEqual(hit['text_origin'],[99,y]);self.assertTrue(hit['text_match']['ok'])
+                frame.paste(tuple(assets['palette'][:3]),(99+6*16,y,99+7*16,y+17))
+                self.assertIsNone(checks.leave_message_match(frame,prepared,fragment))
+        tools['fd2_reward_oracle']=SimpleNamespace(common_tokens=lambda *args:[1]*6+[-3,-1])
+        with self.assertRaises(ValueError):checks.prepare_leave_messages(root/'original_game',assets,tools)
+
+    def test_leave_is_explicit_registered_scope_not_a_return_to_title(self):
+        import run_audio_checks as cli
+        args=cli.parser().parse_args(['--game','game','--driver','driver','--dosbox','dosbox',
+            '--bootstrap','bootstrap','--artifacts','new','--scenarios','leave'])
+        self.assertEqual(args.scenarios,['leave']);self.assertFalse(args.execute)
+        declaration=checks.declaration(args.scenarios)
+        self.assertIn('normalexit0',declaration['episode_scope']['leave'])
+        self.assertIn('not full200ms/4s',declaration['leave_audio_scope'])
+
+    def test_leave_requires_one_final_stop_after_valid_field_music(self):
+        def row(track,reason,current=None):
+            return 'music request: stage=0 track=%d reason=%s available=1 result=0 current=%d loop=0'%(track,reason,track if current is None else current)
+        good='\n'.join([row(18,'title'),row(-1,'continue-stop'),row(19,'continue'),row(-1,'leave')])
+        self.assertEqual(checks.music_requests(good,'leave')['required_ordered_subsequence'],[19,-1])
+        bad=[good.rsplit('\n',1)[0],good+'\n'+row(-1,'leave'),good+'\n'+row(18,'title'),
+            good.replace('reason=leave','reason=shutdown'),good.replace('result=0 current=-1 loop=0','result=-1 current=-1 loop=0'),
+            good.replace('reason=leave available=1 result=0 current=-1','reason=leave available=1 result=0 current=19')]
+        for log in bad:
+            with self.subTest(log=log),self.assertRaises(AssertionError):checks.music_requests(log,'leave')
+
+    def test_normal_leave_qualification_needs_pixels_exit_save_and_transport(self):
+        process=dict(exit_code=0,cleaned=True,forced_cleanup=False)
+        record=dict(kind='sdl',business_sequence_completed=True,audio_collection_passed=True,
+            leave_416_observed=True,leave_capture_stop_requested_after_full416=True,
+            normal_leave_exit=dict(exit_code=0,no_game_key_after_yes=True,source_save_unchanged=True,returned_to_title=False),
+            transport_observation={'ok':True})
+        self.assertTrue(checks.qualify_case(record,process,'leave')['ok'])
+        for field in ['leave_416_observed','leave_capture_stop_requested_after_full416']:
+            bad=copy.deepcopy(record);bad[field]=False
+            with self.subTest(field=field):self.assertFalse(checks.qualify_case(bad,process,'leave')['ok'])
+        for field,value in [('exit_code',1),('no_game_key_after_yes',False),('source_save_unchanged',False),('returned_to_title',True)]:
+            bad=copy.deepcopy(record);bad['normal_leave_exit'][field]=value
+            with self.subTest(field=field):self.assertFalse(checks.qualify_case(bad,process,'leave')['ok'])
+        record['transport_observation']['ok']=False
+        self.assertFalse(checks.qualify_case(record,process,'leave')['ok'])
+        record['kind']='original'
+        self.assertTrue(checks.qualify_case(record,process,'leave')['ok'])
+
+    def leave_flow(self,kind,*,miss=False,exit_error=False,stop_error=False):
+        events=[];record=dict(inputs=[],events=[],checkpoints=[],resource_series=[])
+        with tempfile.TemporaryDirectory() as directory:
+            save=Path(directory)/'FD2.SAV';save.write_bytes(b'complete-isolated-source')
+            process=mock.Mock(pid=42);process.poll.return_value=None
+            def wait(timeout):
+                events.append('exit-wait');self.assertEqual(timeout,5)
+                if exit_error:raise TimeoutError('normal exit not observed')
+                process.poll.return_value=0;return 0
+            process.wait.side_effect=wait
+            def key(name,**kwargs):
+                events.append(('key',name,kwargs));record['inputs'].append({'key':name})
+            capture=SimpleNamespace(key=key,wait=mock.Mock(),process=process)
+            audio=mock.Mock();audio.assert_running=mock.Mock()
+            def stop():
+                events.append('capture-stop')
+                if stop_error:raise OSError('stop publish failed')
+            audio.request_stop.side_effect=stop
+            audio.finish.side_effect=lambda p:events.append('capture-finalized') or {'closed':True}
+            menu=SimpleNamespace(wait_title=mock.Mock())
+            oracle=SimpleNamespace(menu=mock.Mock(),secondary=mock.Mock(),closed_browse=mock.Mock())
+            tools={'run_original_battle_menu':menu,
+                'run_original_end_turn':SimpleNamespace(RoundOracle=lambda *args:oracle),
+                'run_original_load':SimpleNamespace(require_source_unchanged=mock.Mock()),
+                'run_original_battle_animation':SimpleNamespace(qpc_stamp=lambda:dict(qpc=100,qpc_frequency=1000))}
+            prepared=dict(tools=tools,assets={},titles={3:['title','unused','continue']})
+            def confirmation(c,p,r,o,delivery,label,**kwargs):
+                self.assertEqual(label,'leave-default-YES');self.assertIn('message',kwargs)
+                events.append('prompt415-and-first-YES');delivery('ENTER')
+            def accepted(c,p,r,name,predicate,*,open_key,on_match):
+                events.append('WGC-ready');open_key()
+                if miss:raise TimeoutError('416 not observed')
+                events.append('full416');on_match();events.append('WGC-close')
+            error=None
+            with (mock.patch.object(checks,'checkpoint'),mock.patch.object(checks,'observe_audio'),
+                    mock.patch.object(checks,'wait_confirmation',side_effect=confirmation),
+                    mock.patch.object(checks,'wait_resource_series',side_effect=accepted)):
+                try:checks.exercise_leave(capture,kind,prepared,save,record,audio)
+                except (TimeoutError,OSError) as caught:error=caught
+            return record,events,audio,error
+
+    def test_real_input_shape_and_stop_before_WGC_close_then_normal_exit(self):
+        record,events,audio,error=self.leave_flow('sdl')
+        self.assertIsNone(error);self.assertTrue(record['business_sequence_completed'])
+        keys=[event for event in events if isinstance(event,tuple)]
+        self.assertEqual([event[1] for event in keys],['UP','ENTER','ENTER','UP','ENTER','DOWN','ENTER','ENTER'])
+        self.assertEqual(keys[-1][2],{'fast':True})
+        self.assertLess(events.index('WGC-ready'),events.index(keys[-1]))
+        self.assertLess(events.index('full416'),events.index('capture-stop'))
+        self.assertLess(events.index('capture-stop'),events.index('WGC-close'))
+        self.assertLess(events.index('capture-finalized'),events.index('exit-wait'))
+        self.assertEqual(audio.request_stop.call_count,1);self.assertEqual(audio.finish.call_count,1)
+        self.assertFalse(record['normal_leave_exit']['returned_to_title'])
+
+    def test_original_does_not_toggle_HOST_W_at_416_or_force_capture_stop(self):
+        record,events,audio,error=self.leave_flow('original')
+        self.assertIsNone(error);self.assertTrue(record['audio_finalize_on_normal_close'])
+        self.assertTrue(record['business_sequence_completed']);audio.request_stop.assert_not_called()
+        audio.finish.assert_not_called();self.assertNotIn('HOST_W',[e[1] for e in events if isinstance(e,tuple)])
+
+    def test_missed_416_stop_error_and_exit_timeout_preserve_failure_without_more_keys(self):
+        for kwargs in [dict(miss=True),dict(stop_error=True),dict(exit_error=True)]:
+            with self.subTest(kwargs=kwargs):
+                record,events,audio,error=self.leave_flow('sdl',**kwargs)
+                self.assertIsNotNone(error);self.assertNotIn('business_sequence_completed',record)
+                self.assertEqual(len([e for e in events if isinstance(e,tuple)]),8)
+                if kwargs.get('miss'):
+                    audio.request_stop.assert_not_called();audio.finish.assert_not_called()
+                    self.assertNotIn('leave_416_observed',record)
+                if kwargs.get('stop_error'):audio.finish.assert_not_called()
+
+    def test_actual_ordered_WGC_seam_stops_capture_before_helper_close_even_on_stop_error(self):
+        import run_original_battle_animation as battle
+        for fail_stop in (False,True):
+            with self.subTest(fail_stop=fail_stop),tempfile.TemporaryDirectory() as directory:
+                folder=Path(directory);events=[];ready=dict(ready=True,pid=42,hwnd='0x123',
+                    first_index=0,wgc_timestamp_100ns=100)
+                summary=dict(ok=True,backend='WGC-HWND-session',pid=42,hwnd='0x123',
+                    ready_published=True,session_started=True,stop_reason='stop',hresult=0,
+                    color_filter=False,frames=2,first_wgc_timestamp_100ns=100,last_wgc_timestamp_100ns=101)
+                record=dict(inputs=[dict(key='ENTER',delivery=dict(pid=42,hwnd='0x123',ok=True,
+                    error=0,noactivate_verified=True,foreground_guard_ok=True))],checkpoints=[],resource_series=[])
+                capture=SimpleNamespace(driver=Path('driver'),artifacts=folder,
+                    process=SimpleNamespace(pid=42,poll=lambda:None))
+                class Helper:
+                    def __init__(self,driver,args,work,label,slot):self.folder=Path(args[3])
+                    def start(self):
+                        self.folder.mkdir();rows=[]
+                        for i in range(2):
+                            Image.new('RGB',(320,200),(i,2,3)).save(self.folder/f'frame{i:05d}.png')
+                            rows.append(dict(index=i,file=f'frame{i:05d}.png',pid=42,hwnd='0x123',
+                                wgc_timestamp_100ns=100+i,client_width=320,client_height=200))
+                        (self.folder/'frames.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows),encoding='utf-8')
+                        (self.folder/'ready.json').write_text(json.dumps(ready),encoding='utf-8')
+                        return SimpleNamespace(poll=lambda:None)
+                    def finish(self):events.append('helper-finish');return summary
+                tools={'run_original_battle_animation':SimpleNamespace(OwnedHelper=Helper,
+                    wait_ready=lambda *args,**kwargs:ready,series_index=battle.series_index),
+                    'run_original_comparison':SimpleNamespace(normalize=lambda frame:frame.convert('RGB'))}
+                def stop():
+                    events.append('capture-stop')
+                    if fail_stop:raise OSError('exclusive stop error')
+                call=lambda:checks.wait_resource_series(capture,dict(tools=tools),record,'leave416',
+                    lambda frame:dict(fragment=416) if frame.getpixel((0,0))[0]==1 else None,
+                    open_key=lambda:events.append('YES'),on_match=stop)
+                if fail_stop:
+                    with self.assertRaisesRegex(OSError,'exclusive stop error'):call()
+                    self.assertFalse(record['resource_series'][0]['completed'])
+                else:self.assertTrue(call()['strict_stop_owner_frame_guard_passed'])
+                self.assertEqual(events,['YES','capture-stop','helper-finish'])
+                self.assertTrue((folder/'leave416-series'/'stop').is_file())
+
+class TransportStatsTest(unittest.TestCase):
+    GOOD='audio transport v1: first_error=0 queue_samples=3 queue_peak_bytes=384 successful_puts=3 backlog_drop_chunks=0'
+    def test_exact_owner_receipt_is_not_device_or_OS_peak(self):
+        row=checks.audio_transport_observation('unrelated\n'+self.GOOD+'\n')
+        self.assertTrue(row['ok']);self.assertEqual(row['successful_puts'],3)
+        self.assertFalse(row['actual_OS_queue_peak_proven']);self.assertFalse(row['device_output_validated'])
+        self.assertIn('sampled_',row['peak_kind'])
+    def test_missing_duplicate_malformed_and_overflow_rejected(self):
+        for log in ('',self.GOOD+'\n'+self.GOOD,self.GOOD.replace('v1:','v1: extra'),
+                    self.GOOD.replace('queue_samples=3','queue_samples=-1'),
+                    self.GOOD.replace('queue_samples=3','queue_samples=18446744073709551616'),
+                    self.GOOD.replace('queue_peak_bytes=384','queue_peak_bytes=2147483648'),
+                    self.GOOD.replace('queue_samples=3','queue_samples=2')):
+            with self.subTest(log=log),self.assertRaises(AssertionError):checks.audio_transport_observation(log)
+    def test_zero_drop_and_first_error_are_independent_required_gates(self):
+        for log in (self.GOOD.replace('first_error=0','first_error=3'),
+                    self.GOOD.replace('successful_puts=3 backlog_drop_chunks=0','successful_puts=2 backlog_drop_chunks=1'),
+                    self.GOOD.replace('queue_samples=3','queue_samples=0').replace('queue_peak_bytes=384','queue_peak_bytes=0').replace('successful_puts=3','successful_puts=0')):
+            with self.subTest(log=log):self.assertFalse(checks.audio_transport_observation(log)['ok'])
+    def test_sdl_sfx_requires_stats_original_and_other_cases_do_not(self):
+        process=dict(exit_code=0,cleaned=True,forced_cleanup=False)
+        row=dict(kind='sdl',business_sequence_completed=True,audio_collection_passed=True,finite_sfx_verification={'ok':True})
+        self.assertFalse(checks.qualify_case(row,process,'sfx-reenable')['ok'])
+        row['transport_observation']=checks.audio_transport_observation(self.GOOD)
+        self.assertTrue(checks.qualify_case(row,process,'sfx-reenable')['ok'])
+        row['transport_observation']['ok']=False
+        self.assertFalse(checks.qualify_case(row,process,'sfx-reenable')['ok'])
+        self.assertTrue(checks.qualify_case(row,process,'options')['ok'])
+        row['kind']='original';self.assertTrue(checks.qualify_case(row,process,'sfx-reenable')['ok'])
+
+
+class CaptureClockVersionTest(unittest.TestCase):
+    def test_reenable_window_uses_exact_declared_capture_origin(self):
+        for schema in (app_mix.LEGACY_SCHEMA,app_mix.PREVIOUS_SCHEMA,app_mix.SCHEMA):
+            ready=dict(schema=schema,qpc_frequency=10000000)
+            if schema==app_mix.LEGACY_SCHEMA:
+                ready.update(clock_source=app_mix.LEGACY_CLOCK,first_callback_qpc=100000)
+            else:
+                ready.update(clock_source=app_mix.CLOCK,transport_owner='main-thread',
+                    capture_point_version=2,capture_point='after_successful_SDL_PutAudioStreamData',
+                    first_submission_qpc=100000)
+            if schema==app_mix.SCHEMA:
+                ready.update(pcm_quantizer=app_mix.PCM_QUANTIZER,pcm_quantizer_version=1)
+            calls=[]
+            refs=[{} for _ in range(13)]
+            refs[8]=dict(sha256=checks.VOICE_SHA,source_frames=2652)
+            def analyze(resource,query,path):
+                calls.append(query)
+                return dict(queries=[dict(identity_status='supported_candidate')])
+            oracle=SimpleNamespace(references=lambda *args:refs,analyze=analyze)
+            prepared=dict(original=Path('not-read'),tools={'fd2_sfx_oracle':oracle,'fd2_app_mix_capture':app_mix})
+            record=dict(kind='sdl',audio_ready=ready,audio_wave=dict(path='not-read.wav',frames=48000,sample_rate=48000),
+                events=[dict(name='off-observation-before',clock=dict(qpc=150000,qpc_frequency=10000000)),
+                        dict(name='off-observation-after',clock=dict(qpc=200000,qpc_frequency=10000000))])
+            result=checks.verify_reenable(prepared,record)
+            self.assertEqual((calls[1]['queries'][0]['start_ms'],calls[1]['queries'][0]['end_ms']),(5,10))
+            self.assertEqual(result['off_observation']['capture_schema'],schema)
+            self.assertFalse(result['exact_timing_verified'])
+            for bad_frequency in (None,True,1):
+                record['events'][0]['clock']['qpc_frequency']=bad_frequency
+                with self.subTest(schema=schema,bad_frequency=bad_frequency),self.assertRaises(AssertionError):
+                    checks.verify_reenable(prepared,record)
+            record['events'][0]['clock']['qpc_frequency']=10000000
+            record['events'][0]['clock']['qpc']=200001
+            with self.assertRaises(AssertionError):checks.verify_reenable(prepared,record)
+    def test_mixed_callback_and_submission_identity_cannot_supply_clock_origin(self):
+        for row in [dict(schema=app_mix.SCHEMA,clock_source=app_mix.LEGACY_CLOCK,first_callback_qpc=100),
+                    dict(schema=app_mix.LEGACY_SCHEMA,clock_source=app_mix.CLOCK,first_submission_qpc=100)]:
+            with self.assertRaises(AssertionError):app_mix.first_qpc(row)
 import run_audio_checks as cli
 
 
@@ -208,7 +454,7 @@ class AudioChecksTest(unittest.TestCase):
 
     def test_functional_gate_does_not_turn_collection_into_SFX_identity(self):
         process=dict(exit_code=0,cleaned=True,forced_cleanup=False)
-        record=dict(business_sequence_completed=True,audio_collection_passed=True)
+        record=dict(kind='original',business_sequence_completed=True,audio_collection_passed=True)
         self.assertTrue(checks.qualify_case(record,process,'options')['ok'])
         self.assertFalse(checks.qualify_case(record,process,'sfx-reenable')['ok'])
         record['finite_sfx_verification']={'ok':True}
@@ -244,7 +490,7 @@ class AudioChecksTest(unittest.TestCase):
         config=checks.native_config_text(Path('owned-game'),Path('owned-captures'))
         self.assertIn('\nFD2.EXE\nexit\n',config);self.assertNotIn('DX-CAPTURE',config)
         self.assertNotIn('/O',config);self.assertNotIn('/A',config)
-        self.assertIn('rate=44100',config)
+        self.assertIn('rate=48000',config)
 
     def test_error_path_finishes_recording_before_host_close(self):
         events=[]
@@ -293,8 +539,8 @@ class AudioChecksTest(unittest.TestCase):
             capture=SimpleNamespace(key=mock.Mock(),trace=[],process=None)
             process=SimpleNamespace(pid=42,poll=mock.Mock(return_value=0))
             capture.process=process
-            native=checks.NativeWave(capture,folder,SimpleNamespace(wav_info=lambda p:
-                {'frames':10,'sample_rate':44100,'path':str(p)}))
+            native=checks.NativeWave(capture,folder,SimpleNamespace(wav_info=lambda p,expected_rate:
+                {'frames':10,'sample_rate':expected_rate,'path':str(p)}))
             native.started=True;native.active=True
             with mock.patch.object(checks.time,'sleep'):
                 result=native.finish_after_exit(process)
@@ -316,7 +562,7 @@ class AudioChecksTest(unittest.TestCase):
 
     def test_cli_default_dry_never_calls_execution_or_display(self):
         prepared=dict(original_facts={},inputs={},source={},tools={})
-        argv=['--game','game','--driver','driver','--dosbox','dosbox','--artifacts','new-output']
+        argv=['--game','game','--driver','driver','--dosbox','dosbox','--bootstrap','bootstrap','--artifacts','new-output']
         with (mock.patch.object(checks,'prepare',return_value=prepared),
                 mock.patch.object(checks,'execute',side_effect=AssertionError('execute forbidden')) as execute,
                 mock.patch.object(subprocess,'Popen',side_effect=AssertionError('Popen forbidden')),
@@ -516,5 +762,98 @@ class ActiveLoadObserverTest(unittest.TestCase):
         self.assertEqual([row['name'] for row in result['record']['saves']],['baseline','loaded-A-final'])
         self.assertTrue(result['save_unchanged'])
 
+
+
+
+class CurrentProfileReferenceTest(unittest.TestCase):
+    def test_current_profile_and_strict_bootstrap_argument(self):
+        args=cli.parser().parse_args(['--game','g','--driver','d','--dosbox','x',
+            '--bootstrap','fixed.conf','--artifacts','new','--scenarios','sfx-reenable'])
+        self.assertEqual(args.bootstrap,Path('fixed.conf'));self.assertFalse(args.execute)
+        text=checks.native_config_text(Path('owned'),Path('captures'))
+        self.assertIn('rate=48000',text);self.assertNotIn('44100',text)
+        self.assertIn('FD2.EXE\nexit\n',text)
+
+    def test_closed_native_wave_requires_current_rate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);(folder/'one.wav').write_bytes(b'fixture')
+            process=SimpleNamespace(pid=42,poll=lambda:0)
+            native=checks.NativeWave(SimpleNamespace(process=process,trace=[],key=mock.Mock()),folder,
+                SimpleNamespace(wav_info=mock.Mock(side_effect=AssertionError('not 48000'))))
+            native.started=True
+            with mock.patch.object(checks.time,'sleep'):
+                with self.assertRaisesRegex(AssertionError,'not 48000'):native.finish_after_exit(process)
+            native.battle.wav_info.assert_called_once_with(folder/'one.wav',expected_rate=48000)
+
+    def test_reference_before_and_owned_argv(self):
+        import original_reference
+        import run_original_comparison as common
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory);config=work/'dosbox.conf';config.write_text('frozen')
+            args=SimpleNamespace(dosbox=Path('dosbox-x.exe'),bootstrap=Path('fixed.conf'))
+            record=dict(scenario='sfx-reenable');command=['dosbox-x.exe','-conf',str(config),'-noconsole']
+            value={'configs':[checks.fact(config)]}
+            def publish(path,receipt):path.write_text('{}')
+            prepared=dict(original=Path('not-read'),inputs={},tools={'original_reference':original_reference,
+                'run_original_comparison':common})
+            with (mock.patch.object(original_reference,'build',return_value=value) as build,
+                  mock.patch.object(original_reference,'write_new',side_effect=publish),
+                  mock.patch.object(original_reference,'verify',return_value=value) as verify):
+                checks.qualify_native_reference(args,prepared,record,config,command,{})
+                self.assertTrue(record['reference_checks']['before'])
+                self.assertEqual(record['expected_actual_command'][-2:],['-set','mixer nosound=true'])
+                build.assert_called_once_with(Path('not-read'),Path('dosbox-x.exe'),[config],
+                    ['mixer nosound=true'],Path('fixed.conf'))
+                checks.finish_native_reference(prepared,record,business_failed=False)
+                self.assertTrue(record['reference_checks']['after']);self.assertEqual(verify.call_count,2)
+
+    def test_configuration_race_cannot_relabel_build_input(self):
+        import original_reference
+        import run_original_comparison as common
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory);config=work/'dosbox.conf';config.write_text('first')
+            value={'configs':[checks.fact(config)]};config.write_text('other')
+            args=SimpleNamespace(dosbox=Path('dosbox-x.exe'),bootstrap=Path('fixed.conf'))
+            prepared=dict(original=Path('not-read'),inputs={},tools={'original_reference':original_reference,
+                'run_original_comparison':common})
+            with (mock.patch.object(original_reference,'build',return_value=value),
+                  mock.patch.object(original_reference,'write_new') as publish):
+                with self.assertRaisesRegex(AssertionError,'冻结后改变'):
+                    checks.qualify_native_reference(args,prepared,{},config,
+                        ['dosbox-x.exe','-conf',str(config),'-noconsole'],{})
+                publish.assert_not_called()
+
+    def test_late_reference_failure_preserves_primary_business(self):
+        reference=SimpleNamespace(verify=mock.Mock(side_effect=ValueError('late reference')))
+        prepared={'tools':{'original_reference':reference}}
+        record=dict(reference_manifest='reference.json',reference_checks=dict(before=True,after=False))
+        with self.assertRaisesRegex(RuntimeError,'first resource ACK'):
+            try:raise RuntimeError('first resource ACK')
+            finally:checks.finish_native_reference(prepared,record,business_failed=True)
+        self.assertFalse(record['reference_checks']['after'])
+        self.assertEqual(record['reference_after_error']['message'],'late reference')
+        with self.assertRaisesRegex(ValueError,'late reference'):
+            checks.finish_native_reference(prepared,record,business_failed=False)
+
+    def test_reenable_save_needs_original_class_not_any_measured_class(self):
+        import run_original_load as load
+        plain=bytearray(0x59cb);plain[checks.META+1]=3
+        for raw,identity in enumerate((7,2,7)):
+            plain[load.UNITS+raw*load.STRIDE+7]=identity
+            plain[load.UNITS+raw*load.STRIDE+2]=12
+        plain[-4:]=sum(plain[:-4]).to_bytes(4,'little')
+        measured=bytearray(plain);measured[checks.META+17]=1
+        for raw,expected in enumerate((0,1,0)):measured[load.UNITS+raw*load.STRIDE+2]=expected
+        measured[-4:]=sum(measured[:-4]).to_bytes(4,'little')
+        prepared={'plain':plain,'tools':{'run_original_load':load}}
+        good=checks.check_reenable_save(prepared,measured)
+        self.assertTrue(good['cache_classes_original_10010_verified'])
+        measured[load.UNITS+2]=3;measured[-4:]=sum(measured[:-4]).to_bytes(4,'little')
+        with self.assertRaisesRegex(AssertionError,'cache class differs'):
+            checks.check_reenable_save(prepared,measured)
+        measured[load.UNITS+2]=0;measured[123]=1
+        measured[-4:]=sum(measured[:-4]).to_bytes(4,'little')
+        with self.assertRaisesRegex(AssertionError,'outside the declared'):
+            checks.check_reenable_save(prepared,measured)
 
 if __name__=='__main__':unittest.main()

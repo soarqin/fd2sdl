@@ -149,8 +149,9 @@ static void controls_reset(void) {
 }
 
 static uint64_t auxiliary_ticks(void) { return clock_ms; }
-static void auxiliary_wait(fd2_vga *vga) {
+static int auxiliary_wait(fd2_vga *vga) {
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+return 0;
 }
 
 static void input_frame(fd2_vga *vga, int frame) {
@@ -211,10 +212,11 @@ static void auxiliary_submit(fd2_vga *vga,uint32_t ms) {
 }
 /* finite提交及host pump均选择16ms外部耗时保旧输入时间向量；
  * timed/实际marker提交分别计数，不把宿主采样次数称为画面提交数。 */
-static void auxiliary_present_timed(fd2_vga *vga,uint32_t ms) {
+static int auxiliary_present_timed(fd2_vga *vga,uint32_t ms) {
     source_timed_frames++;
     if(modal_active && (timed_frames<7 || close_reads))bad_geometry=1;
     auxiliary_submit(vga,ms);
+return 0;
 }
 static int auxiliary_prefix(fd2_field_page *page,const uint8_t *source_pixels,size_t size) {
     int result=fd2_field_page_phase_prefix_write(page,source_pixels,size);
@@ -231,24 +233,24 @@ static int auxiliary_read_key(fd2_input *input,fd2_input_event *event) {
     return result;
 }
 
-static void auxiliary_present(fd2_vga *vga) {
+static int auxiliary_present(fd2_vga *vga) {
     if(water_failure_probe) {
         finite_frames++;
         if(water_calls)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     if(modal_active && !restored && (timed_frames<7 || (close_reads && timed_frames<close_frame+6))) {
         pump_vga=vga;
         finite_frames++;auxiliary_submit(vga,16);
         vga->frame_deadline_ns=vga->frame_interval_ns=0;
-        return;
+        return 0;
     }
     if(modal_active && !restored && !close_reads) {
         /* 只有实际source body会提交；空轮时钟/输入由下面pump推进。 */
         pump_vga=vga;
         steady_presents++;
         vga->frame_deadline_ns=vga->frame_interval_ns=0;
-        return;
+        return 0;
     }
     if (route_mode && timed_frames == 0) {
         outer_frames++;
@@ -271,6 +273,7 @@ static void auxiliary_present(fd2_vga *vga) {
         vga->input.quit_requested = 1;
     }
     auxiliary_wait(vga);
+return 0;
 }
 static void auxiliary_copy_upload(fd2_vga *vga) {
     uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
@@ -285,17 +288,18 @@ static void auxiliary_poll(fd2_input *input) {
     }
     fd2_input_poll_host_events(input);
 }
-static void auxiliary_delay(uint32_t ms) {
+static int auxiliary_delay(uint32_t ms) {
     if(modal_active && !restored && !close_reads && ms==1u) {
         host_pumps++;
         /* 请求1ms的H让出允许被测试环境调度为16ms；非生产固定帧门。 */
-        if(!pump_vga){bad_page=1;return;}
+        if(!pump_vga){bad_page=1;return 0;}
         uint64_t deadline=pump_vga->frame_deadline_ns,interval=pump_vga->frame_interval_ns;
         auxiliary_submit(pump_vga,16);
         pump_vga->frame_deadline_ns=deadline;pump_vga->frame_interval_ns=interval;
-        return;
+        return 0;
     }
     fd2_delay_ms(ms);
+return 0;
 }
 
 static void auxiliary_render(fd2_field_game *game, fd2_vga *vga) {
@@ -377,6 +381,7 @@ uint64_t auxiliary_ticks_ns(void);
 #define fd2_input_take_key auxiliary_read_key
 #define fd2_input_poll_host_events auxiliary_poll
 #define fd2_delay_ms auxiliary_delay
+#define fd2_vga_delay_ms(vga,value) auxiliary_delay(value)
 #define fd2_field_page_phase_prefix_write auxiliary_prefix
 #include "field_play.c"
 #undef fd2_field_page_phase_prefix_write
@@ -397,7 +402,7 @@ uint64_t auxiliary_ticks_ns(void);
 #undef fd2_input_take_key
 #undef fd2_input_poll_host_events
 #undef fd2_delay_ms
-
+#undef fd2_vga_delay_ms
 static int floor_tile(int value) {
     return value >= 0 ? value / 3072 : -((-value + 3071) / 3072);
 }

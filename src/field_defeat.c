@@ -40,10 +40,10 @@ static int defeat_valid(const fd2_field_defeat_visual *v,const fd2_field_game *g
 
 static int defeat_tiles(const fd2_field_game *game,fd2_vga *vga,fd2_field_page *target) {
     /* 1db65的11eee仍按terrain→实际背景→range，分别沿原读取点取钟。 */
-    if(fd2_field_visual_terrain_step_live(&vga->field_visual)<0 ||
-        fd2_field_background_draw_from_live(vga->field_page,target,72,72,
+    if(fd2_field_visual_terrain_step_live(vga,&vga->field_visual)<0 ||
+        fd2_field_background_draw_from_live(vga,vga->field_page,target,72,72,
             game->camera_cell_x,game->camera_cell_y,0,0,1)!=0 ||
-        fd2_field_visual_range_step_live(&vga->field_visual,-1)<0)return -1;
+        fd2_field_visual_range_step_live(vga,&vga->field_visual,-1)<0)return -1;
     return fd2_terrain_render_page_block(target,&game->terrain,&game->map,72,72,13,8,
         game->camera_cell_x,game->camera_cell_y,(int)vga->field_visual.terrain_phase,
         (uint8_t)vga->field_visual.actor_idle_phase,NULL,
@@ -110,7 +110,7 @@ int fd2_field_defeat_prepare(fd2_field_defeat_visual **visual,
             vga->actor_jitter_phase)!=0)goto failure;
     }
     for(unsigned phase=0;phase<2;phase++)
-        if(fd2_field_background_draw_from_live(vga->field_page,scratch,72,72,v->camera_x,v->camera_y,
+        if(fd2_field_background_draw_from_live(vga,vga->field_page,scratch,72,72,v->camera_x,v->camera_y,
             0,0,0)!=0 ||
             fd2_terrain_render_page_block(scratch,&game->terrain,&game->map,72,72,13,8,
                 v->camera_x,v->camera_y,(int)phase,(uint8_t)vga->field_visual.actor_idle_phase,NULL,

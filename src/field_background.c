@@ -99,11 +99,12 @@ int fd2_field_background_scroll(fd2_field_page *page, uint8_t amount) {
     return scroll_rows(&page->background);
 }
 
-static uint32_t background_clock_tick(const uint64_t *fixed_ns) {
-    return (uint32_t)fd2_bios_tick_signed_ns(fixed_ns ? *fixed_ns : SDL_GetTicksNS());
+static int background_clock_tick(const fd2_vga *vga,const uint64_t *fixed_ns,uint32_t *tick) {
+    uint64_t actual;if(fixed_ns)actual=*fixed_ns;else if(fd2_vga_observe_checked(vga,SDL_GetTicksNS(),&actual)<0)return -1;
+    *tick=(uint32_t)fd2_bios_tick_signed_ns(actual);return 0;
 }
 
-static int background_draw_from(fd2_field_page *owner,fd2_field_page *page,
+static int background_draw_from(const fd2_vga *vga,fd2_field_page *owner,fd2_field_page *page,
     int dest_x, int dest_y, int camera_x, int camera_y,
     int parallax_x, int parallax_y,const uint64_t *fixed_ns,int advance) {
     if(!owner || !page || (advance!=0 && advance!=1))return -1;
@@ -115,22 +116,28 @@ static int background_draw_from(fd2_field_page *owner,fd2_field_page *page,
     /* 11eee的539F8与terrain锚同为movsx WORD[46c]后的DWORD位型。 */
     if(state->kind==BACKGROUND_WAVE) {
         if(!state->work || state->phase>=16u)return -1;
-        if(advance && background_clock_tick(fixed_ns)!=state->last_tick) {
+        uint32_t tick=state->last_tick;
+        if(advance && background_clock_tick(vga,fixed_ns,&tick)<0)return -1;
+        if(advance && tick!=state->last_tick) {
             for(size_t row=0;row<192u;row++)
                 memcpy(state->work+row*320u,
                     state->source+row*320u+k_field_background_wave[(row+state->phase)&15u],312u);
             /* 11f76实际波纹行更新完成，11f7e再读539f8，随后才inc539fc。 */
-            state->last_tick=background_clock_tick(fixed_ns);
+            if(background_clock_tick(vga,fixed_ns,&tick)<0)return -1;
+            state->last_tick=tick;
             state->phase=(uint8_t)((state->phase+1u)&15u);
         }
         return fd2_field_page_write(page,dest_x,dest_y,312,192,
             state->work,state->work_size,320);
     }
     if(state->kind==BACKGROUND_SCROLL) {
-        if(advance && background_clock_tick(fixed_ns)!=state->last_tick) {
+        uint32_t tick=state->last_tick;
+        if(advance && background_clock_tick(vga,fixed_ns,&tick)<0)return -1;
+        if(advance && tick!=state->last_tick) {
             if(scroll_rows(state)!=0)return -1;
             /* 120b1的实际轮转先完成，120b9重新读钟写共享539f8。 */
-            state->last_tick=background_clock_tick(fixed_ns);
+            if(background_clock_tick(vga,fixed_ns,&tick)<0)return -1;
+            state->last_tick=tick;
         }
         return fd2_field_page_write(page,dest_x,dest_y,312,192,
             state->source,state->source_size,312);
@@ -149,13 +156,14 @@ static int background_draw_from(fd2_field_page *owner,fd2_field_page *page,
 int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *page,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,
     uint64_t now_ns,int advance) {
-    return background_draw_from(owner,page,dest_x,dest_y,camera_x,camera_y,
+    return background_draw_from(NULL,owner,page,dest_x,dest_y,camera_x,camera_y,
         parallax_x,parallax_y,&now_ns,advance);
 }
 
-int fd2_field_background_draw_from_live(fd2_field_page *owner,fd2_field_page *page,
+int fd2_field_background_draw_from_live(const fd2_vga *vga,fd2_field_page *owner,fd2_field_page *page,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance) {
-    return background_draw_from(owner,page,dest_x,dest_y,camera_x,camera_y,
+    if(!vga || fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
+    return background_draw_from(vga,owner,page,dest_x,dest_y,camera_x,camera_y,
         parallax_x,parallax_y,NULL,advance);
 }
 
@@ -166,8 +174,8 @@ int fd2_field_background_draw(fd2_field_page *page,
         parallax_x,parallax_y,now_ns,advance);
 }
 
-int fd2_field_background_draw_live(fd2_field_page *page,
+int fd2_field_background_draw_live(const fd2_vga *vga,fd2_field_page *page,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance) {
-    return fd2_field_background_draw_from_live(page,page,dest_x,dest_y,camera_x,camera_y,
+    return fd2_field_background_draw_from_live(vga,page,page,dest_x,dest_y,camera_x,camera_y,
         parallax_x,parallax_y,advance);
 }

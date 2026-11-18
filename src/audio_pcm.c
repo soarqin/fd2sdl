@@ -1,4 +1,4 @@
-/* 炎龙骑士团 2 SDL3 重写 - Miles 数字样本 bank 播放后端
+/* 炎龙骑士团2 - 两sample共享DIG正常PCM adapter
  *
  * 逆向依据：sfx_play @0x25a96 从嵌套 LLLLLL bank 取得无头样本地址和
  * 字节长度；ail_init_sample @0x39521 默认 11025 Hz、8-bit mono。
@@ -8,9 +8,6 @@
 
 #include <limits.h>
 #include <string.h>
-
-#define FD2_PCM_VOICE_FREE 0
-#define FD2_PCM_VOICE_ACTIVE 1
 
 int fd2_pcm_bank_open_mem(fd2_pcm_bank *bank, const uint8_t *data,
                           size_t size) {
@@ -41,174 +38,77 @@ size_t fd2_pcm_bank_count(const fd2_pcm_bank *bank) {
     return bank ? bank->archive.count : 0;
 }
 
-static int voice_has_next_loop(const fd2_pcm_voice *voice) {
-    return voice->loop_count == 0 || voice->loop_count > 1;
+static int shared_valid(const fd2_pcm_player *p) {
+    return p && p->driver && p->driver->audio && !p->driver->dig.closed &&
+        p->driver->dig.attached && !p->driver->quiesced && p->handle<FD2_DIG_HANDLES;
 }
-
-static void voice_advance(fd2_pcm_voice *voice) {
-    uint64_t advance = voice->fraction + voice->source_rate;
-    uint64_t skipped = advance / voice->output_rate;
-    voice->fraction = advance % voice->output_rate;
-    uint64_t next = (uint64_t)voice->index + skipped;
-    uint64_t crossings = next / voice->length;
-    voice->index = (size_t)(next % voice->length);
-    if (crossings == 0 || voice->loop_count == 0) return;
-    if (crossings >= (uint64_t)voice->loop_count) {
-        voice->finished = 1;
-        return;
-    }
-    voice->loop_count -= (int)crossings;
+int fd2_pcm_driver_init_external(fd2_pcm_driver *d,fd2_audio *audio,
+                                const fd2_dig_external_sb16 *external) {
+    if(!d||!audio||!external)return FD2_DIG_H_ARGUMENT;
+    if(fd2_audio_sync(audio)!=0)return FD2_DIG_H_CLOCK;
+    memset(d,0,sizeof(*d));fd2_audio_dig_init(&d->dig);d->audio=audio;
+    return fd2_audio_dig_attach_external(&d->dig,external,fd2_audio_now_ns(audio));
 }
-
-static size_t pcm_render(void *userdata, float *stereo, size_t frames) {
-    fd2_pcm_voice *voice = userdata;
-    size_t produced = 0;
-    while (produced < frames && !voice->finished &&
-           !atomic_load_explicit(&voice->stop_requested,
-                                 memory_order_acquire)) {
-        size_t index = voice->index;
-        uint8_t first = voice->data[index];
-        uint8_t second = first;
-        if (index + 1u < voice->length)
-            second = voice->data[index + 1u];
-        else if (voice_has_next_loop(voice))
-            second = voice->data[0];
-        float a = ((float)first - 128.0f) / 128.0f;
-        float b = ((float)second - 128.0f) / 128.0f;
-        float t = (float)((double)voice->fraction / voice->output_rate);
-        float sample = a + (b - a) * t;
-        stereo[produced * 2u] = sample;
-        stereo[produced * 2u + 1u] = sample;
-        voice_advance(voice);
-        produced++;
-    }
-    return produced;
+int fd2_pcm_driver_init(fd2_pcm_driver *d,fd2_audio *audio) {
+    if(!d||!audio||!fd2_audio_is_original_mixer(audio))return FD2_DIG_H_PROFILE;
+    if(fd2_audio_sync(audio)!=0)return FD2_DIG_H_CLOCK;
+    memset(d,0,sizeof(*d));fd2_audio_dig_init(&d->dig);d->audio=audio;
+    fd2_dig_external_sb16 external;
+    int result=fd2_audio_bind_dig(audio,&d->dig,&external);
+    if(result<0) {fd2_audio_dig_close(&d->dig);d->audio=NULL;return result;}
+    d->normal_bound=1; /* Audio借用已建立，即使后续timer安装失败仍由本owner收尾。 */
+    result=fd2_audio_dig_attach_external(&d->dig,&external,fd2_audio_now_ns(audio));
+    if(result<0)fd2_audio_dig_close(&d->dig); /* 不终结整个Audio，保既有BGM。 */
+    return result;
 }
-
-static void pcm_retire(void *userdata, fd2_audio_retire_reason reason) {
-    (void)reason;
-    fd2_pcm_voice *voice = userdata;
-    atomic_store_explicit(&voice->state, FD2_PCM_VOICE_FREE,
-                          memory_order_release);
+int fd2_pcm_driver_quiesce(fd2_pcm_driver *d) {
+    if(!d||!d->audio||d->quiesced)return 0;
+    if(!d->normal_bound)return FD2_DIG_H_SB16_TIMELINE;
+    int result=fd2_audio_quiesce_dig(d->audio);d->quiesced=1;return result;
 }
-
-int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
-                        int source_rate) {
-    if (!player || !audio || source_rate <= 0) return -1;
-    int output_rate = fd2_audio_sample_rate(audio);
-    if (output_rate <= 0) return -1;
-    memset(player, 0, sizeof(*player));
-    player->audio = audio;
-    player->source_rate = source_rate;
-    player->enabled = 1;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
-        atomic_init(&player->voices[i].state, FD2_PCM_VOICE_FREE);
-        atomic_init(&player->voices[i].stop_requested, 0);
-    }
+void fd2_pcm_driver_close(fd2_pcm_driver *d) {
+    if(!d)return;
+    fd2_audio_dig_close(&d->dig);d->audio=NULL;
+}
+int fd2_pcm_player_init_shared(fd2_pcm_player *p,fd2_pcm_driver *d,
+                               unsigned handle,int rate) {
+    if(!p||!d||!d->audio||!d->dig.attached||d->dig.closed||handle>=FD2_DIG_HANDLES)
+        return FD2_DIG_H_ARGUMENT;
+    if(rate!=11025)return FD2_DIG_H_PROFILE;
+    memset(p,0,sizeof(*p));p->driver=d;p->handle=handle;p->source_rate=rate;
     return 0;
 }
-
-int fd2_pcm_player_set_enabled(fd2_pcm_player *player, int enabled) {
-    if (!player || !player->audio || (enabled != 0 && enabled != 1)) return -1;
-    player->enabled = enabled;
-    return 0;
+static int shared_play(fd2_pcm_player *p,const fd2_pcm_bank *bank,size_t index,int loops,float gain) {
+    if(!shared_valid(p))return FD2_DIG_H_ARGUMENT;
+    if(!p->driver->dig.enabled)return 0;
+    if(!bank||loops<0)return FD2_DIG_H_ARGUMENT;
+    if(gain!=FD2_DIG_DEFAULT_U8_SCALE/256.0f)return FD2_DIG_H_PROFILE;
+    if(fd2_audio_sync(p->driver->audio)!=0)return FD2_DIG_H_CLOCK;
+    int result=fd2_audio_dig_stop(&p->driver->dig,p->handle);if(result<0)return result;
+    const uint8_t *data=NULL;size_t length=0;
+    /* 原25a96先stop8，再取source；错误保stop及已有DMA，不能倒序claim voice。 */
+    if(fd2_archive_get(&bank->archive,index,&data,&length)!=0||!length||length>UINT32_MAX)
+        return FD2_DIG_H_ARGUMENT;
+    return fd2_audio_dig_start(&p->driver->dig,p->handle,data,(uint32_t)length,(uint32_t)loops);
 }
 
-static fd2_pcm_voice *claim_voice(fd2_pcm_player *player) {
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
-        int expected = FD2_PCM_VOICE_FREE;
-        if (atomic_compare_exchange_strong_explicit(
-                &player->voices[i].state, &expected, FD2_PCM_VOICE_ACTIVE,
-                memory_order_acquire, memory_order_relaxed))
-            return &player->voices[i];
-    }
-    return NULL;
+int fd2_pcm_player_init(fd2_pcm_player *p,fd2_audio *audio,int source_rate) {
+    (void)p;(void)audio;(void)source_rate;return FD2_DIG_H_SHARED_DRIVER_REQUIRED;
 }
-
-static int play_on_voice(fd2_pcm_player *player,
-                         fd2_pcm_voice *voice,
-                         const fd2_pcm_bank *bank,
-                         size_t sample_index,
-                         int loop_count,
-                         float gain) {
-    if (!voice) return -1;
-    const uint8_t *data = NULL;
-    size_t length = 0;
-    if (fd2_archive_get(&bank->archive, sample_index, &data, &length) != 0 ||
-        length == 0 || length > UINT32_MAX)
-        goto fail;
-
-    voice->data = data;
-    voice->length = length;
-    voice->index = 0;
-    voice->fraction = 0;
-    voice->source_rate = (uint32_t)player->source_rate;
-    voice->output_rate = (uint32_t)fd2_audio_sample_rate(player->audio);
-    voice->loop_count = loop_count;
-    voice->finished = 0;
-    atomic_store_explicit(&voice->stop_requested, 0, memory_order_release);
-    fd2_audio_source source = {
-        .render = pcm_render,
-        .retire = pcm_retire,
-        .userdata = voice,
-    };
-    if (fd2_audio_play_source(player->audio, FD2_AUDIO_BUS_SFX,
-                              source, gain) != 0) {
-        goto fail;
-    }
-    return 0;
-
-fail:
-    atomic_store_explicit(&voice->state, FD2_PCM_VOICE_FREE,
-                          memory_order_release);
-    return -1;
+int fd2_pcm_player_set_enabled(fd2_pcm_player *p,int enabled) {
+    if(!shared_valid(p)||(enabled!=0&&enabled!=1))return FD2_DIG_H_ARGUMENT;
+    p->driver->dig.enabled=enabled;return 0;
 }
-
-int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,
-                 size_t sample_index, int loop_count, float gain) {
-    if (!player || !player->audio) return -1;
-    if (!player->enabled) return 0; /* 原wrapper在资源/stop之前检查51E62。 */
-    if (!bank || loop_count < 0) return -1;
-    return play_on_voice(player, claim_voice(player), bank, sample_index,
-                         loop_count, gain);
+int fd2_pcm_play(fd2_pcm_player *p,const fd2_pcm_bank *bank,size_t index,int loops,float gain) {
+    return shared_play(p,bank,index,loops,gain);
 }
-
-int fd2_pcm_stop(fd2_pcm_player *player) {
-    if (!player || !player->audio) return -1;
-    if (!player->enabled) return 0;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
-        if (atomic_load_explicit(&player->voices[i].state,
-                                 memory_order_acquire) == FD2_PCM_VOICE_ACTIVE)
-            atomic_store_explicit(&player->voices[i].stop_requested, 1,
-                                  memory_order_release);
-    }
-    return 0;
+int fd2_pcm_play_replace(fd2_pcm_player *p,const fd2_pcm_bank *bank,size_t index,int loops,float gain) {
+    return shared_play(p,bank,index,loops,gain);
 }
-
-int fd2_pcm_play_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
-                         size_t sample_index, int loop_count, float gain) {
-    if (!player || !player->audio) return -1;
-    if (!player->enabled) return 0; /* 原wrapper在资源/stop之前检查51E62。 */
-    if (!bank || loop_count < 0) return -1;
-    fd2_pcm_voice *voice = claim_voice(player);
-    if (!voice) return -1;
-    /* 先为新 cue 保留 voice，再停止该 AIL handle 的旧 voice。这样连续
-     * replacement 即使音频回调尚未 retire，也不会先停旧声后因无槽
-     * 丢失确认 cue。当前新 voice 的 stop_requested 仍为上一生命周期值，
-     * 因此 stop 循环只处理其余 ACTIVE voice。 */
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++) {
-        if (&player->voices[i] == voice) continue;
-        if (atomic_load_explicit(&player->voices[i].state,
-                                 memory_order_acquire) == FD2_PCM_VOICE_ACTIVE)
-            atomic_store_explicit(&player->voices[i].stop_requested, 1,
-                                  memory_order_release);
-    }
-    return play_on_voice(player, voice, bank, sample_index, loop_count, gain);
+int fd2_pcm_stop(fd2_pcm_player *p) {
+    if(!shared_valid(p))return FD2_DIG_H_ARGUMENT;
+    if(!p->driver->dig.enabled)return 0;
+    if(fd2_audio_sync(p->driver->audio)!=0)return FD2_DIG_H_CLOCK;
+    return fd2_audio_dig_stop(&p->driver->dig,p->handle);
 }
-
-void fd2_pcm_player_close(fd2_pcm_player *player) {
-    if (!player) return;
-    player->audio = NULL;
-    player->source_rate = 0;
-    player->enabled = 0; /* AudioDestroy已无条件retire；不经cue stop门。 */
-}
+void fd2_pcm_player_close(fd2_pcm_player *p) {if(p)memset(p,0,sizeof(*p));}

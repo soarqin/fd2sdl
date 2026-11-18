@@ -25,13 +25,14 @@ static int f4_dynamic_font_linear(uint8_t *p,size_t n,const fd2_font *font,
     }
     return result;
 }
-static void f4_dynamic_wait_ticks(uint32_t ticks) {
+static int f4_dynamic_wait_ticks(uint32_t ticks) {
     if(f4_dynamic.active) {
         f4_dynamic.ticks++;f4_dynamic.tick_total+=ticks;
         if(f4_dynamic.advance)f4_dynamic.advance(ticks);
-        return;
+        return 0;
     }
     fd2_wait_ticks(ticks);
+return 0;
 }
 static int f4_dynamic_take_key(fd2_input *input,fd2_input_event *event) {
     if(f4_dynamic.active) {

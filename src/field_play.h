@@ -47,7 +47,7 @@ struct fd2_field_game;
 int fd2_field_play_bind_event_preflight(struct fd2_field_game *game,
     const fd2_archive *fdother);
 /* 仅发起音乐请求，不推进战场；-1沿已有播放器请求4秒异步fade。 */
-int fd2_field_play_request_music(fd2_field_play_context *context,
+int fd2_field_play_request_music(fd2_vga *vga,fd2_field_play_context *context,
     size_t stage, int track, const char *reason);
 
 /* COMPLETE 只表示 once 快速检查结束；正式战斗分别返回 VICTORY/DEFEAT。

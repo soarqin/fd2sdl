@@ -6,7 +6,7 @@
     "kind": "existing_confirmed_definition",
     "baseline_commit": "6b24b33bfc13ac38087d1fed1cdc940fdc7b8147",
     "baseline_source_sha256": "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
-    "evidence": "new_game_opening_play @0x3231b、stage handlers @0x34531/0x3460b/0x34673/0x346cd/0x34738/0x34778、field_defeat_game_over_present @0x22e5c；保留既有SDL提交及呈现边界"
+    "evidence": "new_game_opening_play @0x3231b、stage handlers @0x34531/0x3460b/0x34673/0x346cd/0x34738/0x34778、field_defeat_game_over_present @0x22e5c；保留既有SDL提交及呈现边界；F5完整3231b源327af文本9返回→327bb music_track_play(-1,0)→327d9 script98，scene.opening.031复用既有bgm叶保此顺序"
   },
   "operations": {
     "end": {"args": []},
@@ -132,7 +132,8 @@
         {"id": "move_21", "op": "move", "args": [96, 0], "on": {"next": "text_22"}, "views": ["present"]},
         {"id": "text_22", "op": "text", "args": [8], "on": {"next": "move_23"}, "views": ["present"]},
         {"id": "move_23", "op": "move", "args": [97, 0], "on": {"next": "text_24"}, "views": ["present"]},
-        {"id": "text_24", "op": "text", "args": [9], "on": {"next": "move_25"}, "views": ["present"]},
+        {"id": "text_24", "op": "text", "args": [9], "on": {"next": "bgm_before_move_25"}, "views": ["present"]},
+        {"id": "bgm_before_move_25", "op": "bgm", "args": [-1], "on": {"next": "move_25"}, "views": ["present"]},
         {"id": "move_25", "op": "move", "args": [98, 1], "on": {"next": "end_26"}, "views": ["present"]},
         {"id": "end_26", "op": "end", "args": [], "on": {}, "views": ["present"]}
       ]

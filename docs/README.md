@@ -5,7 +5,7 @@
 ## 开发计划
 
 - [总计划](plans/development.md)：下一执行阶段、**唯一当前待办顺序**、补充阶段、状态依据及测试门。
-- [原版完全对齐审查](plans/full-alignment-audit.md)：495e7d9基线、全量分母、A01—A22差异／证据矩阵和独立基准；Windows终态及保留Nuked声音差异，F1—F6顺序只查总计划。
+- [原版完全对齐审查](plans/full-alignment-audit.md)：495e7d9基线、全量分母、A01—A22差异／证据矩阵和独立基准；Windows终态及保留Nuked声音差异，F1—F6及新增DOS-CLEAN顺序只查总计划。
 - [QK行为收尾专项](plans/qk-behavior-followup.md)：F1未完成性质的实际依赖、正常操作／SAV／WGC补证方案及F6最终门；不阻挡无依赖开发，不改签为已通过。
 - [已完成阶段归档](plans/completed-stages.md)：B／A／R／SD／G／S完成摘要、提交、长历史和收据索引；不维护当前优先级。
 - [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类及S5来源／有限消费者增量；顺序和完成状态仍以总计划为准。
@@ -17,6 +17,8 @@
 - [S5隔离闭合与后续批量接入](plans/s5-batch-expansion.md)：stage20—29已证支持域、C22来源／consumer与各候选原生身份；resource30内部、默认255和31／32人数边界分账，提交／集成状态只查总计划与收据。
 - [战场工作包](plans/battlefield.md)：B0～B7 的范围和验收。
 - [音频工作包](plans/audio.md)：A0～A8 已有支持范围和证据边界；后续随通用机制与场景补证。
+
+- [F5音乐／音效与生命周期](plans/f5-audio-device.md)：当前表现层实现及必要验证；[历史证据与硬件研究](plans/f5-source-research-history.md)保留旧来源／失败，纯内部形式不再是产品门。
 
 ## 系统设计
 

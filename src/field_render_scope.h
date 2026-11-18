@@ -17,6 +17,8 @@ typedef struct {
 static int fd2_field_render_scope_begin(fd2_field_render_scope *scope,
     fd2_vga *target, fd2_vga *app, int readonly) {
     if (!scope || !target || !app || (readonly != 0 && readonly != 1)) return -1;
+    /* 临时target不拥有SDL终端；只查真实App输出owner。 */
+    if(fd2_vga_output_error(app)<0)return -1;
     *scope=(fd2_field_render_scope){0};
     /* 无App页的旧纯绘制夹具不冒充正式App验收，也不凭空生成持久页。 */
     if (!app->field_page) return 0;

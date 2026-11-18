@@ -1,40 +1,21 @@
-/* 炎龙骑士团 2 SDL3 重写 - 统一音频设备、bus 与 source 混音层
- *
- * 原版依据：music_track_play @0x25977 管理 XMIDI sequence，
- * sfx_play @0x25a96 管理数字 sample。SDL 重写不复刻 AIL 驱动，二者统一
- * 渲染为 float32 stereo 后交给 SDL_AudioStream。
- */
-
+/* 统一Audio owner：music_track_play @0x25977 / sfx_play @0x25a96。
+ * 源render/retire与控制仅在App线程执行；PIT前缀沿bios_clock同一时间轴。
+ * SDL只消费AudioStream队列，不生成未来声音。保留采样、叠加、尾音和设备清理。 */
 #include "audio.h"
 #include "audio_pcm_capture.h"
-
+#include "bios_clock.h"
+#include "audio_sb.h"
+#include "mixdown_dc.h"
+#include <limits.h>
 #include <math.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <SDL3/SDL.h>
-
 #define FD2_AUDIO_MAX_VOICES 16u
-#define FD2_AUDIO_COMMAND_CAPACITY 64u
 #define FD2_AUDIO_MIX_CHUNK 512u
 #define FD2_AUDIO_MAX_GAIN 16.0f
-
-/* 显式测试quiet：无observer时也只抑制提交，不改变真实mix/source推进。 */
+#define NS_PER_SECOND UINT64_C(1000000000)
 static const float fd2_test_audio_silence[FD2_AUDIO_MIX_CHUNK * 2u] = {0};
-
-typedef enum {
-    FD2_AUDIO_COMMAND_PLAY,
-    FD2_AUDIO_COMMAND_STOP_BUS,
-    FD2_AUDIO_COMMAND_MASTER_GAIN,
-} fd2_audio_command_type;
-
-typedef struct {
-    fd2_audio_command_type type;
-    fd2_audio_bus bus;
-    fd2_audio_source source;
-    float gain;
-} fd2_audio_command;
 
 typedef struct {
     int active;
@@ -43,171 +24,99 @@ typedef struct {
     float gain;
     uint64_t serial;
 } fd2_audio_voice;
-
 struct fd2_audio {
-    int sample_rate;
+    int sample_rate, offline, test_quiet;
+    SDL_ThreadID thread;
     SDL_AudioStream *stream;
-    int discard_output;
-    int test_quiet;
     fd2_audio_pcm_capture *capture;
     fd2_audio_voice voices[FD2_AUDIO_MAX_VOICES];
-    _Atomic uint32_t bus_gain_bits[FD2_AUDIO_BUS_COUNT];
-    _Atomic int first_error;
-    float master_gain;
-    uint64_t next_serial;
-    fd2_audio_command commands[FD2_AUDIO_COMMAND_CAPACITY];
-    _Atomic uint32_t command_read;
-    _Atomic uint32_t command_write;
+    float bus_gain[FD2_AUDIO_BUS_COUNT], master_gain;
+    fd2_audio_error first_error;
+    uint64_t queue_samples, queue_peak_bytes, successful_puts, backlog_drop_chunks;
+    uint64_t next_serial, origin_ns, now_ns, closed_frames, edge_ns;
+    uint32_t edge_fraction;
+    int in_callback, closing, prefix_bound;
+    /* 同Audio的原1ms设备phase/work/DC；不是第二BIOS或PCM队列。
+     * origin处新ms锚/零DC为显式H启动政策，真实首phase仍待资格。 */
+    int original_mixer, original_bound, original_busy;
+    int original_quiesced, original_quiescing;
+    uint64_t original_ticks;
+    size_t original_rendered;
+    fd2_audio_sb original_sb;
+    fd2_sb_point original_point;
+    fd2_mixdown_dc original_dc;
+    int32_t original_sb_work[48][2];
+    /* 只借当前offline调用者输出，不缓存PCM、不建立第二renderer。 */
+    float *offline_output;
+    size_t offline_capacity, offline_written;
     float source_buffer[FD2_AUDIO_MIX_CHUNK * 2u];
     float mix_buffer[FD2_AUDIO_MIX_CHUNK * 2u];
 };
-
-static int valid_gain(float gain) {
-    return isfinite(gain) && gain >= 0.0f && gain <= FD2_AUDIO_MAX_GAIN;
+/* prefix只有一个绑定，两个Audio/offline scope不得争抢同一clock。 */
+static fd2_audio *active_audio;
+static int audio_creating; /* 同singleton构造期，纯point callback也不能重入创建。 */
+static int valid_gain(float value) {
+    return isfinite(value) && value >= 0.0f && value <= FD2_AUDIO_MAX_GAIN;
 }
-
-/* 与队列索引共用无锁32位原子；callback不依赖原子float的实现。 */
-_Static_assert(sizeof(float) == sizeof(uint32_t), "SDL F32 requires 32-bit float");
-static uint32_t gain_bits(float gain) {
-    uint32_t bits;
-    memcpy(&bits, &gain, sizeof(bits));
-    return bits;
+static int owner(const fd2_audio *audio) {
+    return audio && active_audio == audio && !audio->closing &&
+        !audio->in_callback && audio->thread == SDL_GetCurrentThreadID();
 }
-
-static float gain_from_bits(uint32_t bits) {
-    float gain;
-    memcpy(&gain, &bits, sizeof(gain));
-    return gain;
-}
-
 static void record_first_error(fd2_audio *audio, fd2_audio_error error) {
-    int expected = FD2_AUDIO_ERROR_NONE;
-    (void)atomic_compare_exchange_strong_explicit(
-        &audio->first_error, &expected, (int)error,
-        memory_order_release, memory_order_relaxed);
+    if (audio->first_error == FD2_AUDIO_ERROR_NONE) audio->first_error = error;
 }
-
-static void source_retire(fd2_audio_source source,
-                          fd2_audio_retire_reason reason) {
-    if (source.retire) source.retire(source.userdata, reason);
+static void retire(fd2_audio *audio, fd2_audio_source source,
+                   fd2_audio_retire_reason reason) {
+    if (source.retire) {
+        audio->in_callback++;
+        source.retire(source.userdata, reason);
+        audio->in_callback--;
+    }
 }
-
-static void voice_retire(fd2_audio_voice *voice,
+static void voice_retire(fd2_audio *audio, fd2_audio_voice *voice,
                          fd2_audio_retire_reason reason) {
-    if (!voice || !voice->active) return;
+    if (!voice->active) return;
+    /* 原profile旧chip在首端口写前仍是render source，先关partial再注销。 */
+    if(audio->original_mixer && !audio->original_busy && !audio->original_quiesced && !audio->closing)
+        (void)fd2_audio_original_fill_up(audio);
     fd2_audio_source source = voice->source;
     memset(voice, 0, sizeof(*voice));
-    source_retire(source, reason);
+    retire(audio, source, reason);
 }
-
-static int command_push(fd2_audio *audio, const fd2_audio_command *command) {
-    if (!audio || !command) return -1;
-    if (audio->discard_output) {
-        if (command->type == FD2_AUDIO_COMMAND_PLAY)
-            source_retire(command->source, FD2_AUDIO_RETIRE_DROPPED);
-        else if (command->type == FD2_AUDIO_COMMAND_MASTER_GAIN)
-            audio->master_gain = command->gain;
-        return 0;
-    }
-    uint32_t write = atomic_load_explicit(&audio->command_write,
-                                          memory_order_relaxed);
-    uint32_t read = atomic_load_explicit(&audio->command_read,
-                                         memory_order_acquire);
-    if ((uint32_t)(write - read) >= FD2_AUDIO_COMMAND_CAPACITY)
-        return -1;
-    audio->commands[write % FD2_AUDIO_COMMAND_CAPACITY] = *command;
-    atomic_store_explicit(&audio->command_write, write + 1u,
-                          memory_order_release);
-    return 0;
-}
-
 static fd2_audio_voice *voice_for_play(fd2_audio *audio, fd2_audio_bus bus) {
-    if (bus == FD2_AUDIO_BUS_MUSIC) {
-        for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
-            if (audio->voices[i].active &&
-                audio->voices[i].bus == FD2_AUDIO_BUS_MUSIC)
-                voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_REPLACED);
-        }
-    }
-    for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
+    if (bus == FD2_AUDIO_BUS_MUSIC)
+        for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
+            if (audio->voices[i].active && audio->voices[i].bus == bus)
+                voice_retire(audio, &audio->voices[i], FD2_AUDIO_RETIRE_REPLACED);
+    for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
         if (!audio->voices[i].active) return &audio->voices[i];
-    }
-
-    /* voice 满时只抢占同 bus 最旧项，避免一个 bus 意外停止另一个 bus。 */
     fd2_audio_voice *oldest = NULL;
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
         fd2_audio_voice *voice = &audio->voices[i];
         if (voice->bus == bus && (!oldest || voice->serial < oldest->serial))
             oldest = voice;
     }
-    if (oldest) voice_retire(oldest, FD2_AUDIO_RETIRE_STOLEN);
+    if (oldest) voice_retire(audio, oldest, FD2_AUDIO_RETIRE_STOLEN);
     return oldest;
 }
-
-static void command_apply(fd2_audio *audio,
-                          const fd2_audio_command *command) {
-    switch (command->type) {
-        case FD2_AUDIO_COMMAND_PLAY: {
-            fd2_audio_voice *voice = voice_for_play(audio, command->bus);
-            if (!voice) {
-                source_retire(command->source, FD2_AUDIO_RETIRE_DROPPED);
-                break;
-            }
-            voice->active = 1;
-            voice->bus = command->bus;
-            voice->source = command->source;
-            voice->gain = command->gain;
-            voice->serial = audio->next_serial++;
-            break;
-        }
-        case FD2_AUDIO_COMMAND_STOP_BUS:
-            for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
-                if (audio->voices[i].active &&
-                    audio->voices[i].bus == command->bus)
-                    voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_STOPPED);
-            }
-            break;
-        case FD2_AUDIO_COMMAND_MASTER_GAIN:
-            audio->master_gain = command->gain;
-            break;
-    }
-}
-
-static void commands_consume(fd2_audio *audio) {
-    uint32_t read = atomic_load_explicit(&audio->command_read,
-                                         memory_order_relaxed);
-    uint32_t write = atomic_load_explicit(&audio->command_write,
-                                          memory_order_acquire);
-    while (read != write) {
-        command_apply(audio,
-                      &audio->commands[read % FD2_AUDIO_COMMAND_CAPACITY]);
-        read++;
-    }
-    atomic_store_explicit(&audio->command_read, read, memory_order_release);
-}
-
 static void render_chunk(fd2_audio *audio, float *stereo, size_t frames) {
-    commands_consume(audio);
-    float bus_gain[FD2_AUDIO_BUS_COUNT];
-    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++)
-        bus_gain[i] = gain_from_bits(atomic_load_explicit(
-            &audio->bus_gain_bits[i], memory_order_acquire));
     memset(stereo, 0, frames * 2u * sizeof(*stereo));
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++) {
         fd2_audio_voice *voice = &audio->voices[i];
-        if (!voice->active || !voice->source.render) continue;
-        memset(audio->source_buffer, 0,
-               frames * 2u * sizeof(*audio->source_buffer));
-        size_t produced = voice->source.render(
-            voice->source.userdata, audio->source_buffer, frames);
+        if (!voice->active) continue;
+        memset(audio->source_buffer, 0, frames * 2u * sizeof(float));
+        audio->in_callback++;
+        size_t produced = voice->source.render(voice->source.userdata,
+                                               audio->source_buffer, frames);
+        audio->in_callback--;
         if (produced > frames) produced = frames;
-        float gain = voice->gain * bus_gain[voice->bus];
+        float gain = voice->gain * audio->bus_gain[voice->bus];
         for (size_t sample = 0; sample < produced * 2u; sample++) {
             float value = audio->source_buffer[sample];
             if (isfinite(value)) stereo[sample] += value * gain;
         }
         if (produced < frames)
-            voice_retire(voice, FD2_AUDIO_RETIRE_FINISHED);
+            voice_retire(audio, voice, FD2_AUDIO_RETIRE_FINISHED);
     }
     for (size_t sample = 0; sample < frames * 2u; sample++) {
         float value = stereo[sample] * audio->master_gain;
@@ -217,218 +126,301 @@ static void render_chunk(fd2_audio *audio, float *stereo, size_t frames) {
         stereo[sample] = value;
     }
 }
+/* sample n发生于origin+n/rate秒，只关闭严格早于exact edge的n>=0。
+ * 商余分两级，最大rate=1e9仍不溢出uint64；禁止先ceil(edge_ns)。 */
+static int prefix_frames(const fd2_audio *audio, uint64_t whole,
+                          uint32_t fraction, uint64_t *frames) {
+    if (fraction >= FD2_BIOS_PIT_RATE || whole < audio->origin_ns) return -1;
+    uint64_t elapsed = whole - audio->origin_ns;
+    uint64_t seconds = elapsed / NS_PER_SECOND;
+    uint64_t rate = (uint64_t)audio->sample_rate;
+    if (seconds > UINT64_MAX / rate) return -1;
+    uint64_t base = seconds * rate;
+    uint64_t rem = (elapsed % NS_PER_SECOND) * rate;
+    uint64_t partial = rem / NS_PER_SECOND;
+    uint64_t numerator = (rem % NS_PER_SECOND) * FD2_BIOS_PIT_RATE +
+                          (uint64_t)fraction * rate;
+    uint64_t denominator = NS_PER_SECOND * FD2_BIOS_PIT_RATE;
+    uint64_t tail = numerator / denominator + (numerator % denominator != 0u);
+    if (partial > UINT64_MAX - base || tail > UINT64_MAX - base - partial)
+        return -1;
+    *frames = base + partial + tail;
+    return 0;
+}
+static uint64_t queue_capacity_frames(const fd2_audio *audio) {
+    /* H：500ms输入F32队列（最低一帧）；SDL int长度再界定极端host率。 */
+    uint64_t frames = ((uint64_t)audio->sample_rate + 1u) / 2u;
+    uint64_t limit = INT_MAX / (2u * sizeof(float));
+    return frames < limit ? frames : limit;
+}
+static void submit_chunk(fd2_audio *audio, size_t frames) {
 
-static void SDLCALL audio_stream_callback(void *userdata,
-                                          SDL_AudioStream *stream,
-                                          int additional_amount,
-                                          int total_amount) {
-    (void)total_amount;
-    fd2_audio *audio = userdata;
-    const int frame_bytes = (int)(sizeof(float) * 2u);
-    int frames_left = additional_amount / frame_bytes;
-    while (audio && frames_left > 0) {
-        size_t frames = (size_t)frames_left;
-        if (frames > FD2_AUDIO_MIX_CHUNK) frames = FD2_AUDIO_MIX_CHUNK;
-        render_chunk(audio, audio->mix_buffer, frames);
-        const float *submitted = audio->test_quiet ? fd2_test_audio_silence
-            : fd2_audio_pcm_capture_submission(audio->capture, audio->mix_buffer, frames);
-        if (!submitted) return;
-        if (!SDL_PutAudioStreamData(stream, submitted,
-                                    (int)(frames * (size_t)frame_bytes))) {
-            record_first_error(audio, FD2_AUDIO_ERROR_PUT);
-            fd2_audio_pcm_capture_put_failed(audio->capture);
+    if (audio->offline_output) {
+        size_t available = audio->offline_capacity - audio->offline_written;
+        if (frames > available) {
+            record_first_error(audio, FD2_AUDIO_ERROR_CLOCK);
             return;
         }
-        fd2_audio_pcm_capture_push(audio->capture, audio->mix_buffer, frames);
-        frames_left -= (int)frames;
+        memcpy(audio->offline_output + audio->offline_written * 2u,
+               audio->mix_buffer, frames * 2u * sizeof(float));
+        audio->offline_written += frames;
+        return;
+    }
+    if (!audio->stream) return; /* null已render，仅不作设备提交。 */
+    int queued = SDL_GetAudioStreamQueued(audio->stream);
+    uint64_t bytes = (uint64_t)frames * 2u * sizeof(float);
+    uint64_t cap = queue_capacity_frames(audio) * 2u * sizeof(float);
+    if (queued < 0) {
+        record_first_error(audio, FD2_AUDIO_ERROR_PUT);
+        fd2_audio_pcm_capture_put_failed(audio->capture);
+        return;
+    }
+    audio->queue_samples++;
+    if ((uint64_t)queued > audio->queue_peak_bytes) audio->queue_peak_bytes=(uint64_t)queued;
+    if ((uint64_t)queued > cap || bytes > cap - (uint64_t)queued) {
+        record_first_error(audio, FD2_AUDIO_ERROR_BACKLOG);
+        audio->backlog_drop_chunks++;
+        fd2_audio_pcm_capture_output_dropped(audio->capture);
+        return; /* 保已提交前缀，丢新输出；源/IRQ继续，不追补旧声音。 */
+    }
+    const float *submitted = audio->test_quiet ? fd2_test_audio_silence :
+        fd2_audio_pcm_capture_submission(audio->capture, audio->mix_buffer, frames);
+    if (!submitted) {
+        record_first_error(audio, FD2_AUDIO_ERROR_PUT);
+        fd2_audio_pcm_capture_put_failed(audio->capture);
+        return;
+    }
+    if (!SDL_PutAudioStreamData(audio->stream, submitted, (int)bytes)) {
+        record_first_error(audio, FD2_AUDIO_ERROR_PUT);
+        fd2_audio_pcm_capture_put_failed(audio->capture);
+        return;
+    }
+    /* v3：主线程成功Put后的mix，不是callback、可听或设备时钟证据。 */
+    audio->successful_puts++;
+    fd2_audio_pcm_capture_push(audio->capture, audio->mix_buffer, frames);
+}
+#include "audio_original.h"
+
+static void audio_prefix(void *user, uint64_t whole, uint32_t fraction) {
+    fd2_audio *audio = user;
+    uint64_t target=0;
+    if (!owner(audio) || whole < audio->edge_ns ||
+        (whole == audio->edge_ns && fraction < audio->edge_fraction) ||
+        fraction >= FD2_BIOS_PIT_RATE || whole < audio->origin_ns ||
+        (!audio->original_mixer && (prefix_frames(audio, whole, fraction, &target) != 0 ||
+        target < audio->closed_frames))) {
+        record_first_error(audio, FD2_AUDIO_ERROR_CLOCK);
+        return; /* 不把输出错误返回给BIOS或停止BDA/IRQ。 */
+    }
+    audio->edge_ns = audio->now_ns = whole;
+    audio->edge_fraction = fraction;
+    if(audio->original_mixer) {
+        original_prefix(audio,whole,fraction);
+        return;
+    }
+    while (audio->closed_frames < target) {
+        uint64_t remaining = target - audio->closed_frames;
+        size_t chunk = remaining < FD2_AUDIO_MIX_CHUNK ?
+                       (size_t)remaining : FD2_AUDIO_MIX_CHUNK;
+        uint64_t capacity = queue_capacity_frames(audio);
+        if ((uint64_t)chunk > capacity) chunk = (size_t)capacity;
+        render_chunk(audio, audio->mix_buffer, chunk);
+        audio->closed_frames += chunk;
+        submit_chunk(audio, chunk);
     }
 }
-
+uint64_t fd2_audio_now_ns(const fd2_audio *audio) {
+    if (!audio) return 0;
+    return audio->offline ? audio->now_ns : SDL_GetTicksNS();
+}
+int fd2_audio_sync(fd2_audio *audio) {
+    if (!owner(audio) || audio->original_quiesced) return -1;
+    if (fd2_bios_clock_advance(fd2_audio_now_ns(audio)) != 0) {
+        record_first_error(audio, FD2_AUDIO_ERROR_CLOCK);
+        return -1;
+    }
+    return 0; /* 输出首错另查get_first_error，不阻控制/源逻辑。 */
+}
 fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
-    int sample_rate = config && config->sample_rate > 0
-                    ? config->sample_rate : 48000;
+    int sample_rate = config && config->sample_rate > 0 ? config->sample_rate : 48000;
     int open_device = config ? config->open_device : 1;
     int allow_null = config ? config->allow_null : 1;
+    int original=config?config->original_mixer:0;
+    if (active_audio || audio_creating || sample_rate > 1000000000 ||
+        (original!=0 && original!=1) || (original && sample_rate!=48000)) {
+        SDL_SetError("audio requires one owner and a rate <= 1e9 Hz");
+        return NULL;
+    }
     fd2_audio *audio = calloc(1, sizeof(*audio));
     if (!audio) return NULL;
+    audio_creating=1;
     audio->sample_rate = sample_rate;
+    audio->original_mixer = original;
+    audio->offline = !open_device;
+    audio->thread = SDL_GetCurrentThreadID();
     audio->master_gain = 1.0f;
-    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++)
-        atomic_init(&audio->bus_gain_bits[i], gain_bits(1.0f));
-    atomic_init(&audio->first_error, FD2_AUDIO_ERROR_NONE);
     audio->next_serial = 1;
-    atomic_init(&audio->command_read, 0);
-    atomic_init(&audio->command_write, 0);
-    /* MSVC C11的*_LOCK_FREE宏为1，按实际对象验证，不能在callback回退到锁。 */
-    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++) {
-        if (!atomic_is_lock_free(&audio->bus_gain_bits[i])) {
-            free(audio); SDL_SetError("audio gain atomics are not lock-free"); return NULL;
-        }
-    }
-    if (!atomic_is_lock_free(&audio->first_error) ||
-        !atomic_is_lock_free(&audio->command_read) ||
-        !atomic_is_lock_free(&audio->command_write)) {
-        free(audio); SDL_SetError("audio state atomics are not lock-free"); return NULL;
-    }
-
+    for (size_t i = 0; i < FD2_AUDIO_BUS_COUNT; i++) audio->bus_gain[i] = 1.0f;
     const char *test_quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_TEST_AUDIO_QUIET");
     if (test_quiet && strcmp(test_quiet, "0") && strcmp(test_quiet, "1")) {
-        free(audio); SDL_SetError("test audio quiet must be 0 or 1"); return NULL;
+        SDL_SetError("test audio quiet must be 0 or 1"); goto failed;
     }
     audio->test_quiet = test_quiet && strcmp(test_quiet, "1") == 0;
-
     const char *capture_dir = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_DIR");
     unsigned capture_ms = 45000;
     if (capture_dir && *capture_dir) {
         const char *value = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_MAX_MS");
         if (value) {
             char *end; unsigned long n = strtoul(value, &end, 10);
-            if (!*value || *end || !n || n > 120000) { free(audio); return NULL; }
+            if (!*value || *end || !n || n > 120000) goto failed;
             capture_ms = (unsigned)n;
         }
-        if (!open_device) { free(audio); SDL_SetError("app PCM requires real device callback"); return NULL; }
+        if (!open_device) { SDL_SetError("app PCM requires a playback stream"); goto failed; }
     }
     if (open_device) {
-        SDL_AudioSpec spec = {
-            .format = SDL_AUDIO_F32,
-            .channels = 2,
-            .freq = sample_rate,
-        };
-        audio->stream = SDL_OpenAudioDeviceStream(
-            SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
-            audio_stream_callback, audio);
+        SDL_AudioSpec spec = { .format = SDL_AUDIO_F32, .channels = 2, .freq = sample_rate };
+        audio->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+                                                  &spec, NULL, NULL);
         if (!audio->stream) record_first_error(audio, FD2_AUDIO_ERROR_OPEN);
         if (capture_dir && *capture_dir) {
             const char *quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_QUIET");
             int suppress = audio->test_quiet || (quiet && strcmp(quiet, "1") == 0);
-            if ((quiet && strcmp(quiet,"0") && strcmp(quiet,"1")) || !audio->stream ||
-                !(audio->capture = fd2_audio_pcm_capture_open(capture_dir, sample_rate, capture_ms, suppress))) {
-                if (audio->stream) SDL_DestroyAudioStream(audio->stream);
-                free(audio); return NULL;
-            }
+            if ((quiet && strcmp(quiet, "0") && strcmp(quiet, "1")) || !audio->stream ||
+                !(audio->capture = fd2_audio_pcm_capture_open(capture_dir, sample_rate, capture_ms, suppress)))
+                goto failed;
         }
         if (audio->stream && !SDL_ResumeAudioStreamDevice(audio->stream)) {
             record_first_error(audio, FD2_AUDIO_ERROR_RESUME);
-            SDL_DestroyAudioStream(audio->stream);
-            audio->stream = NULL;
-            if (audio->capture) { fd2_audio_pcm_capture_close(audio->capture); free(audio); return NULL; }
+            SDL_DestroyAudioStream(audio->stream); audio->stream = NULL;
+            if (audio->capture) goto failed;
         }
-        if (!audio->stream && !allow_null) {
-            free(audio);
-            return NULL;
-        }
-        if (!audio->stream) audio->discard_output = 1;
+        if (!audio->stream && !allow_null) goto failed;
     }
+    /* channel属于Audio lifetime，未绑定音效时也保留持续混音窗口。 */
+    if(original && fd2_audio_sb_construct(&audio->original_sb,&audio->original_point,
+        1,8192,8192,original_global_fill,audio)<0)goto failed;
+    if (audio->offline) fd2_bios_clock_reset(0, 0);
+    audio->now_ns = audio->origin_ns = audio->edge_ns = audio->offline ? 0 : SDL_GetTicksNS();
+    /* Main线程关闭已到时刻的声音前缀；设备只消费Stream，不推进游戏。 */
+    if (fd2_bios_clock_advance(audio->now_ns) != 0 ||
+        fd2_bios_clock_set_audio_prefix(audio_prefix, audio) != 0) {
+        SDL_SetError("audio requires the initialized BIOS owner"); goto failed;
+    }
+    audio->prefix_bound=1;
+    active_audio = audio;audio_creating=0;
     return audio;
-}
-
-void fd2_audio_destroy(fd2_audio *audio) {
-    if (!audio) return;
+failed:
     if (audio->stream) {
-        /* 先暂停并销毁 stream，使实时回调退出，再销毁 source userdata。 */
+        SDL_PauseAudioStreamDevice(audio->stream);
+        SDL_DestroyAudioStream(audio->stream);
+    }
+    fd2_audio_pcm_capture_close(audio->capture);
+    free(audio);audio_creating=0;
+    return NULL;
+}
+void fd2_audio_destroy(fd2_audio *audio) {
+    if (!audio || !owner(audio)) return;
+    if(audio->original_mixer && !audio->original_quiesced)
+        (void)fd2_audio_quiesce_dig(audio);
+    audio->closing = 1;
+    if (audio->stream) {
         SDL_PauseAudioStreamDevice(audio->stream);
         SDL_DestroyAudioStream(audio->stream);
         audio->stream = NULL;
     }
-    fd2_audio_pcm_capture_close(audio->capture);
-    audio->capture = NULL;
+    /* 先停设备再解绑；retire/observer close后方可释放本owner。 */
+    if(audio->prefix_bound)(void)fd2_bios_clock_set_audio_prefix(NULL, NULL);
+    active_audio = NULL;
+    if(audio->original_mixer)(void)fd2_audio_sb_close(&audio->original_sb);
     for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
-        voice_retire(&audio->voices[i], FD2_AUDIO_RETIRE_DESTROYED);
-    uint32_t read = atomic_load_explicit(&audio->command_read,
-                                         memory_order_relaxed);
-    uint32_t write = atomic_load_explicit(&audio->command_write,
-                                          memory_order_relaxed);
-    while (read != write) {
-        fd2_audio_command *command =
-            &audio->commands[read % FD2_AUDIO_COMMAND_CAPACITY];
-        if (command->type == FD2_AUDIO_COMMAND_PLAY)
-            source_retire(command->source, FD2_AUDIO_RETIRE_DESTROYED);
-        read++;
-    }
+        voice_retire(audio, &audio->voices[i], FD2_AUDIO_RETIRE_DESTROYED);
+    fd2_audio_pcm_capture_close(audio->capture);
     free(audio);
 }
-
-int fd2_audio_has_device(const fd2_audio *audio) {
-    return audio && audio->stream != NULL;
-}
-
-int fd2_audio_sample_rate(const fd2_audio *audio) {
-    return audio ? audio->sample_rate : 0;
-}
-
+int fd2_audio_has_device(const fd2_audio *audio) { return audio && audio->stream != NULL; }
+int fd2_audio_sample_rate(const fd2_audio *audio) { return audio ? audio->sample_rate : 0; }
 int fd2_audio_get_first_error(const fd2_audio *audio, fd2_audio_error *error) {
     if (!audio || !error) return -1;
-    *error = (fd2_audio_error)atomic_load_explicit(
-        &audio->first_error, memory_order_acquire);
+    *error = audio->first_error; return 0;
+}
+int fd2_audio_get_transport_stats(const fd2_audio *audio,fd2_audio_transport_stats *stats) {
+    if(!owner(audio)||!stats)return -1;
+    *stats=(fd2_audio_transport_stats){audio->first_error,audio->queue_samples,
+        audio->queue_peak_bytes,audio->successful_puts,audio->backlog_drop_chunks};
     return 0;
 }
-
 int fd2_audio_play_source(fd2_audio *audio, fd2_audio_bus bus,
                           fd2_audio_source source, float gain) {
-    if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT ||
-        !source.render || !valid_gain(gain))
-        return -1;
-    fd2_audio_command command = {
-        .type = FD2_AUDIO_COMMAND_PLAY,
-        .bus = bus,
-        .source = source,
-        .gain = gain,
-    };
-    return command_push(audio, &command);
+    if (!owner(audio) || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT ||
+        !source.render || !valid_gain(gain) ||
+        (audio->original_mixer && (bus!=FD2_AUDIO_BUS_MUSIC || gain!=1.0f)) ||
+        fd2_audio_sync(audio) != 0) return -1;
+    fd2_audio_voice *voice = voice_for_play(audio, bus);
+    if (!voice) { retire(audio, source, FD2_AUDIO_RETIRE_DROPPED); return 0; }
+    voice->active = 1; voice->bus = bus; voice->source = source;
+    voice->gain = gain; voice->serial = audio->next_serial++;
+    return 0;
 }
-
 int fd2_audio_stop_bus(fd2_audio *audio, fd2_audio_bus bus) {
-    if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT) return -1;
-    fd2_audio_command command = {
-        .type = FD2_AUDIO_COMMAND_STOP_BUS,
-        .bus = bus,
-    };
-    return command_push(audio, &command);
+    if (!owner(audio) || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT || fd2_audio_sync(audio) != 0) return -1;
+    for (size_t i = 0; i < FD2_AUDIO_MAX_VOICES; i++)
+        if (audio->voices[i].active && audio->voices[i].bus == bus)
+            voice_retire(audio, &audio->voices[i], FD2_AUDIO_RETIRE_STOPPED);
+    return 0;
 }
-
-int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source,
-                                float gain) {
+int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain) {
+    if (!owner(audio) || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT ||
+        !valid_gain(gain) || (audio->original_mixer && gain!=1.0f) ||
+        fd2_audio_sync(audio) != 0) return -1;
+    audio->bus_gain[bus] = gain; return 0;
+}
+int fd2_audio_get_bus_gain_target(const fd2_audio *audio, fd2_audio_bus bus, float *gain) {
+    if (!audio || !gain || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT) return -1;
+    *gain = audio->bus_gain[bus]; return 0;
+}
+int fd2_audio_play_music_source(fd2_audio *audio, fd2_audio_source source, float gain) {
     return fd2_audio_play_source(audio, FD2_AUDIO_BUS_MUSIC, source, gain);
 }
-
-int fd2_audio_stop_music(fd2_audio *audio) {
-    return fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_MUSIC);
-}
-
-int fd2_audio_set_bus_gain(fd2_audio *audio, fd2_audio_bus bus, float gain) {
-    if (!audio || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT || !valid_gain(gain))
-        return -1;
-    atomic_store_explicit(&audio->bus_gain_bits[bus], gain_bits(gain),
-                          memory_order_release);
-    return 0;
-}
-
-int fd2_audio_get_bus_gain_target(const fd2_audio *audio, fd2_audio_bus bus,
-                                  float *gain) {
-    if (!audio || !gain || bus < 0 || bus >= FD2_AUDIO_BUS_COUNT) return -1;
-    *gain = gain_from_bits(atomic_load_explicit(
-        &audio->bus_gain_bits[bus], memory_order_acquire));
-    return 0;
-}
-
-int fd2_audio_set_master_gain(fd2_audio *audio, float gain) {
-    if (!audio || !valid_gain(gain)) return -1;
-    fd2_audio_command command = {
-        .type = FD2_AUDIO_COMMAND_MASTER_GAIN,
-        .gain = gain,
-    };
-    return command_push(audio, &command);
-}
-
-size_t fd2_audio_render_offline(fd2_audio *audio, float *stereo,
-                                size_t frames) {
-    if (!audio || !stereo || audio->stream) return 0;
-    size_t rendered = 0;
-    while (rendered < frames) {
-        size_t chunk = frames - rendered;
-        if (chunk > FD2_AUDIO_MIX_CHUNK) chunk = FD2_AUDIO_MIX_CHUNK;
-        render_chunk(audio, stereo + rendered * 2u, chunk);
-        rendered += chunk;
+int fd2_audio_abandon_source(fd2_audio *audio,fd2_audio_source source) {
+    if(!owner(audio)||!source.render)return -1;
+    int removed=0;
+    for(size_t i=0;i<FD2_AUDIO_MAX_VOICES;i++) {
+        fd2_audio_voice *voice=&audio->voices[i];
+        if(voice->active && voice->source.render==source.render &&
+           voice->source.retire==source.retire && voice->source.userdata==source.userdata) {
+            voice_retire(audio,voice,FD2_AUDIO_RETIRE_DROPPED);removed++;
+        }
     }
-    return rendered;
+    return removed;
+}
+int fd2_audio_stop_music(fd2_audio *audio) { return fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_MUSIC); }
+int fd2_audio_set_master_gain(fd2_audio *audio, float gain) {
+    if (!owner(audio) || !valid_gain(gain) || fd2_audio_sync(audio) != 0) return -1;
+    if(audio->original_mixer && audio->master_gain!=gain &&
+        fd2_audio_original_fill_up(audio)<0)return -1;
+    audio->master_gain = gain; return 0;
+}
+size_t fd2_audio_render_offline(fd2_audio *audio, float *stereo, size_t frames) {
+    if (!owner(audio) || !audio->offline || !stereo || !frames ||
+        frames > SIZE_MAX / (2u * sizeof(float)) ||
+        (uint64_t)frames > UINT64_MAX - audio->closed_frames) return 0;
+    if(audio->original_mixer && (frames%48u || audio->original_rendered ||
+        (audio->now_ns-audio->origin_ns)%UINT64_C(1000000)))return 0;
+    uint64_t total = audio->closed_frames + (uint64_t)frames;
+    uint64_t rate = (uint64_t)audio->sample_rate;
+    uint64_t seconds = total / rate;
+    uint64_t rem_ns = (total % rate) * NS_PER_SECOND / rate;
+    if (seconds > UINT64_MAX / NS_PER_SECOND ||
+        rem_ns > UINT64_MAX - seconds * NS_PER_SECOND) {
+        record_first_error(audio, FD2_AUDIO_ERROR_CLOCK); return 0;
+    }
+    uint64_t target = seconds * NS_PER_SECOND + rem_ns;
+    audio->offline_output = stereo;
+    audio->offline_capacity = frames; audio->offline_written = 0;
+    /* floor(N/rate)在rate<=1e9时严格晚于sample N-1，恰关闭N帧。
+     * IRQ前仍先经同一prefix，之后回调；不读wall time或驱动第二timer。 */
+    if (fd2_bios_clock_advance(target) != 0) record_first_error(audio, FD2_AUDIO_ERROR_CLOCK);
+    size_t written = audio->offline_written;
+    audio->offline_output = NULL; audio->offline_capacity = audio->offline_written = 0;
+    return written;
 }

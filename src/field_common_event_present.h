@@ -12,20 +12,24 @@
  * 正goal>65535在原16bit差域不能结束，明确拒绝；<=0仍读一轮。
  * fast只跳等待的诊断模式；不取普通键、不清键、不推进水色/actor/RNG。 */
 static int common_event_delay_ticks(fd2_vga *vga,int32_t ticks,int fast) {
+    if(fd2_bios_clock_error()<0)return FD2_SCENE_RESULT_ERROR;
     if(!vga || ticks>65535)return FD2_SCENE_RESULT_ERROR;
     if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
     if(fast)return FD2_SCENE_RESULT_OK;
-    uint16_t start=fd2_bios_tick_low_ns(SDL_GetTicksNS());
+    uint64_t actual;if(play_clock_ns(vga,&actual)<0)return FD2_SCENE_RESULT_ERROR;
+    uint16_t start=fd2_bios_tick_low_ns(actual);
     for(;;) {
         if(fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
-        uint16_t now=fd2_bios_tick_low_ns(SDL_GetTicksNS());
+        if(play_clock_ns(vga,&actual)<0)return FD2_SCENE_RESULT_ERROR;
+        uint16_t now=fd2_bios_tick_low_ns(actual);
         if(fd2_vga_bios_tick_elapsed(start,now)>=ticks)break;
         /* 原17ac4回边不绘图、不读键；只借1ms宿主pump，普通FIFO原样排队。
          * 每次仍重新读取低WORD，负goal也须先有一次比较，不转成unsigned。 */
-        fd2_delay_ms(1);
+        if(fd2_vga_delay_ms(vga,1)<0)return FD2_SCENE_RESULT_ERROR;
     }
     /* 原尾再读WORD并覆写自身scratch；没有外部reader，不投射新owner。 */
-    (void)fd2_bios_tick_low_ns(SDL_GetTicksNS());
+    if(play_clock_ns(vga,&actual)<0)return FD2_SCENE_RESULT_ERROR;
+    (void)fd2_bios_tick_low_ns(actual);
     return fd2_input_take_quit(&vga->input)?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
 }
 

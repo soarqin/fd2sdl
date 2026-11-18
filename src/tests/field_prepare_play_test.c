@@ -13,12 +13,12 @@
 #include "scene.h"
 
 Uint64 SDLCALL prepare_test_ticks(void);
-void prepare_test_present(fd2_vga *vga);
+int prepare_test_present(fd2_vga *vga);
 static void prepare_test_upload(fd2_vga *vga);
-static void prepare_test_delay(uint32_t ms);
-void prepare_test_present_timed(fd2_vga *vga, uint32_t delay);
-void prepare_test_deadline(fd2_vga *vga);
-static void prepare_test_wait_ticks(uint32_t ticks);
+static int prepare_test_delay(uint32_t ms);
+int prepare_test_present_timed(fd2_vga *vga, uint32_t delay);
+int prepare_test_deadline(fd2_vga *vga);
+static int prepare_test_wait_ticks(uint32_t ticks);
 static void *prepare_test_calloc(size_t count, size_t size);
 static int prepare_test_pcm_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
     size_t sample, int loop_count, float gain);
@@ -108,9 +108,11 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 #define fd2_vga_present prepare_test_present
 #define fd2_vga_upload_current_frame prepare_test_upload
 #define fd2_delay_ms prepare_test_delay
+#define fd2_vga_delay_ms(vga,value) prepare_test_delay(value)
 #define fd2_vga_present_timed prepare_test_present_timed
 #define fd2_vga_wait_frame_deadline prepare_test_deadline
 #define fd2_wait_ticks prepare_test_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) prepare_test_wait_ticks(value)
 #define calloc prepare_test_calloc
 #define fd2_pcm_play_replace prepare_test_pcm_replace
 #define fd2_bgm_set_music_enabled prepare_test_bgm_option
@@ -139,9 +141,11 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 #undef fd2_vga_present
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_vga_present_timed
 #undef fd2_vga_wait_frame_deadline
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef calloc
 #undef fd2_pcm_play_replace
 #undef fd2_bgm_set_music_enabled
@@ -159,7 +163,11 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 
 static int option_sync_count, option_sync_enabled, option_sync_fade;
 static int prepare_test_bgm_option(fd2_bgm_player *player, int enabled, int fade) {
-    (void)player; option_sync_count++; option_sync_enabled=enabled; option_sync_fade=fade; return 0;
+    (void)player; option_sync_count++; option_sync_enabled=enabled; option_sync_fade=fade;
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
+    return 0;
 }
 static uint64_t clock_ms;
 static unsigned source_upload_active,source_uploads,source_upload_cost_ms;
@@ -267,6 +275,9 @@ static void *prepare_test_calloc(size_t count, size_t size) {
 static int prepare_test_pcm_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
         size_t sample, int loop_count, float gain) {
     (void)player; (void)bank;
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     if(f4_dynamic.active){if(sample!=2u || loop_count!=1)return -1;f4_dynamic.pcm++;}
     if(sound_calls<32u){sound_samples[sound_calls]=sample;sound_loops[sound_calls]=loop_count;}
     sound_last_gain = gain;
@@ -313,7 +324,7 @@ static void prepare_test_brightness(fd2_vga *vga,int value) {
 }
 
 Uint64 SDLCALL prepare_test_ticks(void) { return clock_ms; }
-void prepare_test_present(fd2_vga *vga) {
+int prepare_test_present(fd2_vga *vga) {
     if(service_capture_first){memcpy(service_first_frame,vga->framebuffer,sizeof(service_first_frame));service_capture_first=0;}
     if(choice_timing_probe) {
         choice_plain++;frame_number++;
@@ -321,7 +332,7 @@ void prepare_test_present(fd2_vga *vga) {
             clock_ms=(vga->frame_deadline_ns+999999u)/UINT64_C(1000000);
         if(!source_upload_active)vga->frame_deadline_ns=vga->frame_interval_ns=0;
         if(quit_frame && frame_number==quit_frame)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     clock_ms += source_upload_active ? source_upload_cost_ms:16u; frame_number++;
     unsigned script_frame=frame_number-town_script_origin;
@@ -371,15 +382,26 @@ void prepare_test_present(fd2_vga *vga) {
     if ((!town_bootstrap_pending && quit_frame && script_frame == quit_frame) ||
             script_frame > (service_exact_time ? 6000u:150u))
         vga->input.quit_requested = 1;
+return 0;
 }
 static void prepare_test_upload(fd2_vga *vga) {
     source_uploads++;source_upload_active=1;prepare_test_present(vga);source_upload_active=0;
+#ifdef FD2_CLOCK_FAILURE_TEST
+    clock_fault_upload(vga);
+#endif
 }
-static void prepare_test_delay(uint32_t ms) {
+static int prepare_test_delay(uint32_t ms) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     if(service_delay_count<6000u)service_delays[service_delay_count++]=ms;
     clock_ms+=ms;
+return 0;
 }
-void prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
+int prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     if(host_ticket_probe) {
         /* vga.c的公开timed合同：先旧target，再独立7ms上传成本；不替helper藏foreign。 */
         uint64_t interval=(uint64_t)delay*UINT64_C(1000000);
@@ -392,43 +414,49 @@ void prepare_test_present_timed(fd2_vga *vga, uint32_t delay) {
         prepare_test_upload(vga);host_timed_calls++;
         vga->frame_deadline_ns=continuing ? target+interval:clock_ms*UINT64_C(1000000)+interval;
         vga->frame_interval_ns=interval;
-        return;
+        return 0;
     }
     if(choice_timing_probe) {
-        if(!delay){prepare_test_present(vga);return;}
+        if(!delay){prepare_test_present(vga);return 0;}
         choice_timed++;frame_number++;clock_ms+=delay;
         vga->frame_deadline_ns=(clock_ms+delay)*UINT64_C(1000000);
         vga->frame_interval_ns=(uint64_t)delay*UINT64_C(1000000);
         if(quit_frame && frame_number==quit_frame)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     uint64_t before=clock_ms;
     if(service_delay_count<6000u)service_delays[service_delay_count++]=delay;
     prepare_test_present(vga);if(service_exact_time)clock_ms=before+delay;
+return 0;
 }
-void prepare_test_deadline(fd2_vga *vga) {
+int prepare_test_deadline(fd2_vga *vga) {
     if(host_ticket_probe) {
         host_deadline_calls++;
         uint64_t target_ms=(vga->frame_deadline_ns+UINT64_C(999999))/UINT64_C(1000000);
         if(target_ms>clock_ms){host_wait_ms+=target_ms-clock_ms;clock_ms=target_ms;}
-        vga->frame_deadline_ns=vga->frame_interval_ns=0;return;
+        vga->frame_deadline_ns=vga->frame_interval_ns=0;return 0;
     }
     if(choice_timing_probe) {
         if(vga->frame_deadline_ns>clock_ms*UINT64_C(1000000))
             clock_ms=(vga->frame_deadline_ns+999999u)/UINT64_C(1000000);
         vga->frame_deadline_ns=vga->frame_interval_ns=0;
     }
+return 0;
 }
-static void prepare_test_wait_ticks(uint32_t ticks) {
-    if(f4_dynamic.active){f4_dynamic_wait_ticks(ticks);return;}
+static int prepare_test_wait_ticks(uint32_t ticks) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
+    if(f4_dynamic.active){f4_dynamic_wait_ticks(ticks);return 0;}
     if(service_tick_count<64u)service_ticks[service_tick_count++]=ticks;
     uint64_t deadline=fd2_bios_clock_deadline_ns(clock_ms*UINT64_C(1000000),ticks);
     clock_ms=(deadline+UINT64_C(999999))/UINT64_C(1000000);
+return 0;
 }
 
-int fd2_field_play_request_music(fd2_field_play_context *context,
+int fd2_field_play_request_music(fd2_vga *output,fd2_field_play_context *context,
         size_t stage, int track, const char *reason) {
-    (void)reason;
+    (void)output; (void)reason;
     if (!context || !context->initialized || music_count >= 20) return -1;
     music_stages[music_count] = stage;
     music_tracks[music_count++] = track;
@@ -439,16 +467,23 @@ int fd2_field_play_request_music(fd2_field_play_context *context,
 /* cold music叶直接借bgm；测试以context地址作不解引用音频后端的借用标记。 */
 static int prepare_test_bgm_play(fd2_bgm_player *player,size_t track,int loop_count) {
     (void)loop_count;
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     fd2_field_play_context *context=(fd2_field_play_context *)player;
-    return fd2_field_play_request_music(context,context->preparation.stage_id,(int)track,"cold-test");
+    return fd2_field_play_request_music(NULL,context,context->preparation.stage_id,(int)track,"cold-test");
 }
 static int prepare_test_bgm_stop(fd2_bgm_player *player) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     fd2_field_play_context *context=(fd2_field_play_context *)player;
-    return fd2_field_play_request_music(context,context->preparation.stage_id,-1,"cold-test");
+    return fd2_field_play_request_music(NULL,context,context->preparation.stage_id,-1,"cold-test");
 }
 
 static void controls(fd2_vga *vga) {
     fd2_input_init(&vga->input); clock_ms = 0; frame_number = quit_frame = 0;
+    fd2_bios_clock_reset(0,0); /* 本测试新scope的共享时钟与合成clock_ms一同复位。 */
     source_uploads=source_upload_active=source_upload_cost_ms=0;
     host_ticket_probe=host_timed_calls=host_deadline_calls=host_water_fail_call=0;host_wait_ms=0;
     choice_timing_probe=0;choice_plain=choice_timed=0;
@@ -836,7 +871,7 @@ static int depart_capacity_and_leave(fd2_archive *fdother, fd2_field_prepare_ass
     CHECK(!memcmp(&context.preparation,&before,sizeof(before)) && context.preparation.unit_count==17);
     CHECK(prepare_service_selection_close(&selection_ui)==0 && frame_number==25u &&
           !memcmp(&context.preparation,&before,sizeof(before)));
-    prepare_service_cleanup(&selection_ui);
+    prepare_service_cleanup(&selection_ui,1);
     context.preparation = *state; context.music_enabled=state->options[2];context.sfx_enabled=state->options[3];
     context.camera_option=state->options[0];context.effect_option=state->options[1];
     CHECK(fd2_field_prepare_assets_bind_roster(a,&context.preparation)==0);
@@ -1384,7 +1419,7 @@ static int service_present_leaves(fd2_archive *fdother,fd2_field_prepare_assets 
     CHECK(prepare_service_money_animate(&ui,0)==-1 && !memcmp(expected->framebuffer,vga->framebuffer,64000));
     a->service.money_strip.pixels=saved;
     quit_frame=1;CHECK(prepare_service_money_animate(&ui,0)==1 && ui.service.host_quit && !memcmp(context,before,sizeof(*before)));
-    prepare_service_cleanup(&ui);ui.service=(prepare_service){0};
+    prepare_service_cleanup(&ui,1);ui.service=(prepare_service){0};
 
     /* 等键原入口RNG及准备无map箭头x143；一键快显同时完成文本内部-3 ACK。 */
     controls(vga);service_exact_time=1;service_capture_first=1;memset(vga->framebuffer,0x61,64000);
@@ -1439,7 +1474,7 @@ static int service_present_leaves(fd2_archive *fdother,fd2_field_prepare_assets 
     memcpy(expected->framebuffer,vga->framebuffer,64000);*before=*context;
     CHECK(prepare_service_promotion_prepare(&ui)==0 && ui.service.promotion_visual &&
         !memcmp(expected->framebuffer,vga->framebuffer,64000) && !memcmp(context,before,sizeof(*before)));
-    prepare_service_cleanup(&ui);prepare_service_cleanup(&ui);
+    prepare_service_cleanup(&ui,1);prepare_service_cleanup(&ui,1);
     CHECK(!ui.service.promotion_visual && !ui.service.promotion_backgrounds.data && !ui.service.promotion_figani.data);
     fd2_static_flow_node unknown={.op="not_a_service_operation"};unsigned port=99;
     CHECK(prepare_service_ui(&ui,&unknown,&port)==0);
@@ -1660,7 +1695,7 @@ static int picker_retained_modal_boundary(fd2_archive *fdother,fd2_field_prepare
             !memcmp(&context->preparation,state,sizeof(*state)) && !clear_calls && !sound_calls);
         if(!host)CHECK(prepare_service_modal_close(&ui)==0 && !ui.service.page && !ui.service.page_background &&
             !memcmp(vga->framebuffer,before,VGA_W*VGA_H));
-        prepare_service_cleanup(&ui);CHECK(!ui.service.page && !ui.service.page_background &&
+        prepare_service_cleanup(&ui,1);CHECK(!ui.service.page && !ui.service.page_background &&
             !memcmp(vga->framebuffer,before,VGA_W*VGA_H));
     }
     free(before);free(context);return 0;
@@ -1941,7 +1976,7 @@ static int prepare_phase_owner_contract(fd2_archive *fdother,fd2_field_prepare_a
     CHECK(prepare_service_read_key(&ui,&event,1,prepare_owner_redraw)==0 && event.key==FD2_INPUT_KEY_RIGHT &&
         owner_redraws==1u && vga->prepare_highlight_phase==2u && vga->prepare_sprite_phase==3u &&
         context.rng.state==expected.state && fd2_input_has_any_key(&vga->input));
-    fd2_input_init(&vga->input);queue_pair(vga);clock_ms=110;
+    clock_ms=110;fd2_input_init(&vga->input);queue_pair(vga); /* 排队递增后不再回拨时间。 */
     prepare_wait waiting={.last=0,.countdown=5,.portrait=0,.initialized=1};
     CHECK(read_key_state(&ui,&event,2,0,&waiting)==0 && event.key==FD2_INPUT_KEY_RIGHT &&
         vga->prepare_highlight_phase==3u && vga->prepare_sprite_phase==0u &&
@@ -1954,7 +1989,7 @@ static int prepare_phase_owner_contract(fd2_archive *fdother,fd2_field_prepare_a
         vga->prepare_highlight_phase==3u && !vga->prepare_sprite_phase && context.rng.state==expected.state);
 
     /* entry错误保原%50+8与53F52=2；tick重画错误保已提交的两相位。 */
-    fd2_input_init(&vga->input);clock_ms=0;quit_frame=0;
+    fd2_input_init(&vga->input);clock_ms=0;fd2_bios_clock_reset(0,0);quit_frame=0;
     owner_redraws=0;owner_fail_redraw=1;owner_tick_after_entry=0;
     (void)fd2_field_rng_next(&expected);
     CHECK(prepare_service_read_key(&ui,&event,2,prepare_owner_redraw)==-1 && owner_redraws==1u &&
@@ -1963,7 +1998,7 @@ static int prepare_phase_owner_contract(fd2_archive *fdother,fd2_field_prepare_a
     (void)fd2_field_rng_next(&expected);
     CHECK(prepare_service_read_key(&ui,&event,3,prepare_owner_redraw)==-1 && owner_redraws==2u &&
         vga->prepare_highlight_phase==3u && vga->prepare_sprite_phase==1u && context.rng.state==expected.state);
-    fd2_input_init(&vga->input);clock_ms=0;
+    fd2_input_init(&vga->input);clock_ms=0;fd2_bios_clock_reset(0,0);
     owner_redraws=owner_fail_redraw=0;owner_host_redraw=1;owner_tick_after_entry=0;
     (void)fd2_field_rng_next(&expected);
     CHECK(prepare_service_read_key(&ui,&event,0,prepare_owner_redraw)==1 && owner_redraws==1u &&
@@ -2539,7 +2574,7 @@ static int deployment_visual_owner_boundary(fd2_archive *fdother,fd2_field_prepa
     CHECK(prepare_service_pick(&ui,&pick,&port)==-1 && ui.service.host_quit && !clock_reads &&
         vga->prepare_pick_tick==9u && !memcmp(&before,&vga->field_visual,sizeof(before)));
     CHECK(context.rng.state==0x5a31 && !state_save_calls && !memcmp(&context.preparation,state,sizeof(*state)));
-    controls(vga);prepare_service_cleanup(&ui);free(pixels);return 0;
+    controls(vga);prepare_service_cleanup(&ui,1);free(pixels);return 0;
 }
 
 /* 原28efe->1bffe->1b9de：空EQT仍进16c57等待，确认后count0才关闭。
@@ -2580,7 +2615,7 @@ static int equipment_empty_wait_contract(fd2_archive *fdother,fd2_field_prepare_
         fd2_static_flow_node shut={.op="equipment_close"};
         CHECK(prepare_service_pick(&ui,&shut,&port)==1 && !ui.service.page && !ui.service.page_background);
         CHECK(!memcmp(&context->preparation,before,sizeof(*before)) && !state_save_calls);
-        prepare_service_cleanup(&ui);
+        prepare_service_cleanup(&ui,1);
     }
     controls(vga);service_exact_time=1;
     prepare_ui ui={vga,fdother,assets,context,NULL,"unused.SAV",-1,0,-1};ui.service.member=0;
@@ -2588,7 +2623,7 @@ static int equipment_empty_wait_contract(fd2_archive *fdother,fd2_field_prepare_
     CHECK(prepare_service_pick(&ui,&open,&port)==1);quit_frame=frame_number+2u;
     CHECK(prepare_service_pick(&ui,pick,&port)==-1 && ui.service.host_quit && ui.service.page);
     CHECK(!memcmp(&context->preparation,before,sizeof(*before)) && !state_save_calls);
-    prepare_service_cleanup(&ui);CHECK(!ui.service.page && !ui.service.page_background);
+    prepare_service_cleanup(&ui,1);CHECK(!ui.service.page && !ui.service.page_background);
     free(before);free(context);return 0;
 }
 

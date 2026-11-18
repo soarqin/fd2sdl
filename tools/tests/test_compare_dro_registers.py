@@ -35,6 +35,27 @@ def native(values=None, times=None):
 
 
 class RegisterGateTest(unittest.TestCase):
+    def test_v2_requires_complete_shared_clock_identity_and_keeps_v1_separate(self):
+        rows = trace()
+        declaration = meta(rows)
+        shared = dict(logic_owner='main-thread', clock_source='shared-bios-ail-pit',
+            timer_profile_us=[8333, 5000, 54925], initial_phase_policy='completed-program-zero',
+            initial_phase_qualified=False, callback_timing_model='instantaneous-no-cpu')
+        declaration.update(shared, schema='fd2-title18-offline-opl-v2')
+        self.assertEqual(module.validate_trace(rows, declaration), (48000, 1200))
+        for key in shared:
+            broken = dict(declaration)
+            del broken[key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                module.validate_trace(rows, broken)
+        for change in (dict(timer_profile_us=[8333, 5000, True]),
+                       dict(initial_phase_qualified=0), dict(initial_phase_qualified=True),
+                       dict(callback_timing_model='qualified-native-pic'),
+                       dict(schema='fd2-title18-offline-opl-v1')):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                module.validate_trace(rows, dict(declaration, **change))
+        self.assertEqual(module.validate_trace(rows, meta(rows)), (48000, 1200))
+
     def test_exact_source_writer_projection_and_retire_boundary(self):
         rows = trace()
         result = module.compare(native(), rows, meta(rows))

@@ -1279,10 +1279,11 @@ static int load_loot_probe(const fd2_field_game *game,
     return -1;
 }
 
-static void load_music_probe(size_t stage, int track,
+static int load_music_probe(size_t stage, int track,
         fd2_field_music_reason reason, void *userdata) {
     (void)stage; (void)track; (void)reason;
     (*(unsigned *)userdata)++;
+    return 0;
 }
 
 static int test_stage1_manual_owner_preflight(void) {

@@ -38,12 +38,12 @@ const uint8_t *fd2_field_lut_frame(const fd2_field_visuals *visuals,
 /* 固定now_ns接口见field_visual_state.h，限定一次调用的全部读钟同值。
  * 正式live保1297d、11eee各原读取点及条件短路，不新增时钟owner。
  * 11eee正式顺序为terrain→实际背景→range→tile draw；无背景时才用tiles组合。 */
-int fd2_field_visual_actor_step_live(fd2_field_visual_state *state);
+int fd2_field_visual_actor_step_live(const fd2_vga *vga,fd2_field_visual_state *state);
 int fd2_field_visual_terrain_step(fd2_field_visual_state *state,uint64_t now_ns);
 int fd2_field_visual_range_step(fd2_field_visual_state *state,uint64_t now_ns,int32_t range_override);
-int fd2_field_visual_terrain_step_live(fd2_field_visual_state *state);
-int fd2_field_visual_range_step_live(fd2_field_visual_state *state,int32_t range_override);
-int fd2_field_visual_tiles_step_live(fd2_field_visual_state *state,int32_t range_override);
+int fd2_field_visual_terrain_step_live(const fd2_vga *vga,fd2_field_visual_state *state);
+int fd2_field_visual_range_step_live(const fd2_vga *vga,fd2_field_visual_state *state,int32_t range_override);
+int fd2_field_visual_tiles_step_live(const fd2_vga *vga,fd2_field_visual_state *state,int32_t range_override);
 
 /* 把现有 framebuffer 矩形中的 palette index 逐像素映射。 */
 void fd2_field_apply_palette_lut(fd2_vga *vga,

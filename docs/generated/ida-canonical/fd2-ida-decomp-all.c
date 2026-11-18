@@ -15252,6 +15252,7 @@ void __noreturn sub_25757()
 //   依据: corrected code0 `0x3ab8b` 缓存当前 track；`-1` 将 sequence 音量在 4000 ms 内降到 0；其他值从 FDMUS handle `DS:0x1a79` 加载 entry，依次调用 AIL init/start、volume 与 loop-count wrapper
 //   历史地址列 `0x4ab8b`；旧 Ghidra 名 `FUN_0004ab8b`；判定 exact
 // [勘误 evidence] 其他值从 FDMUS handle `DS:0x1a79` 加载 entry -> object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `"FDMUS.DAT"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。；依据: IDA 字符串识别 `aFdmusDat` + res_load 调用形态
+// [勘误 evidence] 不同请求先25997写唯一cache，再停旧S、释放/读新资源、init/start/volume/loop；init返回值不构成caller门。固定完整20 0d 0a资源的格式失败前缀不等于旧EVNT后继已定义；同cache早返。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
 int __cdecl music_track_play(int a1, int a2)
 {
   int result; // eax
@@ -15322,7 +15323,7 @@ int __cdecl sfx_play(int a1, int a2, int a3)
   result = watcom_stack_check(28);
   if ( byte_53EF1 != 0 && byte_51E62 != 0 && dword_54133 == 0 )
   {
-    result = ail_end_sample(dword_53EE4);
+    result = ail_stop_sample(dword_53EE4);
     if ( a2 != -1 )
     {
       v4 = a1 + 4 * a2;
@@ -15359,7 +15360,7 @@ int __cdecl sfx_play_secondary(int a1, int a2, int a3)
   result = watcom_stack_check(28);
   if ( byte_53EF1 != 0 && byte_51E62 != 0 && dword_54133 == 0 )
   {
-    result = ail_end_sample(dword_53EE8);
+    result = ail_stop_sample(dword_53EE8);
     if ( a2 != -1 )
     {
       v4 = a1 + 4 * a2;
@@ -26442,6 +26443,7 @@ int __cdecl _doclose(int a1, int a2)
  * --------------------------------------------------------------- */
 // [勘误 evidence] 保FLIRT memmove原名/类型。仅在上述完整31529自然栈链，入口push ESI的保存槽成为下一2ebe1局部HP cell末写；值0xaf8c0由上层VGA最后scanline给出。这是已证caller栈别名，不把通用memmove重命名成HP初始化函数。；依据: 完整自然栈读集F:/fd2sdl-evidence/s5-20261114/victory-stack02/domain07.json SHA4cd565bc6e1c245ab5e6bc1d7d2ee45901c47b987bcf92490d4378c184d02a46，20个完整owner/8880B；natural-stack-cpu03.json SHAeb63210f61b62676e040f7973d11cc84a7fa0c1c0b4e935945575b1df70f81e2 分列60原intro、40同CPU连接first/counter-query/second、80派生WORD body。完整render/memmove/stackprobe/query/25a96实际执行；40连接例设备和SFX选项开、两bank故意未映射，AIL若到达即拒；RNG0/50、BIOSdelay和硬件OUT仍显式替身。natural-stack-contract02.json SHA817967cb5bd900c57d37bb4450b140ebd384614b61c8991afad8583aa45ae079 登记53A45热owner、credits之后时点、WORD写及音频门。montage-actualC18-01/compariso
 // [勘误 evidence] memmove按地址选向：src>=dst或src+len<=dst走forward DWORD再余BYTE，否则backward WORD再余BYTE。19df7短metadata过长2211B范围可与另一合法目标owner相交；不能因两个实际分配不重叠就固定forward。forward首次跨源owner的DWORD起4*floor(A/4)，首非法源byte=B+A；backward首WORD=B+2209，短块上界2119之外。；依据: F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。
+// [勘误 evidence] 443d0@44711为不同owner之间完整512B；给定非重叠及DF0，src>=dst直接forward，src<dst还须src+512<=dst。forward先128DWORD REP再零BYTE REP，后者仍有opcode费用。不能从此调用推全部metadata或重叠memmove方向。；依据: metadata-owner-source01/source01.json完整3771c与严格原chunk；source主体按原字符串机制消费。输入地址次序/repmax明确提供，不以当前C指针猜原地址或默认相位；源码补证不等于新原CPU/设备实测。
 char *__cdecl memmove(char *a1, char *a2, unsigned int a3)
 {
   char *result; // eax
@@ -27203,7 +27205,7 @@ int __usercall sub_38262@<eax>(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: coro_yield
+ * IDA 9.5 Hex-Rays: ail_cpu_flags_save_disable
  * VA=0x382d6..0x382db OBJ=1 OFF=0x282d6 size=0x5 [thunk]
  * callers: 0x3f565, 0x404c0
  * callees: -
@@ -27211,15 +27213,16 @@ int __usercall sub_38262@<eax>(int a1@<eax>, int a2)
 // [coro_yield] 协程让出
 //   依据: 反编译：jmp thunk
 //   历史地址列 `0x5d4ea`；旧 Ghidra 名 `FUN_00035a1e`；判定 exact
+// [勘误 semantic_name] ail_cpu_flags_save_disable；依据: 唯一JMP至3f0a8完整return窗口：PUSHFD/POP EAX后CLI再RET；返回先前flags，不是协程让出。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。
 // attributes: thunk
-int coro_yield()
+int ail_cpu_flags_save_disable()
 {
   return sub_3F0A8();
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: coro_switch
+ * IDA 9.5 Hex-Rays: ail_cpu_flags_restore
  * VA=0x382db..0x382e9 OBJ=1 OFF=0x282db size=0xe
  * callers: 0x3f565, 0x404c0
  * callees: 0x3f0ac
@@ -27227,14 +27230,15 @@ int coro_yield()
 // [coro_switch] 协程创建/切换
 //   依据: 反编译：Watcom协程
 //   历史地址列 `0x5d4ef`；旧 Ghidra 名 `FUN_00035a23`；判定 exact
-int __cdecl coro_switch(int a1)
+// [勘误 semantic_name] ail_cpu_flags_restore；依据: 完整14B wrapper调用3f0ac return窗口；先CLI，savedIF1才STI，再POP EBP/POPFD/LEAVE/RET，不是协程切换。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。
+int __cdecl ail_cpu_flags_restore(int a1)
 {
   return sub_3F0AC(a1);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: event_pump
+ * IDA 9.5 Hex-Rays: ail_call_driver
  * VA=0x382e9..0x383f1 OBJ=1 OFF=0x282e9 size=0x108
  * callers: 0x3f565, 0x3f950, 0x3fb90, 0x3fc33, 0x401c0, 0x404c0, 0x406b0, 0x40b40, 0x40c40, 0x40cf0, 0x416f0, 0x41950, 0x42270, 0x422c0, 0x423e0, 0x42dd0, 0x42ea0, 0x43270, 0x439a0, 0x43ad0, 0x443d0, 0x44ab0, 0x44af0, 0x44bf0, 0x44c30, 0x45240
  * callees: 0x37c9c, 0x3f113, 0x3f22a, 0x3f46b
@@ -27242,7 +27246,9 @@ int __cdecl coro_switch(int a1)
 // [event_pump] 事件泵
 //   依据: 反编译：消息循环
 //   历史地址列 `0x5d4fd`；旧 Ghidra 名 `FUN_00035a31`；判定 exact
-void __usercall event_pump(int a1@<eax>, int a2, int a3, int a4, int a5)
+// [勘误 semantic_name] ail_call_driver；依据: 完整79-head主块382e9及3908b owner内3916a共享尾；原504f5字符串AIL_call_driver、300/502实参caller及唯一3f113调用确认。54178仅API日志depth；正常debug0跳过stdio，返回原3f1db MOVSX WORD的EAX，不是事件泵。不新增ABI原型或把source completion当原AX。
+// [勘误 purpose] AIL通用驱动调用包装；共享日志深度、可选诊断与DPMI0300桥；依据: driver-service-word-review01/driver-source03完整caller/xref、pcm-contract-source03/source01的共享3916a owner及rng-system-indirect-source01/source04原bridge。仅修改命名输入，发布由统一Domain流程另行执行。
+void __usercall ail_call_driver(int a1@<eax>, int a2, int a3, int a4, int a5)
 {
   int v5; // edx
   int v7; // eax
@@ -27377,12 +27383,13 @@ int __usercall sub_38463@<eax>(int a1@<eax>, int a2, const char *a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_387BC
+ * IDA 9.5 Hex-Rays: ail_register_timer
  * VA=0x387bc..0x388a7 OBJ=1 OFF=0x287bc size=0xeb
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f236, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_387BC(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_register_timer；依据: 完整owner/chunk/xref、原AIL_register_timer字符串@505a0及唯一core 3f236；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_register_timer(int a1@<eax>, int a2)
 {
   int v2; // edx
   int v4; // eax
@@ -27406,12 +27413,13 @@ void __usercall sub_387BC(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_388A7
+ * IDA 9.5 Hex-Rays: ail_set_timer_user
  * VA=0x388a7..0x3899a OBJ=1 OFF=0x288a7 size=0xf3
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f27d, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_388A7(int a1@<eax>, int a2, int a3)
+// [勘误 semantic_name] ail_set_timer_user；依据: 完整owner/chunk/xref、原AIL_set_timer_user字符串@505ba及唯一core 3f27d；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_set_timer_user(int a1@<eax>, int a2, int a3)
 {
   int v3; // edx
   int v5; // eax
@@ -27435,12 +27443,13 @@ void __usercall sub_388A7(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3899A
+ * IDA 9.5 Hex-Rays: ail_set_timer_period
  * VA=0x3899a..0x38a10 OBJ=1 OFF=0x2899a size=0x76
  * callers: 0x3ec7c, 0x3f3c8, 0x3f3f8
  * callees: 0x37c9c, 0x3f22a, 0x3f398, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_3899A(int a1@<eax>, int a2, int a3)
+// [勘误 semantic_name] ail_set_timer_period；依据: 完整owner/chunk/xref、原AIL_set_timer_period字符串@505d5及唯一core 3f398；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_set_timer_period(int a1@<eax>, int a2, int a3)
 {
   int v3; // edx
 
@@ -27453,12 +27462,13 @@ void __usercall sub_3899A(int a1@<eax>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_38A10
+ * IDA 9.5 Hex-Rays: ail_set_timer_frequency
  * VA=0x38a10..0x38a86 OBJ=1 OFF=0x28a10 size=0x76
  * callers: 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f3c8, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_38A10(int a1@<eax>, int a2, int a3)
+// [勘误 semantic_name] ail_set_timer_frequency；依据: 完整owner/chunk/xref、原AIL_set_timer_frequency字符串@505f2及唯一core 3f3c8；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_set_timer_frequency(int a1@<eax>, int a2, int a3)
 {
   int v3; // edx
 
@@ -27500,12 +27510,13 @@ void __fastcall sub_38AFC(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_38BD9
+ * IDA 9.5 Hex-Rays: ail_start_timer
  * VA=0x38bd9..0x38c46 OBJ=1 OFF=0x28bd9 size=0x6d
  * callers: 0x3f320, 0x3f950, 0x40cf0, 0x43ad0
  * callees: 0x37c9c, 0x3f22a, 0x3f2f0, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_38BD9(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_start_timer；依据: 完整owner/chunk/xref、原AIL_start_timer字符串@50649及唯一core 3f2f0；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_start_timer(int a1@<eax>, int a2)
 {
   int v2; // edx
 
@@ -27518,12 +27529,13 @@ void __usercall sub_38BD9(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_38CA8
+ * IDA 9.5 Hex-Rays: ail_stop_timer
  * VA=0x38ca8..0x38d15 OBJ=1 OFF=0x28ca8 size=0x6d
  * callers: 0x3f374
  * callees: 0x37c9c, 0x3f22a, 0x3f344, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_38CA8(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_stop_timer；依据: 完整owner/chunk/xref、原AIL_stop_timer字符串@50676及唯一core 3f344；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_stop_timer(int a1@<eax>, int a2)
 {
   int v2; // edx
 
@@ -27536,19 +27548,20 @@ void __usercall sub_38CA8(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_38D77
+ * IDA 9.5 Hex-Rays: ail_release_timer_handle
  * VA=0x38d77..0x38de4 OBJ=1 OFF=0x28d77 size=0x6d
  * callers: 0x3f2cc, 0x3fb90, 0x40c40, 0x43a70
  * callees: 0x37c9c, 0x3f22a, 0x3f2a5, 0x3f46b
  * --------------------------------------------------------------- */
-void __usercall sub_38D77(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_release_timer_handle；依据: 完整owner/chunk/xref、原AIL_release_timer_handle字符串@506a1及唯一core 3f2a5；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。
+void __usercall ail_release_timer_handle(int a1@<eax>, int a2)
 {
   int v2; // edx
 
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_release_timer_handle(%u)\n", a2);
-  sub_3F2A5(a2);
+  ail_timer_handle_release(a2);
   JUMPOUT(0x382CA);
 }
 
@@ -27566,7 +27579,7 @@ void __fastcall sub_38DE4(int a1)
   v1 = ++dword_54178;
   if ( dword_54174 != 0 && (v1 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_release_all_timers()\n");
-  sub_3F2CC();
+  ail_timer_handles_release_all();
   JUMPOUT(0x37F68);
 }
 
@@ -27894,13 +27907,13 @@ void __usercall ail_start_sample(int a1@<eax>, int a2)
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_start_sample(0x%X)\n", a2);
-  sub_416F0(a2);
+  ail_sample_playback_start(a2);
   JUMPOUT(0x382CA);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: ail_end_sample
+ * IDA 9.5 Hex-Rays: ail_stop_sample
  * VA=0x39805..0x39872 OBJ=1 OFF=0x29805 size=0x6d
  * callers: 0x25a96, 0x25b45
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x41770
@@ -27908,32 +27921,34 @@ void __usercall ail_start_sample(int a1@<eax>, int a2)
 // [ail_end_sample] 立即结束当前数字样本
 //   依据: `sfx_play @0x4acaa` 在每次换样本前调用；index `-1` 时调用后直接返回，因此该值是 stop sentinel；wrapper 最终调用 core `0x66984`
 //   历史地址列 `0x5ea19`；旧 Ghidra 名 `FUN_0005ea19`；判定 exact
-void __usercall ail_end_sample(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_stop_sample；依据: Wrapper literal AIL_stop_sample; 25a96/25b45 stop sentinel and replace both call this, then41770. Current end name overstates status2/end callbacks. Own write set: Indirect body status4→8 only, preserves pos/loop/source; no DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+void __usercall ail_stop_sample(int a1@<eax>, int a2)
 {
   int v2; // edx
 
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_stop_sample(0x%X)\n", a2);
-  sub_41770(a2);
+  ail_sample_playback_pause(a2);
   JUMPOUT(0x382CA);
 }
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_398DF
+ * IDA 9.5 Hex-Rays: ail_end_sample
  * VA=0x398df..0x3994c OBJ=1 OFF=0x298df size=0x6d
  * callers: 0x45a20
  * callees: 0x37c9c, 0x3f22a, 0x3f46b, 0x417b0
  * --------------------------------------------------------------- */
-void __usercall sub_398DF(int a1@<eax>, int a2)
+// [勘误 semantic_name] ail_end_sample；依据: Wrapper literal AIL_end_sample; only canonical caller45a20, body417b0. Not the formal FD2 SFX sentinel wrapper. Own write set: Calls417b0; no direct DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+void __usercall ail_end_sample(int a1@<eax>, int a2)
 {
   int v2; // edx
 
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_end_sample(0x%X)\n", a2);
-  sub_417B0(a2);
+  ail_sample_playback_end(a2);
   JUMPOUT(0x382CA);
 }
 
@@ -28001,6 +28016,7 @@ void __usercall sub_39A38(int a1@<eax>, int a2, int a3)
 // [ail_set_sample_loop_count] 设置 sample 循环次数
 //   依据: corrected code0 `0x4ecc2` 包装 core `0x568f4`，写 handle `+0x30`
 //   历史地址列 `0x5ecc2`；旧 Ghidra 名 `FUN_0005ecc2`；判定 exact
+// [勘误 evidence] Wrapper literal AIL_set_sample_loop_count and full published call to416e0, used25a96/25b45. Own write set: Calls416e0; not416a0；依据: dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。
 void __usercall ail_set_sample_loop_count(int a1@<eax>, int a2, int a3)
 {
   int v3; // edx
@@ -28008,7 +28024,7 @@ void __usercall ail_set_sample_loop_count(int a1@<eax>, int a2, int a3)
   v3 = ++dword_54178;
   if ( dword_54174 != 0 && (v3 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_set_sample_loop_count(0x%X,%d)\n", a2, a3);
-  sub_416E0(a2, a3);
+  ail_sample_loop_count_set(a2, a3);
   JUMPOUT(0x381D0);
 }
 
@@ -28561,7 +28577,7 @@ void __usercall sub_3ACA3(int a1@<eax>, int a2)
   v2 = ++dword_54178;
   if ( dword_54174 != 0 && (v2 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_allocate_sequence_handle(0x%X)\n", a2);
-  v4 = sub_44330(a2);
+  v4 = ail_sequence_handle_allocate(a2);
   if ( dword_54174 != 0 && (dword_54178 == 1 || dword_54170 != 0) && sub_3F22A(v4) == 0 )
   {
     for ( i = 0; i < 0xE; ++i )
@@ -28593,7 +28609,7 @@ void __usercall ail_init_sequence(int a1@<eax>, int a2, int a3, int a4)
   v4 = ++dword_54178;
   if ( dword_54174 != 0 && (v4 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_init_sequence(0x%X,0x%X,%d)\n", a2, a3, a4);
-  v6 = sub_443D0(a2, a3, a4);
+  v6 = ail_sequence_resource_initialize(a2, a3, a4);
   if ( dword_54174 != 0 && (dword_54178 == 1 || dword_54170 != 0) && sub_3F22A(v6) == 0 )
   {
     for ( i = 0; i < 0xE; ++i )
@@ -28725,7 +28741,7 @@ void __usercall ail_set_sequence_loop_count(int a1@<eax>, int a2, int a3)
   v3 = ++dword_54178;
   if ( dword_54174 != 0 && (v3 == 1 || dword_54170 != 0) && sub_3F22A(a1) == 0 && sub_37C9C() != 0 )
     fprintf(dword_54164, "AIL_set_sequence_loop_count(0x%X,%d)\n", a2, a3);
-  sub_44960(a2, a3);
+  ail_sequence_loop_count_set(a2, a3);
   JUMPOUT(0x381D0);
 }
 
@@ -32807,19 +32823,20 @@ int sub_3EC17()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3EC7C
+ * IDA 9.5 Hex-Rays: ail_timer_irq_initialize
  * VA=0x3ec7c..0x3ed6a OBJ=1 OFF=0x2ec7c size=0xee
  * callers: 0x3fca9
  * callees: 0x3899a, 0x3f446
  * --------------------------------------------------------------- */
-void __fastcall sub_3EC7C(int a1, unsigned __int16 a2)
+// [勘误 semantic_name] ail_timer_irq_initialize；依据: 完整CLI/flags、region lock、四数组清零与callback/user保留、旧RM/PM向量保存、INT21安装3ea8e、BIOS60/54925 setter；真实startup main->37d3e->3fca9 tail 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。
+void __fastcall ail_timer_irq_initialize(int a1, unsigned __int16 a2)
 {
   unsigned int v2; // kr00_4
 
   v2 = __readeflags();
   _disable();
   word_52BEE = __DS__;
-  sub_3F446();
+  ail_timer_regions_lock();
   dword_52BE6 = 0;
   dword_52BEA = 0;
   dword_52BE2 = -1;
@@ -32835,7 +32852,7 @@ void __fastcall sub_3EC7C(int a1, unsigned __int16 a2)
   dword_52BDA = a2;
   __asm { int     21h; DOS - SET INTERRUPT VECTOR }
   dword_52AD0 = 2;
-  sub_3899A(9480, 60, 54925);
+  ail_set_timer_period(9480, 60, 54925);
   _disable();
   if ( (v2 & 0x200) != 0 )
     _enable();
@@ -32844,12 +32861,13 @@ void __fastcall sub_3EC7C(int a1, unsigned __int16 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3ED6A
+ * IDA 9.5 Hex-Rays: ail_timer_irq_restore
  * VA=0x3ed6a..0x3eda5 OBJ=1 OFF=0x2ed6a size=0x3b
  * callers: 0x3fdaf
  * callees: 0x3ebb4
  * --------------------------------------------------------------- */
-int sub_3ED6A()
+// [勘误 semantic_name] ail_timer_irq_restore；依据: 完整PUSHF/CLI->program PIT0->INT21 AH25 DS:EDX=52bd8:52bd4->恢复flags；3fdaf实际shutdown caller；不清timer表/base 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。
+int ail_timer_irq_restore()
 {
   unsigned int v0; // kr00_4
   int result; // eax
@@ -33167,12 +33185,13 @@ __int32 __cdecl sub_3F27D(int a1, __int32 a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3F2A5
+ * IDA 9.5 Hex-Rays: ail_timer_handle_release
  * VA=0x3f2a5..0x3f2cc OBJ=1 OFF=0x2f2a5 size=0x27
  * callers: 0x38d77
  * callees: 0x3806a, 0x3806f
  * --------------------------------------------------------------- */
-int __cdecl sub_3F2A5(int a1)
+// [勘误 semantic_name] ail_timer_handle_release；依据: 完整cdecl参数读取及3f2b8唯一status0写；38d77全部四正式callers与共享382ca tail已核；period/acc/pending/callback/user/base不写 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。
+int __cdecl ail_timer_handle_release(int a1)
 {
   sub_3806A();
   if ( a1 != -1 )
@@ -33182,13 +33201,14 @@ int __cdecl sub_3F2A5(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3F2CC
+ * IDA 9.5 Hex-Rays: ail_timer_handles_release_all
  * VA=0x3f2cc..0x3f2f0 OBJ=1 OFF=0x2f2cc size=0x24
  * type: int(void)
  * callers: 0x38de4
  * callees: 0x3806a, 0x3806f, 0x38d77
  * --------------------------------------------------------------- */
-int sub_3F2CC()
+// [勘误 semantic_name] ail_timer_handles_release_all；依据: 完整56..0步长4的逆序15次loop及外层defer；38de4->3fdaf实际shutdown consumer；BIOS60保留 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。
+int ail_timer_handles_release_all()
 {
   int v0; // eax
   int v1; // esi
@@ -33199,7 +33219,7 @@ int sub_3F2CC()
   v1 = 56;
   do
   {
-    sub_38D77(v0, v1);
+    ail_release_timer_handle(v0, v1);
     v3 = __OFSUB__(v1, 4);
     v2 = v1 - 4 < 0;
     v1 -= 4;
@@ -33243,7 +33263,7 @@ int sub_3F320()
   v1 = 56;
   do
   {
-    sub_38BD9(v0, v1);
+    ail_start_timer(v0, v1);
     v3 = __OFSUB__(v1, 4);
     v2 = v1 - 4 < 0;
     v1 -= 4;
@@ -33287,7 +33307,7 @@ int sub_3F374()
   v1 = 56;
   do
   {
-    sub_38CA8(v0, v1);
+    ail_stop_timer(v0, v1);
     v3 = __OFSUB__(v1, 4);
     v2 = v1 - 4 < 0;
     v1 -= 4;
@@ -33326,7 +33346,7 @@ int __cdecl sub_3F3C8(int a1, unsigned int a2)
   int v2; // eax
 
   sub_3806A();
-  sub_3899A(0xF4240 / a2, a1, 0xF4240 / a2);
+  ail_set_timer_period(0xF4240 / a2, a1, 0xF4240 / a2);
   return sub_3806F(v2);
 }
 
@@ -33347,7 +33367,7 @@ int __cdecl sub_3F3F8(int a1, unsigned int a2)
     v2 = 10000 * (unsigned __int64)a2 / 0x2E9C;
   else
     v2 = 54925;
-  sub_3899A(v2, a1, v2);
+  ail_set_timer_period(v2, a1, v2);
   return sub_3806F(v3);
 }
 
@@ -33366,16 +33386,17 @@ int sub_3F43A()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_3F446
+ * IDA 9.5 Hex-Rays: ail_timer_regions_lock
  * VA=0x3f446..0x3f46b OBJ=1 OFF=0x2f446 size=0x25
  * type: int(void)
  * callers: 0x3ec7c, 0x3f446
  * callees: 0x365da
  * --------------------------------------------------------------- */
-bool sub_3F446()
+// [勘误 semantic_name] ail_timer_regions_lock；依据: 两个明确data/code范围传365da；后者完整构造DPMI AX0600锁内存参数；初始化3ec7c为唯一direct caller；不猜持久函数类型 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。
+bool ail_timer_regions_lock()
 {
   sub_365DA((unsigned int)dword_52A54, (unsigned int)&dword_53604);
-  return sub_365DA((unsigned int)sub_3EA74, (unsigned int)sub_3F446);
+  return sub_365DA((unsigned int)sub_3EA74, (unsigned int)ail_timer_regions_lock);
 }
 
 
@@ -33463,9 +33484,9 @@ void __cdecl __spoils<> sub_3F565(int a1)
   if ( dword_53604 == 0 )
   {
     dword_53604 = 1;
-    dword_54354 = coro_yield();
-    event_pump(dword_54354, a1, 770, 0, 0);
-    coro_switch(dword_54354);
+    dword_54354 = ail_cpu_flags_save_disable();
+    ail_call_driver(dword_54354, a1, 770, 0, 0);
+    ail_cpu_flags_restore(dword_54354);
     dword_53604 = 0;
   }
 }
@@ -33691,11 +33712,11 @@ LABEL_9:
   sub_3815F(v11, 102, v11);
   *(_DWORD *)(v3 + 32) = 0;
   *(_DWORD *)(v3 + 36) = 0;
-  event_pump(v8, v3, 768, 0, 0);
+  ail_call_driver(v8, v3, 768, 0, 0);
   v9 = *(_DWORD *)(v3 + 12);
   if ( *(__int16 *)(v9 + 46) > 0 )
   {
-    sub_387BC(v9, (int)sub_3F565);
+    ail_register_timer(v9, (int)sub_3F565);
     *(_DWORD *)(v3 + 28) = v10;
     if ( v10 == -1 )
     {
@@ -33704,9 +33725,12 @@ LABEL_9:
       sub_365AB(*(_DWORD *)(v3 + 8), *(_DWORD *)v3, *(_DWORD *)(v3 + 4));
       goto LABEL_9;
     }
-    sub_388A7(v10, v10, v3);
-    sub_38A10(*(__int16 *)(*(_DWORD *)(v3 + 12) + 46), *(_DWORD *)(v3 + 28), *(__int16 *)(*(_DWORD *)(v3 + 12) + 46));
-    sub_38BD9(*(_DWORD *)(v3 + 28), *(_DWORD *)(v3 + 28));
+    ail_set_timer_user(v10, v10, v3);
+    ail_set_timer_frequency(
+      *(__int16 *)(*(_DWORD *)(v3 + 12) + 46),
+      *(_DWORD *)(v3 + 28),
+      *(__int16 *)(*(_DWORD *)(v3 + 12) + 46));
+    ail_start_timer(*(_DWORD *)(v3 + 28), *(_DWORD *)(v3 + 28));
   }
   else
   {
@@ -33731,13 +33755,13 @@ int __usercall sub_3FB90@<eax>(int a1@<eax>, int a2)
   if ( *(_DWORD *)(a2 + 32) != 0 )
     a1 = (*(int (__cdecl **)(_DWORD))(a2 + 32))(*(_DWORD *)(a2 + 36));
   if ( *(_DWORD *)(a2 + 28) != -1 )
-    sub_38D77(a1, *(_DWORD *)(a2 + 28));
+    ail_release_timer_handle(a1, *(_DWORD *)(a2 + 28));
   if ( *(_DWORD *)(a2 + 20) != 0 )
   {
     v2 = *(_DWORD *)(a2 + 24);
     if ( v2 != -1 )
       v2 = sub_38262(v2, *(_DWORD *)(a2 + 24));
-    event_pump(v2, a2, 774, 0, 0);
+    ail_call_driver(v2, a2, 774, 0, 0);
   }
   sub_3815F(*(_DWORD *)(a2 + 12), 102, *(_DWORD *)(*(_DWORD *)(a2 + 12) + 54));
   sub_365AB(*(_DWORD *)(a2 + 8), *(_DWORD *)a2, *(_DWORD *)(a2 + 4));
@@ -33772,7 +33796,7 @@ const char *__cdecl sub_3FC33(int a1)
     if ( result != nullptr )
     {
       v2 = strncpy(*(_DWORD *)(a1 + 12) + 58, result, 128);
-      event_pump(v2, a1, 771, 0, 0);
+      ail_call_driver(v2, a1, 771, 0, 0);
       if ( v3 == -1 )
       {
         return nullptr;
@@ -33840,7 +33864,7 @@ void __fastcall sub_3FCA9(int a1, unsigned __int16 a2)
     dword_541B4[i] = 0;
   BYTE1(i) = 0;
   byte_541F4 = 0;
-  sub_3EC7C(i, a2);
+  ail_timer_irq_initialize(i, a2);
 }
 
 
@@ -33862,7 +33886,7 @@ int __fastcall sub_3FDAF(int a1)
       sub_3901E(a1, dword_541B4[i]);
   }
   sub_38DE4(a1);
-  return sub_3ED6A();
+  return ail_timer_irq_restore();
 }
 
 
@@ -34156,7 +34180,7 @@ void __cdecl sub_401C0(int a1)
   {
     v3 = *(_WORD *)(a1 + 24);
     v2 = *(_WORD *)(a1 + 20);
-    event_pump((int)v1, *(_DWORD *)a1, 1025, (int)v1, 0);
+    ail_call_driver((int)v1, *(_DWORD *)a1, 1025, (int)v1, 0);
     *(_DWORD *)(a1 + 84) = 1;
   }
 }
@@ -34322,12 +34346,14 @@ int *__cdecl ail_sample_volume_pan_tables_rebuild(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_404C0
+ * IDA 9.5 Hex-Rays: ail_dig_service
  * VA=0x404c0..0x40684 OBJ=1 OFF=0x304c0 size=0x1c4
  * callers: 0x40cf0
  * callees: 0x382d6, 0x382db, 0x382e9, 0x49690, 0x49891, 0x49923
  * --------------------------------------------------------------- */
-void __cdecl sub_404C0(int a1)
+// [勘误 evidence] busy先置1，保存flags/CLI；原half有符号−1/同half早返；新half先last再清build，扫描全部16P并在405c3提交entered，写inactive DMA后按oldempty==2请求402，最后恢复flags/busy0。；依据: pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。
+// [勘误 semantic_name] ail_dig_service；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+void __cdecl ail_dig_service(int a1)
 {
   int v1; // edi
   int v2; // edi
@@ -34342,7 +34368,7 @@ void __cdecl sub_404C0(int a1)
   {
     dword_5368C = 1;
     dword_543B0 = a1;
-    v1 = coro_yield();
+    v1 = ail_cpu_flags_save_disable();
     dword_543C0 = v1;
     if ( *(_DWORD *)(dword_543B0 + 84) != 0 )
     {
@@ -34352,7 +34378,7 @@ void __cdecl sub_404C0(int a1)
       {
         v8 = dword_543B0;
         *(_DWORD *)(dword_543B0 + 56) = v2;
-        sub_49923(v8);
+        ail_dig_build_clear(v8);
         dword_543BC = 0;
         v3 = *(_DWORD *)(dword_543B0 + 92);
         dword_543B8 = *(_DWORD *)(dword_543B0 + 96);
@@ -34361,19 +34387,19 @@ void __cdecl sub_404C0(int a1)
           if ( *(_DWORD *)(dword_543B4 + 4) == 4 )
           {
             ++dword_543BC;
-            sub_49690(dword_543B4);
+            ail_sample_build_mix(dword_543B4);
           }
           --dword_543B8;
         }
         v4 = dword_543B0;
         *(_DWORD *)(dword_543B0 + 100) = dword_543BC;
-        sub_49891(v4, dword_543D0 ^ 1);
+        ail_dig_build_convert(v4, dword_543D0 ^ 1);
         if ( (*(_BYTE *)(dword_543B0 + 28) & 0x10) != 0 )
         {
           v7 = *(_DWORD *)dword_543B0;
           word_543C8 = 0;
           word_543CA = dword_543D0 ^ 1;
-          event_pump(dword_543B0, v7, 1029, (int)&unk_543C4, 0);
+          ail_call_driver(dword_543B0, v7, 1029, (int)&unk_543C4, 0);
         }
         v5 = (int *)dword_543B0;
         if ( *(_DWORD *)(dword_543B0 + 100) != 0 )
@@ -34386,17 +34412,17 @@ void __cdecl sub_404C0(int a1)
           *(_DWORD *)(dword_543B0 + 88) = v6 + 1;
           if ( v6 == 2 && v5[21] != 0 )
           {
-            event_pump(2, *v5, 1026, 0, 0);
+            ail_call_driver(2, *v5, 1026, 0, 0);
             v5[21] = 0;
           }
         }
       }
-      coro_switch(dword_543C0);
+      ail_cpu_flags_restore(dword_543C0);
       dword_5368C = 0;
     }
     else
     {
-      coro_switch(v1);
+      ail_cpu_flags_restore(v1);
       dword_5368C = 0;
     }
   }
@@ -34463,12 +34489,12 @@ int __usercall sub_406B0@<eax>(int a1@<ebp>, int a2)
     }
     if ( *(_DWORD *)(a2 + 84) != 0 )
     {
-      event_pump(v2, *(_DWORD *)a2, 1026, 0, 0);
+      ail_call_driver(v2, *(_DWORD *)a2, 1026, 0, 0);
       *(_DWORD *)(a2 + 84) = 0;
     }
-    sub_49923(a2);
-    sub_49891(a2, 0);
-    sub_49891(a2, 1);
+    ail_dig_build_clear(a2);
+    ail_dig_build_convert(a2, 0);
+    ail_dig_build_convert(a2, 1);
   }
   switch ( dword_5432C | (2 * dword_54328) )
   {
@@ -34626,14 +34652,14 @@ LABEL_41:
         }
         while ( v21 < *(_DWORD *)(a2 + 96) );
       }
-      sub_49923(a2);
-      sub_49891(a2, 0);
-      sub_49891(a2, 1);
+      ail_dig_build_clear(a2);
+      ail_dig_build_convert(a2, 0);
+      ail_dig_build_convert(a2, 1);
       if ( *(_DWORD *)(a2 + 84) == 0 )
       {
         v29 = *(_WORD *)(a2 + 24);
         v28 = *(_WORD *)(a2 + 20);
-        event_pump((int)v27, *(_DWORD *)a2, 1025, (int)v27, 0);
+        ail_call_driver((int)v27, *(_DWORD *)a2, 1025, (int)v27, 0);
         *(_DWORD *)(a2 + 84) = 1;
       }
     }
@@ -34643,12 +34669,13 @@ LABEL_41:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_40B40
+ * IDA 9.5 Hex-Rays: ail_dig_probe_io_config
  * VA=0x40b40..0x40c39 OBJ=1 OFF=0x30b40 size=0xf9
  * callers: 0x40cf0
  * callees: 0x382e9
  * --------------------------------------------------------------- */
-void __cdecl sub_40B40(int *a1, const void *a2)
+// [勘误 semantic_name] ail_dig_probe_io_config；依据: 完整249B/80heads strict-chunk SHA a488a8515b3b13be77a984d8aa28d85e1c7ccdc1b51db02d5395b75866fcb705；唯一40cf0 caller三类config尝试和382e9 command304：两次6DWORD配置copy、可选signed负值merge、header+16写、54330选reg WORD1/3；保382e9 signed WORD EAX返回，伪C void不是ABI证明。SB16 raw016a→082c普通探测、真实3DA/IRQ/ACK费用另域，不把80heads当整个安装耗时；不保存猜测类型。
+void __cdecl ail_dig_probe_io_config(int *a1, const void *a2)
 {
   int v2; // eax
   _WORD *v3; // ebx
@@ -34683,7 +34710,7 @@ void __cdecl sub_40B40(int *a1, const void *a2)
     v8 = 3;
   else
     v8 = 1;
-  event_pump((int)v7, *a1, 772, (int)v7, 0);
+  ail_call_driver((int)v7, *a1, 772, (int)v7, 0);
 }
 
 
@@ -34699,14 +34726,14 @@ int __usercall sub_40C40@<eax>(int a1@<eax>, int *a2)
 
   if ( a2[21] != 0 )
   {
-    event_pump(a1, *a2, 1026, 0, 0);
+    ail_call_driver(a1, *a2, 1026, 0, 0);
     a2[21] = 0;
-    sub_49923(a2);
-    sub_49891(a2, 0);
-    v2 = sub_49891(a2, 1);
+    ail_dig_build_clear(a2);
+    ail_dig_build_convert(a2, 0);
+    v2 = ail_dig_build_convert(a2, 1);
     sub_383F1(v2, 10);
   }
-  sub_38D77(a1, a2[3]);
+  ail_release_timer_handle(a1, a2[3]);
   sub_365AB(a2[10], a2[8], a2[9]);
   sub_364FB(a2[23], 2196 * a2[24]);
   sub_364FB(a2[20], a2[19]);
@@ -34773,7 +34800,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
     }
     else
     {
-      event_pump(a1, a1, 769, 0, (int)v29);
+      ail_call_driver(a1, a1, 769, 0, (int)v29);
       v3[1] = v29[0] + 16 * v29[3];
       v4 = v29[1] + 16 * v29[2];
       v3[2] = v4;
@@ -34789,7 +34816,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
       if ( a2 != nullptr )
       {
         qmemcpy(unk_542F4, a2, sizeof(unk_542F4));
-        sub_40B40(v3, a2);
+        ail_dig_probe_io_config(v3, a2);
         if ( v7 != 0 )
         {
           v6 = 1;
@@ -34804,7 +34831,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
         if ( v8 != nullptr )
         {
           qmemcpy(unk_542F4, v8, sizeof(unk_542F4));
-          sub_40B40(v3, v8);
+          ail_dig_probe_io_config(v3, v8);
           if ( v9 != 0 )
           {
             v36 = 1;
@@ -34825,7 +34852,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
           v34 = v10;
           if ( v37 == 0 )
             qmemcpy(unk_542F4, v10, sizeof(unk_542F4));
-          sub_40B40(v3, v34);
+          ail_dig_probe_io_config(v3, v34);
           if ( v11 != 0 )
           {
             v36 = 1;
@@ -34863,7 +34890,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
         v15 = sub_406B0((int)v3, (int)v3);
         if ( v15 != 0 )
         {
-          event_pump(v15, *v3, 773, 0, 0);
+          ail_call_driver(v15, *v3, 773, 0, 0);
           *(_DWORD *)(*v3 + 20) = 1;
           v16 = v3[16];
           v17 = v3[4];
@@ -34893,7 +34920,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
                 }
                 while ( v23 < v3[24] );
               }
-              sub_387BC(v21, (int)sub_404C0);
+              ail_register_timer(v21, (int)ail_dig_service);
               v3[3] = v24;
               if ( v24 == -1 )
               {
@@ -34901,7 +34928,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
                 strcpy(&byte_541F4, "Out of timer handles\n");
                 if ( *(_DWORD *)(a1 + 24) != -1 )
                   v25 = sub_38262(a1, *(_DWORD *)(a1 + 24));
-                event_pump(v25, *v3, 774, 0, 0);
+                ail_call_driver(v25, *v3, 774, 0, 0);
                 *(_DWORD *)(*v3 + 20) = 0;
                 sub_365AB(v3[10], v3[8], v3[9]);
                 sub_364FB(v3[23], 2196 * v3[24]);
@@ -34911,14 +34938,14 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
               }
               else
               {
-                sub_388A7(v24, v24, (int)v3);
-                sub_38A10(v26, v3[3], dword_5430C[0]);
-                sub_38BD9(v27, v3[3]);
+                ail_set_timer_user(v24, v24, (int)v3);
+                ail_set_timer_frequency(v26, v3[3], dword_5430C[0]);
+                ail_start_timer(v27, v3[3]);
                 *(_DWORD *)(*v3 + 32) = sub_40C40;
                 *(_DWORD *)(*v3 + 36) = v3;
-                sub_49923(v3);
-                sub_49891(v3, 0);
-                sub_49891(v3, 1);
+                ail_dig_build_clear(v3);
+                ail_dig_build_convert(v3, 0);
+                ail_dig_build_convert(v3, 1);
                 return v3;
               }
             }
@@ -34928,7 +34955,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
               strcpy(&byte_541F4, "Could not allocate SAMPLE structures\n");
               if ( *(_DWORD *)(a1 + 24) != -1 )
                 v22 = sub_38262(a1, *(_DWORD *)(a1 + 24));
-              event_pump(v22, *v3, 774, 0, 0);
+              ail_call_driver(v22, *v3, 774, 0, 0);
               *(_DWORD *)(*v3 + 20) = 0;
               sub_365AB(v3[10], v3[8], v3[9]);
               sub_364FB(v3[20], v3[19]);
@@ -34942,7 +34969,7 @@ int *__cdecl sub_40CF0(int a1, const void *a2)
             strcpy(&byte_541F4, "Could not allocate build buffer\n");
             if ( *(_DWORD *)(a1 + 24) != -1 )
               v19 = sub_38262(a1, *(_DWORD *)(a1 + 24));
-            event_pump(v19, *v3, 774, 0, 0);
+            ail_call_driver(v19, *v3, 774, 0, 0);
             *(_DWORD *)(*v3 + 20) = 0;
             sub_365AB(v3[10], v3[8], v3[9]);
             sub_364FB((int)v3, 136);
@@ -35382,12 +35409,13 @@ int __cdecl sub_41680(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_416A0
+ * IDA 9.5 Hex-Rays: ail_sample_current_buffer_position_set
  * VA=0x416a0..0x416bc OBJ=1 OFF=0x316a0 size=0x1c
  * callers: -
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_416A0(int a1, int a2)
+// [勘误 semantic_name] ail_sample_current_buffer_position_set；依据: Complete instruction source pcm-contract-source03; P+4*P.current_buffer+24=argument, no loop-count write. Own write set: Current source-buffer position DWORD only 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+int __cdecl ail_sample_current_buffer_position_set(int a1, int a2)
 {
   int result; // eax
 
@@ -35416,12 +35444,13 @@ int __cdecl sub_416C0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_416E0
+ * IDA 9.5 Hex-Rays: ail_sample_loop_count_set
  * VA=0x416e0..0x416f0 OBJ=1 OFF=0x316e0 size=0x10
  * callers: 0x39aae
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_416E0(int a1, int a2)
+// [勘误 semantic_name] ail_sample_loop_count_set；依据: Complete published body P+48=argument; normal wrapper39aae; 49690 directly consumes/decrements this field. Own write set: P+48 loop_count DWORD only 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+int __cdecl ail_sample_loop_count_set(int a1, int a2)
 {
   int result; // eax
 
@@ -35433,12 +35462,14 @@ int __cdecl sub_416E0(int a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_416F0
+ * IDA 9.5 Hex-Rays: ail_sample_playback_start
  * VA=0x416f0..0x41769 OBJ=1 OFF=0x316f0 size=0x79
  * callers: 0x39798
  * callees: 0x382e9
  * --------------------------------------------------------------- */
-void __cdecl __spoils<> sub_416F0(_DWORD *a1)
+// [勘误 evidence] prepared合法P先position0/status4；D.playing0才真实401，完整返回后4175b设playing1。未含39805/39521/init/address/loop上游费用，不能用此签Main完整cue。；依据: pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。
+// [勘误 semantic_name] ail_sample_playback_start；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+void __cdecl __spoils<> ail_sample_playback_start(_DWORD *a1)
 {
   _DWORD *v1; // eax
   int v2; // esi
@@ -35458,7 +35489,7 @@ void __cdecl __spoils<> sub_416F0(_DWORD *a1)
       {
         v5 = *(_WORD *)(v2 + 24);
         v4 = *(_WORD *)(v2 + 20);
-        event_pump((int)v3, *(_DWORD *)v2, 1025, (int)v3, 0);
+        ail_call_driver((int)v3, *(_DWORD *)v2, 1025, (int)v3, 0);
         *(_DWORD *)(v2 + 84) = 1;
       }
     }
@@ -35467,12 +35498,13 @@ void __cdecl __spoils<> sub_416F0(_DWORD *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_41770
+ * IDA 9.5 Hex-Rays: ail_sample_playback_pause
  * VA=0x41770..0x41786 OBJ=1 OFF=0x31770 size=0x16
  * callers: 0x39805
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_41770(int a1)
+// [勘误 semantic_name] ail_sample_playback_pause；依据: Complete published body iff P and status4 sets8; wrapper39805, source consumer404c0 only status4. Own write set: P+4:4→8; no position/loop/buffer or DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+int __cdecl ail_sample_playback_pause(int a1)
 {
   int result; // eax
 
@@ -35501,12 +35533,13 @@ int __cdecl sub_41790(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_417B0
+ * IDA 9.5 Hex-Rays: ail_sample_playback_end
  * VA=0x417b0..0x417f6 OBJ=1 OFF=0x317b0 size=0x46
  * callers: 0x398df
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_417B0(int a1)
+// [勘误 semantic_name] ail_sample_playback_end；依据: Complete instruction source pcm-contract-source01; status not1/2→2 then callbacks+84c/+850, each ifnonnull. Own write set: P+4→2; callback effects conditional; source position/data preserved by own body 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。
+int __cdecl ail_sample_playback_end(int a1)
 {
   int v1; // edx
   int v2; // ecx
@@ -35695,7 +35728,7 @@ void __cdecl sub_41950(int *a1, int a2, int a3, int a4)
       {
         v7 = *(_WORD *)(v4 + 24);
         v6 = *(_WORD *)(v4 + 20);
-        event_pump((int)v5, *(_DWORD *)v4, 1025, (int)v5, 0);
+        ail_call_driver((int)v5, *(_DWORD *)v4, 1025, (int)v5, 0);
         *(_DWORD *)(v4 + 84) = 1;
       }
     }
@@ -36161,12 +36194,13 @@ bool sub_42110()
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_42270
+ * IDA 9.5 Hex-Rays: ail_mdi_message_queue_flush
  * VA=0x42270..0x422bd OBJ=1 OFF=0x32270 size=0x4d
  * callers: 0x43270, 0x452f0
  * callees: 0x382e9
  * --------------------------------------------------------------- */
-void __cdecl sub_42270(int a1)
+// [勘误 semantic_name] ail_mdi_message_queue_flush；依据: Complete77B/20instructions; signed D+1a8>0 sends502 with count lowWORD, then clears count and byte cursor in source order; callers43270/452f0. Not physical port completion/time. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。
+void __cdecl ail_mdi_message_queue_flush(int a1)
 {
   _BYTE v1[4]; // [esp+0h] [ebp-10h] BYREF
   __int16 v2; // [esp+4h] [ebp-Ch]
@@ -36174,7 +36208,7 @@ void __cdecl sub_42270(int a1)
   if ( *(int *)(a1 + 424) > 0 )
   {
     v2 = *(_WORD *)(a1 + 424);
-    event_pump((int)v1, *(_DWORD *)a1, 1282, (int)v1, 0);
+    ail_call_driver((int)v1, *(_DWORD *)a1, 1282, (int)v1, 0);
     *(_DWORD *)(a1 + 424) = 0;
     *(_DWORD *)(a1 + 428) = 0;
   }
@@ -36182,12 +36216,13 @@ void __cdecl sub_42270(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_422C0
+ * IDA 9.5 Hex-Rays: ail_mdi_message_queue_push
  * VA=0x422c0..0x423d8 OBJ=1 OFF=0x322c0 size=0x118
  * callers: 0x42980, 0x43ad0, 0x447d0, 0x44f00, 0x450b0, 0x45240
  * callees: 0x382e9
  * --------------------------------------------------------------- */
-int __cdecl sub_422C0(int a1, char a2, char a3, char a4)
+// [勘误 semantic_name] ail_mdi_message_queue_push；依据: Complete280B/75instructions; channel status width classification, unsigned used+size>512 and signed count>0 preflush, then ordered buffer append and message-count increment; caller/transport included. Unknown classified0 domain separate. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。
+int __cdecl ail_mdi_message_queue_push(int a1, char a2, char a3, char a4)
 {
   unsigned int v4; // eax
   int v5; // eax
@@ -36241,7 +36276,7 @@ LABEL_17:
   if ( (unsigned int)(*(_DWORD *)(a1 + 428) + v5) > 0x200 && *(int *)(a1 + 424) > 0 )
   {
     v13 = *(_WORD *)(a1 + 424);
-    event_pump((int)v12, *(_DWORD *)a1, 1282, (int)v12, 0);
+    ail_call_driver((int)v12, *(_DWORD *)a1, 1282, (int)v12, 0);
     *(_DWORD *)(a1 + 424) = 0;
     *(_DWORD *)(a1 + 428) = 0;
   }
@@ -36283,7 +36318,7 @@ void __cdecl sub_423E0(int a1, char *a2, unsigned int a3)
   if ( *(int *)(a1 + 424) > 0 )
   {
     v8 = *(_WORD *)(a1 + 424);
-    event_pump((int)v7, *(_DWORD *)a1, 1282, (int)v7, 0);
+    ail_call_driver((int)v7, *(_DWORD *)a1, 1282, (int)v7, 0);
     *(_DWORD *)(a1 + 424) = 0;
     *(_DWORD *)(a1 + 428) = 0;
   }
@@ -36297,7 +36332,7 @@ void __cdecl sub_423E0(int a1, char *a2, unsigned int a3)
   if ( v4 > 0 )
   {
     v6 = *(_WORD *)(a1 + 424);
-    event_pump((int)v5, *(_DWORD *)a1, 1282, (int)v5, 0);
+    ail_call_driver((int)v5, *(_DWORD *)a1, 1282, (int)v5, 0);
     *(_DWORD *)(a1 + 424) = 0;
     *(_DWORD *)(a1 + 428) = 0;
   }
@@ -36345,12 +36380,13 @@ unsigned int __cdecl sub_424E0(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_42520
+ * IDA 9.5 Hex-Rays: ail_xmidi_form_find
  * VA=0x42520..0x4263a OBJ=1 OFF=0x32520 size=0x11a
  * callers: 0x443d0
  * callees: 0x4997e
  * --------------------------------------------------------------- */
-unsigned int __cdecl sub_42520(int a1, int a2)
+// [勘误 semantic_name] ail_xmidi_form_find；依据: 完整282B/105heads、唯一443d0资源reader与4997e逐BYTE比较来源：FORM/CAT XMID的索引选择和原size+8步长。正常15资源与5个三BYTE sentinel首BYTE失败前缀实际核对；不套现代IFF偶数padding、不据伪C参数推ABI或未知资源边界。
+unsigned int __cdecl ail_xmidi_form_find(int a1, int a2)
 {
   int v3; // esi
   unsigned int v4; // edi
@@ -36523,12 +36559,13 @@ int __cdecl sub_42640(int a1, char a2, unsigned int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_427C0
+ * IDA 9.5 Hex-Rays: ail_sequence_midi_cache_store
  * VA=0x427c0..0x42973 OBJ=1 OFF=0x327c0 size=0x1b3
  * callers: 0x42980
  * callees: -
  * --------------------------------------------------------------- */
-unsigned int __cdecl sub_427C0(int a1, char a2, unsigned int a3, unsigned __int8 a4)
+// [勘误 semantic_name] ail_sequence_midi_cache_store；依据: Complete435B/173instructions, no callees, only caller42980; updates sequence MIDI program/controller/bend raw caches by status/channel before volume scaling and transport; not driver hardware register state. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。
+unsigned int __cdecl ail_sequence_midi_cache_store(int a1, char a2, unsigned int a3, unsigned __int8 a4)
 {
   unsigned int result; // eax
   int v5; // ecx
@@ -36689,7 +36726,7 @@ void __cdecl ail_sequence_midi_message_dispatch(int a1, char a2, unsigned int a3
   v28 = a2 & 0xF;
   v26 = *(_DWORD *)(a1 + 4 * v28 + 144);
   if ( v7 == 176 || v7 == 192 || v7 == 224 )
-    sub_427C0(a1 + 208, v28 | v7, a3, a4);
+    ail_sequence_midi_cache_store(a1 + 208, v28 | v7, a3, a4);
   if ( v7 != 176 )
     goto LABEL_31;
   if ( a5 != 0 )
@@ -36779,7 +36816,7 @@ LABEL_31:
       if ( *(_DWORD *)(v27 + 416) == 0
         || (*(int (__cdecl **)(int, int, int, unsigned int, int))(v27 + 416))(v27, a1, v26 | v7, a3, v6) == 0 )
       {
-        sub_422C0(v27, v26 | v7, a3, v6);
+        ail_mdi_message_queue_push(v27, v26 | v7, a3, v6);
       }
     }
     return;
@@ -36879,6 +36916,7 @@ LABEL_31:
  * callees: 0x382e9, 0x383f1, 0x3845e, 0x42980
  * --------------------------------------------------------------- */
 // [A7 confirmed semantic] ail_sequence_pending_notes_release (original sub_42DD0); 完整198B，原bytes==validated relocated。升序遍历32个非−1槽，通过42980发送各channel/note的noteoff，清槽和pending count并flush；再按3845e条件请求383f1(3)。重复note不折bitmap，32满时第33个noteon已发后由43270调stop释放旧32；宿主delay/OPL IO未作运行保真声明。 raw SHA 9449c603edf4c4787545ea7b242ad52a47debd06d2252ef32b8fa7a6ada9af8f。
+// [勘误 evidence] 固定扫描32pending槽，note-off先入同512B packet并按真实count flush；有释放且AIL busy0才383f1(3)等三次retrace。其后447d0 cached控制尾不立即二次flush，不能等价每条逻辑MIDI即时硬件OUT。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
 void __cdecl ail_sequence_pending_notes_release(_DWORD *a1)
 {
   _DWORD *v1; // esi
@@ -36909,7 +36947,7 @@ void __cdecl ail_sequence_pending_notes_release(_DWORD *a1)
   if ( *(int *)(v4 + 424) > 0 )
   {
     v6 = *(_WORD *)(v4 + 424);
-    event_pump((int)v5, *(_DWORD *)v4, 1282, (int)v5, 0);
+    ail_call_driver((int)v5, *(_DWORD *)v4, 1282, (int)v5, 0);
     *(_DWORD *)(v4 + 424) = 0;
     *(_DWORD *)(v4 + 428) = 0;
   }
@@ -36946,7 +36984,7 @@ void __cdecl sub_42EA0(int a1, int a2)
   if ( *(int *)(*(_DWORD *)a1 + 424) > 0 )
   {
     v5 = *(_WORD *)(v3 + 424);
-    event_pump((int)v4, *(_DWORD *)v3, 1282, (int)v4, 0);
+    ail_call_driver((int)v4, *(_DWORD *)v3, 1282, (int)v4, 0);
     *(_DWORD *)(v3 + 424) = 0;
     *(_DWORD *)(v3 + 428) = 0;
   }
@@ -37026,6 +37064,7 @@ void __cdecl sub_42F50(int a1, int a2)
  * callees: 0x37910
  * --------------------------------------------------------------- */
 // [A7 confirmed semantic] ail_sequence_event_state_reset (original sub_43160); 完整171B，原bytes==validated relocated。初始化16个channel恒等映射、1088B控制缓存为−1、loop stack与32duration channel槽为−1；重置pending count/delay/beat/+30callback计数。443d0和44790调用，不重装MDI driver默认值/RR/OPL。 raw SHA f0e658360d604620060397164bc27f427e796a57a7cb914ca39045d2789a97fc。
+// [勘误 evidence] 只重置map/cache/FOR/pending.channel/count/delay、beat/measure/phase/increment/numerator/denominator、callback计数与loop；不写S+10 EVNT字段，也不把inactive note/duration或volume/tempo整S清零。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
 _DWORD *__cdecl ail_sequence_event_state_reset(_DWORD *a1)
 {
   _DWORD *v1; // edx
@@ -37099,6 +37138,7 @@ void __cdecl ail_sequence_volume_controls_refresh(int a1)
  * callees: 0x3771c, 0x382e9, 0x3af5b, 0x42270, 0x424b0, 0x42980, 0x43230
  * --------------------------------------------------------------- */
 // [A7 confirmed semantic] ail_mdi_sequences_timer_service (original sub_43270); 完整1830B，原bytes==validated relocated。完整MDI timer遍历playing sequences；每callback +30计数后按tempo累计subtick，先32duration槽升序到期，再delay/EVNT；EOT保无限loop槽并跳本callback beat/volume/tempo fade；每8callback按缓存CC7刷新。43ad0把本函数注册到120Hz timer。全部15曲单次原kernel的事件和active-slot状态与私有执行器匹配；只声明当前资源默认100%tempo分支，不声称其余hook/宿主IO已恢复。 raw SHA c9ea914870d760db4bc8b1f86a55ac6c9c7d6d4d7126b227b63312fe589355a4。
+// [勘误 evidence] 完整pool扫描与唯一S分开；callback计数每外层加一次，tempo accumulator每满100才推进duration/delay/EVNT/beat，非EOT尾先volume再tempo fade。meta51先写global543f4原BE24，再改denominator=raw<<4，不改120Hz或tempo-factor；meta58按实际MDI频率/有符号shift重置meter相位。共同packet尾与未知event barrier不能混同。普通block账不替代CPU/IF/PIC/bridge/retrace或初相位。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
 void __cdecl ail_mdi_sequences_timer_service(int *a1)
 {
   int v1; // eax
@@ -37244,12 +37284,12 @@ LABEL_38:
                 v29 = v28;
                 v30 = dword_543D8;
                 v60 = v29;
-                sub_42270((int)a1);
+                ail_mdi_message_queue_flush((int)a1);
                 if ( v30 > 0x200 )
                   v30 = 512;
                 memmove((char *)(a1[2] + 256), v60, v30);
                 ++a1[106];
-                sub_42270((int)a1);
+                ail_mdi_message_queue_flush((int)a1);
                 *(_DWORD *)(dword_543E0 + 20) += dword_543D8;
               }
               if ( v13 <= 0xF7 )
@@ -37485,7 +37525,7 @@ LABEL_67:
     if ( a1[106] > 0 )
     {
       v59 = *((_WORD *)a1 + 212);
-      event_pump((int)v58, *a1, 1282, (int)v58, 0);
+      ail_call_driver((int)v58, *a1, 1282, (int)v58, 0);
       a1[106] = 0;
       a1[107] = 0;
     }
@@ -37495,12 +37535,13 @@ LABEL_67:
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_439A0
+ * IDA 9.5 Hex-Rays: ail_mdi_io_probe
  * VA=0x439a0..0x43a6e OBJ=1 OFF=0x339a0 size=0xce
  * callers: 0x43ad0
  * callees: 0x382e9
  * --------------------------------------------------------------- */
-void __cdecl sub_439A0(int *a1, const void *a2)
+// [勘误 semantic_name] ail_mdi_io_probe；依据: complete65instructions/206strict bytes; 24B IOdefaults/copy to driver+16 then command304, real43ad0 caller; no guessed type saved 依据：mdi-port-time-source-review01/source01.json SHA256 2e0e704913ec9a6bec3297bb7886b7f36fb54d4af644c1b3e7fa9de6fd3537af；仅命名，不推ABI/原生时刻。
+void __cdecl ail_mdi_io_probe(int *a1, const void *a2)
 {
   int v2; // eax
   _WORD *v3; // ebx
@@ -37529,7 +37570,7 @@ void __cdecl sub_439A0(int *a1, const void *a2)
   }
   v5 = *a1;
   qmemcpy((void *)(*(_DWORD *)(*a1 + 12) + 22), v6, 24);
-  event_pump(v5, *a1, 772, 0, 0);
+  ail_call_driver(v5, *a1, 772, 0, 0);
 }
 
 
@@ -37556,7 +37597,7 @@ int __usercall sub_43A70@<eax>(int a1@<eax>, int *a2)
     }
     while ( v2 < a2[7] );
   }
-  sub_38D77(a1, a2[3]);
+  ail_release_timer_handle(a1, a2[3]);
   sub_364FB(a2[6], 1748 * a2[7]);
   return sub_364FB((int)a2, 464);
 }
@@ -37616,7 +37657,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
     *result = a1;
     if ( *(_DWORD *)(a1 + 16) == 1 )
     {
-      event_pump(a1, a1, 769, 0, (int)v33);
+      ail_call_driver(a1, a1, 769, 0, (int)v33);
       v3[1] = v33[0] + 16 * v33[3];
       v3[2] = v33[1] + 16 * v33[2];
       v4 = (const char *)(16 * HIWORD(*(_DWORD *)v3[1]) + (unsigned __int16)*(_DWORD *)v3[1]);
@@ -37667,7 +37708,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
       if ( a2 != nullptr )
       {
         qmemcpy(unk_542F4, a2, sizeof(unk_542F4));
-        sub_439A0(v3, a2);
+        ail_mdi_io_probe(v3, a2);
         if ( v15 != 0 )
         {
           v6 = 1;
@@ -37682,7 +37723,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
         if ( v15 != 0 )
         {
           qmemcpy(unk_542F4, (const void *)v15, sizeof(unk_542F4));
-          sub_439A0(v3, (const void *)v15);
+          ail_mdi_io_probe(v3, (const void *)v15);
           if ( v15 != 0 )
           {
             v15 = 1;
@@ -37704,7 +37745,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
           v37 = v16;
           if ( v38 == 0 )
             qmemcpy(unk_542F4, v16, sizeof(unk_542F4));
-          sub_439A0(v3, v37);
+          ail_mdi_io_probe(v3, v37);
           if ( v17 != 0 )
           {
             v15 = 1;
@@ -37719,9 +37760,9 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
       if ( v36 != 0 )
       {
         qmemcpy(unk_542F4, v30, sizeof(unk_542F4));
-        event_pump(v15, *v3, 773, 0, 0);
+        ail_call_driver(v15, *v3, 773, 0, 0);
         *(_DWORD *)(*v3 + 20) = 1;
-        event_pump((int)v33, *v3, 1281, 0, (int)v33);
+        ail_call_driver((int)v33, *v3, 1281, 0, (int)v33);
         if ( v33[0] != 0 )
         {
           v19 = dword_54338;
@@ -37763,12 +37804,12 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
               v24[87] = 0;
             }
             while ( v24 != (int *)v25 );
-            sub_387BC(v25, (int)ail_mdi_sequences_timer_service);
+            ail_register_timer(v25, (int)ail_mdi_sequences_timer_service);
             v3[3] = v26;
             if ( v26 == -1 )
             {
               strcpy(&byte_541F4, "Out of timer handles\n");
-              event_pump(*v3, *v3, 774, 0, 0);
+              ail_call_driver(*v3, *v3, 774, 0, 0);
               *(_DWORD *)(*v3 + 20) = 0;
               sub_364FB(v3[6], 1748 * v3[7]);
               sub_364FB((int)v3, 464);
@@ -37776,31 +37817,31 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
             }
             else
             {
-              sub_388A7(v26, v26, (int)v3);
+              ail_set_timer_user(v26, v26, (int)v3);
               *(_DWORD *)(*v3 + 32) = sub_43A70;
               v27 = 0;
               *(_DWORD *)(*v3 + 36) = v3;
               do
               {
-                sub_422C0((int)v3, v27 | 0xB0, 114, 0);
-                sub_422C0((int)v3, v27 | 0xC0, 0, 0);
-                sub_422C0((int)v3, v27 | 0xE0, 0, 64);
-                sub_422C0((int)v3, v27 | 0xB0, 112, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 1, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 7, dword_5433C);
-                sub_422C0((int)v3, v27 | 0xB0, 10, 64);
-                sub_422C0((int)v3, v27 | 0xB0, 11, 127);
-                sub_422C0((int)v3, v27 | 0xB0, 64, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 91, 40);
-                sub_422C0((int)v3, v27 | 0xB0, 93, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 100, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 101, 0);
-                sub_422C0((int)v3, v27 | 0xB0, 38, 0);
-                v28 = sub_422C0((int)v3, v27 | 0xB0, 6, dword_54348);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 114, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xC0, 0, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xE0, 0, 64);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 112, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 1, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 7, dword_5433C);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 10, 64);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 11, 127);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 64, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 91, 40);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 93, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 100, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 101, 0);
+                ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 38, 0);
+                v28 = ail_mdi_message_queue_push((int)v3, v27 | 0xB0, 6, dword_54348);
                 if ( v3[106] > 0 )
                 {
                   v32 = *((_WORD *)v3 + 212);
-                  event_pump((int)v31, *v3, 1282, (int)v31, 0);
+                  ail_call_driver((int)v31, *v3, 1282, (int)v31, 0);
                   v3[106] = 0;
                   v3[107] = 0;
                 }
@@ -37809,15 +37850,15 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
                 ++v27;
               }
               while ( v27 < 16 );
-              sub_38A10(v28, v3[3], dword_54334);
-              sub_38BD9(v29, v3[3]);
+              ail_set_timer_frequency(v28, v3[3], dword_54334);
+              ail_start_timer(v29, v3[3]);
               return v3;
             }
           }
           else
           {
             strcpy(&byte_541F4, "Could not allocate SEQUENCE structures\n");
-            event_pump(0, *v3, 774, 0, 0);
+            ail_call_driver(0, *v3, 774, 0, 0);
             *(_DWORD *)(*v3 + 20) = 0;
             sub_364FB((int)v3, 464);
             return nullptr;
@@ -37826,7 +37867,7 @@ int *__cdecl sub_43AD0(int a1, const void *a2)
         else
         {
           strcpy(&byte_541F4, "Could not initialize instrument manager\n");
-          event_pump(v18, *v3, 774, 0, 0);
+          ail_call_driver(v18, *v3, 774, 0, 0);
           *(_DWORD *)(*v3 + 20) = 0;
           sub_364FB((int)v3, 464);
           return nullptr;
@@ -38002,12 +38043,13 @@ int __cdecl sub_442B0(char *a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_44330
+ * IDA 9.5 Hex-Rays: ail_sequence_handle_allocate
  * VA=0x44330..0x443a1 OBJ=1 OFF=0x34330 size=0x71
  * callers: 0x3aca3
  * callees: 0x3806a, 0x3806f, 0x43160
  * --------------------------------------------------------------- */
-_DWORD *__cdecl sub_44330(int a1)
+// [勘误 semantic_name] ail_sequence_handle_allocate；依据: 完整40指令/113B及pool扫描：首status1置2后43160；无S+10 producer，不推malloc初值、指针合法性或持久ABI。 依据：mdi-service-cost-source01/source01.json SHA256 082a0740df941c10655630e28535931c39937939122a9c197deb18c3a2dfbad5；仅命名，不推ABI/原生时刻。
+_DWORD *__cdecl ail_sequence_handle_allocate(int a1)
 {
   int v1; // eax
   int v2; // edx
@@ -38062,12 +38104,15 @@ void __usercall sub_443B0(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_443D0
+ * IDA 9.5 Hex-Rays: ail_sequence_resource_initialize
  * VA=0x443d0..0x44782 OBJ=1 OFF=0x343d0 size=0x3b2
  * callers: 0x3adf5
  * callees: 0x3771c, 0x37b29, 0x382e9, 0x3845e, 0x42520, 0x43160, 0x4997e
  * --------------------------------------------------------------- */
-unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
+// [勘误 evidence] 成功init建立EVNT与100%tempo/音量初态，真实非空TIMB安装前flush旧包；格式失败先写status2而保旧EVNT字段。旧借用资源已被替换时，字段保留不证明referent有效。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
+// [勘误 semantic_name] ail_sequence_resource_initialize；依据: 完整946B/290heads、3adf5/25977调用闭包与42520/4997e/43160/3771c来源：FORM/XMID查找、chunk遍历、S字段重建、真实54400与D两次512B写、TIMB加载及SDK结果。固定15资源/hookNULL实际24callee与3cold FILE组合，当前Root新27一致；不扩签外层Main构造、初相位或SDK自定义resolver/formatter，不保存猜测ABI。
+// [勘误 evidence] 正常hookNULL且TIMB非空：44678先busy门，446b7增D+14，446bc按signed count预flush并只在返回后清count/cursor；44711调用memmove复制完整512B到同D+100，然后4472e发503，4473c减D+14，最后消费真实输出status。非完整443d0初态/失败格式化及DOS费用资格。；依据: 完整443d0 290heads/946B来自sentinel-preview-source-review01/source01.json SHA311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b；15原TIMB绑定全部可读512。F5 mdi-timbre-source独立source/resource模型与实际给定provider组合；真实PM/DOS、Main phase/PIC仍分账。
+unsigned int __cdecl ail_sequence_resource_initialize(int *a1, int a2, int a3)
 {
   unsigned int result; // eax
   unsigned int v4; // ebx
@@ -38089,7 +38134,7 @@ unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
   if ( a1 == nullptr )
     return 0;
   a1[1] = 2;
-  result = sub_42520(a2, a3);
+  result = ail_xmidi_form_find(a2, a3);
   if ( result == 0 )
   {
     strcpy(&byte_541F4, "Invalid XMIDI sequence\n");
@@ -38201,12 +38246,12 @@ unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
   if ( *(int *)(*a1 + 424) > 0 )
   {
     v16 = *(_WORD *)(v14 + 424);
-    event_pump(*(_DWORD *)v14, *(_DWORD *)v14, 1282, (int)v15, 0);
+    ail_call_driver(*(_DWORD *)v14, *(_DWORD *)v14, 1282, (int)v15, 0);
     *(_DWORD *)(v14 + 424) = 0;
     *(_DWORD *)(v14 + 428) = 0;
   }
   memmove((char *)(*(_DWORD *)(*a1 + 8) + 256), byte_54400, 0x200u);
-  event_pump(*a1, *(_DWORD *)*a1, 1283, 0, (int)&v17);
+  ail_call_driver(*a1, *(_DWORD *)*a1, 1283, 0, (int)&v17);
   --*(_DWORD *)(*a1 + 20);
   if ( v17 != 0 )
     return 1;
@@ -38225,6 +38270,7 @@ unsigned int __cdecl sub_443D0(int *a1, int a2, int a3)
  * callers: 0x3aeee
  * callees: 0x3af5b, 0x43160
  * --------------------------------------------------------------- */
+// [勘误 evidence] stop→43160 reset→447ae读取S+10字段→status4/cursor+8。字段producer未知与433b0实际event BYTE读分账；C空指针、资源size或一次UI返回不裁定原有效域。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
 int __usercall sub_44790@<eax>(int result@<eax>, _DWORD *a2)
 {
   int v2; // eax
@@ -38266,11 +38312,11 @@ void __cdecl __spoils<> ail_sequence_playback_stop(_DWORD *a1)
     {
       v4 = v1[36];
       if ( (int)v1[260] >= 64 )
-        v2 = sub_422C0(v3, v4 | 0xB0, 64, 0);
+        v2 = ail_mdi_message_queue_push(v3, v4 | 0xB0, 64, 0);
       if ( (int)v1[116] >= 64 )
         *(_DWORD *)(v3 + 4 * v4 + 32) = 0;
       if ( (int)v1[132] >= 64 )
-        v2 = sub_422C0(v3, v4 | 0xB0, 112, 0);
+        v2 = ail_mdi_message_queue_push(v3, v4 | 0xB0, 112, 0);
       if ( (int)v1[100] >= 64 )
         sub_3C5C0(v2, v3, v4 + 1);
       ++v1;
@@ -38339,12 +38385,13 @@ void __usercall sub_44930(int a1@<eax>, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_44960
+ * IDA 9.5 Hex-Rays: ail_sequence_loop_count_set
  * VA=0x44960..0x44970 OBJ=1 OFF=0x34960 size=0x10
  * callers: 0x3b1a6
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_44960(int a1, int a2)
+// [勘误 semantic_name] ail_sequence_loop_count_set；依据: 完整6指令；nonnull S才写S+28总循环次数。完整44960及25977真实caller；不从伪C类型推ABI。 依据：mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3；仅命名，不推ABI/原生时刻。
+int __cdecl ail_sequence_loop_count_set(int a1, int a2)
 {
   int result; // eax
 
@@ -38514,7 +38561,7 @@ void __cdecl sub_44AB0(int *a1, __int16 a2, __int16 a3)
   __int16 v4; // [esp+4h] [ebp-8h]
 
   v4 = (a2 << 8) | a3;
-  event_pump((int)a1, *a1, 1284, (int)v3, 0);
+  ail_call_driver((int)a1, *a1, 1284, (int)v3, 0);
 }
 
 
@@ -38543,12 +38590,12 @@ int __cdecl sub_44AF0(int *a1, int a2, int a3)
   if ( v5 > 0 )
   {
     v7 = *((_WORD *)a1 + 212);
-    event_pump(*a1, *a1, 1282, (int)v6, 0);
+    ail_call_driver(*a1, *a1, 1282, (int)v6, 0);
     a1[106] = 0;
     a1[107] = 0;
   }
   memmove((char *)(a1[2] + 256), aTimb_0, 0xCu);
-  event_pump((int)&v8, *a1, 1283, 0, (int)&v8);
+  ail_call_driver((int)&v8, *a1, 1283, 0, (int)&v8);
   --a1[5];
   if ( v8 == 0 )
     sprintf(
@@ -38574,7 +38621,7 @@ void __cdecl sub_44BF0(int *a1, __int16 a2, __int16 a3)
 
   v4 = (a2 << 8) | a3;
   v5 = 1;
-  event_pump((int)a1, *a1, 1285, (int)v3, 0);
+  ail_call_driver((int)a1, *a1, 1285, (int)v3, 0);
 }
 
 
@@ -38592,7 +38639,7 @@ void __cdecl sub_44C30(int *a1, __int16 a2, __int16 a3)
 
   v4 = (a2 << 8) | a3;
   v5 = 0;
-  event_pump((int)a1, *a1, 1285, (int)v3, 0);
+  ail_call_driver((int)a1, *a1, 1285, (int)v3, 0);
 }
 
 
@@ -38997,7 +39044,7 @@ int __cdecl sub_44F00(_DWORD *a1)
   }
   else
   {
-    sub_422C0((int)a1, v1 | 0xB0, 64, 0);
+    ail_mdi_message_queue_push((int)a1, v1 | 0xB0, 64, 0);
     v9 = a1[6];
     v15 = a1[7];
     if ( v15 != 0 )
@@ -39062,7 +39109,7 @@ _DWORD *__cdecl sub_450B0(_DWORD *a1, int a2)
     ++a1[5];
     result[8] = result[72];
     result[56] = result[40];
-    sub_422C0((int)a1, v9 | 0xB0, 64, 0);
+    ail_mdi_message_queue_push((int)a1, v9 | 0xB0, 64, 0);
     v3 = a1[6];
     v8 = a1[7];
     if ( v8 != 0 )
@@ -39158,12 +39205,12 @@ void __cdecl sub_45240(int a1, int a2, int a3, unsigned int a4, int a5)
   else if ( *(_DWORD *)(a1 + 416) == 0
          || (*(int (__cdecl **)(int, _DWORD, int, unsigned int, int))(a1 + 416))(a1, 0, a3, a4, a5) == 0 )
   {
-    sub_422C0(a1, a3, a4, a5);
+    ail_mdi_message_queue_push(a1, a3, a4, a5);
   }
   if ( *(int *)(a1 + 424) > 0 )
   {
     v6 = *(_WORD *)(a1 + 424);
-    event_pump((int)v5, *(_DWORD *)a1, 1282, (int)v5, 0);
+    ail_call_driver((int)v5, *(_DWORD *)a1, 1282, (int)v5, 0);
     *(_DWORD *)(a1 + 424) = 0;
     *(_DWORD *)(a1 + 428) = 0;
   }
@@ -39190,12 +39237,12 @@ int __cdecl sub_452F0(_DWORD *a1, char *a2)
   v2 = ail_xmidi_vlq_read(&v5);
   v6 = a2;
   v3 = v2 + v5 - a2;
-  sub_42270((int)a1);
+  ail_mdi_message_queue_flush((int)a1);
   if ( v3 > 0x200 )
     v3 = 512;
   memmove((char *)(a1[2] + 256), v6, v3);
   ++a1[106];
-  sub_42270((int)a1);
+  ail_mdi_message_queue_flush((int)a1);
   result = a1[5] - 1;
   a1[5] = result;
   return result;
@@ -39604,7 +39651,7 @@ LABEL_26:
             {
               sub_39B24(v16, *(_DWORD *)(v15 + 1172));
               if ( v17 == 4 )
-                sub_398DF(4, *(_DWORD *)(v15 + 1172));
+                ail_end_sample(4, *(_DWORD *)(v15 + 1172));
             }
           }
         }
@@ -39631,7 +39678,7 @@ LABEL_26:
             sub_39B24(v31, v30[293]);
             if ( v32 == 4 )
             {
-              sub_398DF(4, v30[293]);
+              ail_end_sample(4, v30[293]);
               return 1;
             }
           }
@@ -39664,7 +39711,7 @@ LABEL_26:
         ii = jj;
       }
     }
-    sub_398DF(ii, *(_DWORD *)(v5 + 4 * ii + 1172));
+    ail_end_sample(ii, *(_DWORD *)(v5 + 4 * ii + 1172));
   }
   *(_DWORD *)(v5 + 4 * ii + 1240) = v34;
   *(_DWORD *)(v5 + 4 * ii + 1304) = a4;
@@ -41780,12 +41827,13 @@ int *__usercall div@<eax>(int *a1@<esi>, int a2, int a3)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_47D88
+ * IDA 9.5 Hex-Rays: ail_build_s32_to_u8_unclipped
  * VA=0x47d88..0x47d99 OBJ=1 OFF=0x37d88 size=0x11
  * callers: 0x47d88, 0x49891
  * callees: -
  * --------------------------------------------------------------- */
-int __usercall sub_47D88@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
+// [勘误 semantic_name] ail_build_s32_to_u8_unclipped；依据: 完整8heads：每DWORD XOR8000后写AH，无S16夹幅。49891正常entered0选择该叶；active选择4809b。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。
+int __usercall ail_build_s32_to_u8_unclipped@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 {
   int v3; // eax
   int result; // eax
@@ -42650,12 +42698,13 @@ __int16 __usercall sub_4807F@<ax>(int a1@<ecx>, _WORD *a2@<ebx>, _WORD *a3@<edi>
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_4809B
+ * IDA 9.5 Hex-Rays: ail_build_s32_to_u8_clipped
  * VA=0x4809b..0x480c8 OBJ=1 OFF=0x3809b size=0x2d
  * callers: 0x4809b
  * callees: -
  * --------------------------------------------------------------- */
-int __usercall sub_4809B@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
+// [勘误 semantic_name] ail_build_s32_to_u8_clipped；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 3f6416ed05ddbf3c7c43c24653674bf594d24876b24acf89b68d26f90fe92dd2；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+int __usercall ail_build_s32_to_u8_clipped@<eax>(int a1@<ecx>, _BYTE *a2@<edi>, int *a3@<esi>)
 {
   int v3; // eax
   int result; // eax
@@ -45462,12 +45511,18 @@ char __usercall sub_49404@<al>(int a1@<eax>, int a2@<edx>, int a3@<ebx>, _DWORD 
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_49430
+ * IDA 9.5 Hex-Rays: ail_sample_u8_resample_accumulate
  * VA=0x49430..0x49457 OBJ=1 OFF=0x39430 size=0x27
  * callers: 0x49430
  * callees: -
  * --------------------------------------------------------------- */
-char __usercall sub_49430@<al>(int a1@<eax>, int a2@<edx>, unsigned int a3@<ecx>, _DWORD *a4@<edi>, _BYTE *a5@<esi>)
+// [勘误 semantic_name] ail_sample_u8_resample_accumulate；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 3f6416ed05ddbf3c7c43c24653674bf594d24876b24acf89b68d26f90fe92dd2；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+char __usercall ail_sample_u8_resample_accumulate@<al>(
+        int a1@<eax>,
+        int a2@<edx>,
+        unsigned int a3@<ecx>,
+        _DWORD *a4@<edi>,
+        _BYTE *a5@<esi>)
 {
   do
   {
@@ -45821,12 +45876,15 @@ char __usercall sub_49656@<al>(
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_49690
+ * IDA 9.5 Hex-Rays: ail_sample_build_mix
  * VA=0x49690..0x49891 OBJ=1 OFF=0x39690 size=0x201
  * callers: 0x404c0
  * callees: 0x489c6, 0x489e7, 0x48a0b, 0x48a37
  * --------------------------------------------------------------- */
-int __cdecl sub_49690(int a1)
+// [勘误 evidence] 正常11025 U8→22050使用16.16商、655容差与每服务片段80000000h半相位；完整且未被目标容量截断的R源点段产生2R-1点。404c0逐P进入共享int32 build，后续driver才做S16夹幅/U8高字节。共享DMA/原IRQ交付时刻与host SRC/DC另有资格，不由有限half向量签自然波形。；依据: F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。
+// [勘误 evidence] 49430每点读取/局部分数位置/build写分点；P.position仅497e0整片后提交，错误不能提前写P.position。固定normal ratio8000，source11025/output22050/type0/volume100/pan64。；依据: pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。
+// [勘误 semantic_name] ail_sample_build_mix；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+int __cdecl ail_sample_build_mix(int a1)
 {
   int v1; // ecx
   _DWORD *v2; // edi
@@ -45945,12 +46003,13 @@ int __cdecl sub_49690(int a1)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_49891
+ * IDA 9.5 Hex-Rays: ail_dig_build_convert
  * VA=0x49891..0x49923 OBJ=1 OFF=0x39891 size=0x92
  * callers: 0x404c0, 0x406b0, 0x40c40, 0x40cf0
  * callees: 0x47d88
  * --------------------------------------------------------------- */
-int __cdecl sub_49891(_DWORD *a1, int a2)
+// [勘误 semantic_name] ail_dig_build_convert；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+int __cdecl ail_dig_build_convert(_DWORD *a1, int a2)
 {
   int v2; // eax
   int *v3; // esi
@@ -45981,12 +46040,14 @@ int __cdecl sub_49891(_DWORD *a1, int a2)
 
 
 /* ---------------------------------------------------------------
- * IDA 9.5 Hex-Rays: sub_49923
+ * IDA 9.5 Hex-Rays: ail_dig_build_clear
  * VA=0x49923..0x4994f OBJ=1 OFF=0x39923 size=0x2c
  * callers: 0x404c0, 0x406b0, 0x40c40, 0x40cf0
  * callees: -
  * --------------------------------------------------------------- */
-int __cdecl sub_49923(int a1)
+// [勘误 evidence] 完整build8192B正常对齐：零count REP STOSB仍取opcode，2048DWORD REP逐element写；rep_max借唯一normal CPU配置，0不限。；依据: pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。
+// [勘误 semantic_name] ail_dig_build_clear；依据: 完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。
+int __cdecl ail_dig_build_clear(int a1)
 {
   char *v1; // edi
   unsigned int v3; // [esp-Ch] [ebp-18h]

@@ -197,7 +197,7 @@ typedef enum {
     FD2_FIELD_MUSIC_PLAYER,
     FD2_FIELD_MUSIC_ENEMY
 } fd2_field_music_reason;
-typedef void (*fd2_field_music_request_fn)(size_t stage, int track,
+typedef int (*fd2_field_music_request_fn)(size_t stage, int track,
     fd2_field_music_reason reason, void *userdata);
 
 /* field_loot_descriptors_execute @0x1aa1d（原sub_1AA1D） 与field_special_cell_execute @0x190ac（原sub_190AC）的有限业务续态。

@@ -31,16 +31,19 @@ uint64_t defeat_ticks_ns(void);
 static void defeat_observe_live(int role) {
     if(observe_live_order) {CHECK(live_order_count<8);live_order[live_order_count++]=role;}
 }
-static int defeat_terrain_live(fd2_field_visual_state *state) {
+static int defeat_terrain_live(const fd2_vga *output,fd2_field_visual_state *state) {
+    (void)output;
     defeat_observe_live(1);return fd2_field_visual_terrain_step(state,defeat_ticks_ns());
 }
-static int defeat_background_live(fd2_field_page *owner,fd2_field_page *target,
+static int defeat_background_live(const fd2_vga *output,fd2_field_page *owner,fd2_field_page *target,
     int x,int y,int camera_x,int camera_y,int px,int py,int advance) {
+    (void)output;
     if(advance)defeat_observe_live(2);
     return fd2_field_background_draw_from(owner,target,x,y,camera_x,camera_y,px,py,
         advance?defeat_ticks_ns():0,advance);
 }
-static int defeat_range_live(fd2_field_visual_state *state,int32_t override) {
+static int defeat_range_live(const fd2_vga *output,fd2_field_visual_state *state,int32_t override) {
+    (void)output;
     defeat_observe_live(3);return fd2_field_visual_range_step(state,defeat_ticks_ns(),override);
 }
 static int defeat_actor_live(fd2_vga *vga) {
@@ -100,7 +103,7 @@ static void defeat_page_destroy(fd2_field_page *page) {
 #undef fd2_field_page_create
 #undef fd2_field_page_destroy
 
-static void defeat_present(fd2_vga *vga) {
+static int defeat_present(fd2_vga *vga) {
     CHECK(frames<25 && current_game);
     if(frame_pages)CHECK(fd2_field_page_read(vga->field_page,0,0,456,336,
         frame_pages+(size_t)frames*FD2_FIELD_PAGE_SIZE,FD2_FIELD_PAGE_SIZE,456)==0);
@@ -122,10 +125,14 @@ static void defeat_present(fd2_vga *vga) {
     CHECK(!vga->field_water_phase && !vga->field_water_last_tick && !vga->info_panel_suppressed);
     frames++;test_now+=17;
     if(frames==quit_at)vga->input.quit_requested=1;
+return 0;
 }
-static void defeat_present_timed(fd2_vga *vga,uint32_t ms) {(void)ms;defeat_present(vga);}
-static void defeat_wait_ticks(uint32_t ticks) {CHECK(ticks==1);test_now+=55;}
-static void defeat_delay(uint32_t ms) {test_now+=ms;}
+static int defeat_present_timed(fd2_vga *vga,uint32_t ms) {(void)ms;defeat_present(vga);return 0;
+}
+static int defeat_wait_ticks(uint32_t ticks) {CHECK(ticks==1);test_now+=55;return 0;
+}
+static int defeat_delay(uint32_t ms) {test_now+=ms;return 0;
+}
 static int defeat_refresh(fd2_field_game *game,fd2_vga *vga,int mode) {
     CHECK(mode==0 && frames==25);refreshes++;
     return fd2_field_game_runtime_refresh(game,vga,mode);
@@ -140,14 +147,18 @@ static void defeat_copy_upload(fd2_vga *vga) {
 #define fd2_vga_upload_current_frame defeat_copy_upload
 #define fd2_vga_present_timed defeat_present_timed
 #define fd2_wait_ticks defeat_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) defeat_wait_ticks(value)
 #define fd2_delay_ms defeat_delay
+#define fd2_vga_delay_ms(vga,value) defeat_delay(value)
 #define fd2_field_game_runtime_refresh defeat_refresh
 #include "../field_play.c"
 #undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_field_game_runtime_refresh
 #undef SDL_GetTicks
 

@@ -54,14 +54,15 @@ static void s5_input_frame(fd2_input *input) {
     fd2_input_begin_test_frame(input,s5_test_ms);
     if(s5_presents>100000u)input->quit_requested=1;
 }
-static void s5_present(fd2_vga *vga){
+static int s5_present(fd2_vga *vga){
     s5_presents++;s5_test_ms+=17;
     fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,
         s5_last_card_started?0:(int)(s5_presents&1u));
     fd2_input_begin_test_frame(&vga->input,s5_test_ms);
     if(s5_presents>100000u)vga->input.quit_requested=1;
+return 0;
 }
-static void s5_present_timed(fd2_vga *vga,uint32_t ms){
+static int s5_present_timed(fd2_vga *vga,uint32_t ms){
     s5_test_ms+=ms;
     if(s5_terminal_watch && s5_terminal_seen){
         s5_presents++;s5_terminal_pumps++;
@@ -70,20 +71,26 @@ static void s5_present_timed(fd2_vga *vga,uint32_t ms){
         fd2_input_begin_test_frame(&vga->input,s5_test_ms);
         if(s5_terminal_pumps==2)vga->input.quit_requested=1;
     }else s5_present(vga);
+return 0;
 }
-static void s5_delay(uint32_t ms){s5_delays++;s5_test_ms+=ms;
-    if(s5_quit_on_delay && s5_delays==s5_quit_on_delay)s5_active_vga->input.quit_requested=1;}
-static void s5_wait_ticks(uint32_t ticks){s5_ticks+=ticks;s5_test_ms+=(uint64_t)ticks*55u;}
+static int s5_delay(uint32_t ms){s5_delays++;s5_test_ms+=ms;
+    if(s5_quit_on_delay && s5_delays==s5_quit_on_delay)s5_active_vga->input.quit_requested=1;return 0;
+}
+static int s5_wait_ticks(uint32_t ticks){s5_ticks+=ticks;s5_test_ms+=(uint64_t)ticks*55u;return 0;
+}
 static Uint64 s5_clock(void){s5_clock_reads++;return s5_test_ms;}
 /* 本TU的既有固定tick向量；跨读钟及live actor顺序另由独立测试签核。 */
 uint64_t s5_clock_ns(void);
-static int s5_actor_live(fd2_field_visual_state *state) {
+static int s5_actor_live(const fd2_vga *output,fd2_field_visual_state *state) {
+    (void)output;
     return fd2_field_visual_actor_step(state,s5_clock_ns());
 }
-static int s5_terrain_live(fd2_field_visual_state *state) {
+static int s5_terrain_live(const fd2_vga *output,fd2_field_visual_state *state) {
+    (void)output;
     return fd2_field_visual_terrain_step(state,s5_clock_ns());
 }
-static int s5_range_live(fd2_field_visual_state *state,int32_t override) {
+static int s5_range_live(const fd2_vga *output,fd2_field_visual_state *state,int32_t override) {
+    (void)output;
     return fd2_field_visual_range_step(state,s5_clock_ns(),override);
 }
 static int s5_water_live(fd2_vga *vga) {
@@ -93,7 +100,8 @@ static int s5_water_live(fd2_vga *vga) {
     }
     return fd2_field_water_tick(vga,s5_clock_ns());
 }
-static int s5_background_live(fd2_field_page *page,int dx,int dy,int cx,int cy,int px,int py,int advance) {
+static int s5_background_live(const fd2_vga *output,fd2_field_page *page,int dx,int dy,int cx,int cy,int px,int py,int advance) {
+    (void)output;
     return fd2_field_background_draw(page,dx,dy,cx,cy,px,py,s5_clock_ns(),advance);
 }
 static int s5_actor_page_live(fd2_vga *vga,fd2_field_page *page,
@@ -151,6 +159,7 @@ static int s5_text_open(fd2_text_entry *text,const fd2_archive *archive,size_t e
 #define fd2_vga_present s5_present
 #define fd2_vga_upload_current_frame s5_upload
 #define fd2_delay_ms s5_delay
+#define fd2_vga_delay_ms(vga,value) s5_delay(value)
 #define fd2_animation_play_hooked s5_decode_animation_play_hooked
 #define fd2_animation_play s5_decode_animation_play
 #include "../animation.c"
@@ -158,6 +167,7 @@ static int s5_text_open(fd2_text_entry *text,const fd2_archive *archive,size_t e
 #undef fd2_vga_present
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_animation_play_hooked
 #undef fd2_animation_play
 static int s5_animation_play_hooked(fd2_vga *vga,const fd2_archive *ani,int index,
@@ -208,7 +218,9 @@ static int s5_animation_play_hooked(fd2_vga *vga,const fd2_archive *ani,int inde
 #define fd2_vga_present s5_present
 #define fd2_vga_present_timed s5_present_timed
 #define fd2_delay_ms s5_delay
+#define fd2_vga_delay_ms(vga,value) s5_delay(value)
 #define fd2_wait_ticks s5_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) s5_wait_ticks(value)
 #define SDL_GetTicks s5_clock
 uint64_t s5_clock_ns(void);
 #define SDL_GetTicksNS s5_clock_ns
@@ -397,7 +409,9 @@ uint64_t s5_clock_ns(void);
 #undef fd2_vga_present
 #undef fd2_vga_present_timed
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef SDL_GetTicks
 #undef fd2_field_visual_actor_step_live
 #undef fd2_field_visual_terrain_step_live

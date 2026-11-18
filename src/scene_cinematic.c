@@ -4,6 +4,7 @@
  * 分别复用FIGANI、同一详情边框和现字模实现。此文件不持PC、不等待/切曲/
  * 轮询输入，也不执行整段终章或复制Game/SAV/业务RNG owner。 */
 #include "scene_cinematic.h"
+#include "bios_clock.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -334,11 +335,15 @@ int fd2_scene_cinematic_audio_open(fd2_scene_cinematic *scope,size_t entry) {
 }
 int fd2_scene_cinematic_audio_play(fd2_scene_cinematic *scope,fd2_field_audio *audio,int sample) {
     if(!scope || !scope->audio_ready || sample!=1)return -1;
-    return audio?fd2_field_audio_play_borrowed_bank(audio,&scope->audio_bank,sample,1):0;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return -1;
+    int result=audio?fd2_field_audio_play_borrowed_bank(audio,&scope->audio_bank,sample,1):0;
+    return fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0?-1:result;
 }
 int fd2_scene_cinematic_audio_close(fd2_scene_cinematic *scope,fd2_field_audio *audio) {
     if(!scope || !scope->audio_ready)return -1;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return -1;
     if(audio && fd2_field_audio_play_borrowed_bank(audio,&scope->audio_bank,-1,1)!=0)return -1;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return -1;
     fd2_pcm_bank_close(&scope->audio_bank);scope->audio_ready=0;return 0;
 }
 
@@ -371,11 +376,11 @@ int fd2_scene_cinematic_shake_prepare(fd2_scene_cinematic *scope) {
     if(!scope || !scope->game || !scope->vga->field_page)return -1;
     fd2_field_game *game=scope->game;
     /* 24b4d的独立11eee先terrain，再实际背景，再range；不推进1297d。 */
-    if(fd2_field_visual_terrain_step_live(&scope->vga->field_visual)<0)return -1;
+    if(fd2_field_visual_terrain_step_live(scope->vga,&scope->vga->field_visual)<0)return -1;
     game->terrain_visual_phase=(uint8_t)scope->vga->field_visual.terrain_phase;
-    if(fd2_field_background_draw_live(scope->vga->field_page,72,72,game->camera_cell_x,
+    if(fd2_field_background_draw_live(scope->vga,scope->vga->field_page,72,72,game->camera_cell_x,
             game->camera_cell_y,0,0,1)!=0 ||
-        fd2_field_visual_range_step_live(&scope->vga->field_visual,-1)<0)return -1;
+        fd2_field_visual_range_step_live(scope->vga,&scope->vga->field_visual,-1)<0)return -1;
     game->range_visual_phase=(uint8_t)scope->vga->field_visual.range_phase;
     if(fd2_terrain_render_page_block(scope->vga->field_page,&game->terrain,&game->map,
             72,72,13,9,game->camera_cell_x,game->camera_cell_y,

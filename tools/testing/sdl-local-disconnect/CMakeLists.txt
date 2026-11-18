@@ -51,16 +51,44 @@ if(NOT fd2_sdl_static OR NOT EXISTS "${fd2_sdl_static}")
     message(FATAL_ERROR "The pinned Debug static library is unavailable")
 endif()
 file(SHA256 "${fd2_sdl_static}" fd2_sdl_static_sha)
-if(NOT fd2_sdl_static_sha STREQUAL "5d920411374519962ce4dacbd04c86d210a4c71dea243e5d922779392dcbb090")
-    message(FATAL_ERROR "SDL3-static.lib differs from the locally validated internal ABI")
+if(fd2_sdl_static_sha STREQUAL "5d920411374519962ce4dacbd04c86d210a4c71dea243e5d922779392dcbb090")
+    # 历史库及原三header合同不变；不以本次Git查验回签其source HEAD。
+    set(fd2_sdl_sdk_identity "historical-5d920411")
+elseif(fd2_sdl_static_sha STREQUAL "89b0bb041ca201c97e1e79b960c3bc642762356d0255e2886d93cb11bc5c2839")
+    # 当前独立资格：SDL3.2.12/5ac37a8；2813f263仅CPM缓存目录名。
+    # F5源/COFF-C13绑定、9pure及2026-11-17 owned Zombie路径分别留证。
+    find_package(Git REQUIRED)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${SDL3_SOURCE_DIR}" rev-parse HEAD
+        RESULT_VARIABLE fd2_sdl_git_exit OUTPUT_VARIABLE fd2_sdl_git_head
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${SDL3_SOURCE_DIR}" status --porcelain
+        RESULT_VARIABLE fd2_sdl_status_exit OUTPUT_VARIABLE fd2_sdl_status
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT fd2_sdl_git_exit EQUAL 0 OR NOT fd2_sdl_status_exit EQUAL 0 OR
+       NOT fd2_sdl_git_head STREQUAL "5ac37a8ffcf89da390404c1016833d56e2d67ae4" OR fd2_sdl_status)
+        message(FATAL_ERROR "Current 89b SDK requires clean SDL release-3.2.12 source at 5ac37a8")
+    endif()
+    fd2_require_sdk_file("${SDL3_SOURCE_DIR}/src/audio/SDL_audio.c"
+        "028cc7a595df83918964607136e16f030195449bfae97631405693df77dbc9a6")
+    fd2_require_sdk_file("${SDL3_SOURCE_DIR}/src/audio/SDL_audiocvt.c"
+        "64b33626d25120cd967a0e0a0ea8d662aa2ca2085414ebd43fa083d5a4839bf9")
+    fd2_require_sdk_file("${SDL3_SOURCE_DIR}/include/SDL3/SDL_atomic.h"
+        "faa1f4fd73f273fe96dd9718142096dcb2d22ca1c7820899a045e1636bf75a44")
+    fd2_require_sdk_file("${SDL3_SOURCE_DIR}/include/SDL3/SDL_audio.h"
+        "c1a07cfe3b2012b471c873c0126314f1efd14737b6e0fc25a9b26689eb90cfa3")
+    set(fd2_sdl_sdk_identity "SDL-3.2.12-5ac37a8-89b0bb04")
+else()
+    message(FATAL_ERROR "SDL3-static.lib differs from both explicitly validated local SDK identities")
 endif()
+message(STATUS "Private SDL SDK identity: ${fd2_sdl_sdk_identity}")
 
 get_filename_component(fd2_repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 set(fd2_src "${fd2_repo_root}/src")
 add_executable(fd2_audio_device_loss_probe
     "${fd2_src}/tests/audio_device_loss_probe.c"
     "${fd2_src}/tests/sdl_local_disconnect.c"
-    "${fd2_src}/audio_pcm_capture.c")
+    "${fd2_src}/audio_pcm_capture.c"
+    "${fd2_src}/bios_clock.c" "${fd2_src}/ail_timer.c")
 add_executable(fd2_sdl_local_disconnect_test
     "${fd2_src}/tests/sdl_local_disconnect_test.c")
 target_compile_definitions(fd2_sdl_local_disconnect_test PRIVATE SDL_MAIN_HANDLED=1)

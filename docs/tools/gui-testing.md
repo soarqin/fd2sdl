@@ -244,7 +244,7 @@ AI FULL夹具从实际玩家记录派生时，必须逐字列出 behavior字节+
 
 ### A7 永久音频功能检查
 
-`tools/run_audio_checks.py` 独立运行以下五场，每场先完成新的原版端并正常关闭，再运行新的 SDL 端。入口复用当前资源、Save、后台输入和 WGC helper，不依赖历史私有 worker 的固定程序哈希，也未注册为默认完整 Suite 的音频场景。
+`tools/run_audio_checks.py` 独立运行以下六场，每场先完成新的原版端并正常关闭，再运行新的 SDL 端。入口复用当前资源、Save、后台输入和 WGC helper，不依赖历史私有 worker 的固定程序哈希，也未注册为默认完整 Suite 的音频场景。
 
 | `--scenarios` 名称 | 必须完成的功能路径 |
 |---|---|
@@ -252,7 +252,8 @@ AI FULL夹具从实际玩家记录派生时，必须逐字列出 behavior字节+
 | `active-load` | 保存 `11` 基线，现场切到 `00`；Load 的 Esc／NO 保持 `00` 且不写档，YES 恢复完整 `11` 基线 |
 | `opening` | 从标题 START 完成 stage 32 前两段共 29 个资源 ACK，停在 fragment 2 首个等待点，不确认该页；分别保留曲目 18／11 路径的观察窗 |
 | `end-turn` | 只肯定一次 END，核对 Round002／SDL 回合日志及新玩家浏览，实际 Save；记录 `19→12→19` 请求路径 |
-| `sfx-reenable` | Music 始终为 `0`，SFX 从 `0→1`，保存最终 `01`；额外以完整 2,652 点 sample 8、13 个候选及预声明的 `0.8`／`0.05` 门验证有限声音身份 |
+| `sfx-reenable` | Music 始终为 `0`，SFX 从 `0→1`，保存最终 `01`；按原活动 Load 算法核 raw+2 与完整容器；额外以完整 2,652 点 sample 8、13 个候选及预声明的 `0.8`／`0.05` 门验证有限声音身份 |
+| `leave` | 正常 CONTINUE→SYSTEM→LEAVE415／YES→完整416→正常exit0；源Save不变，SDL末条停曲请求／传输／清理闭合。有限录音不签完整200ms／4秒fade或退出后声学静音 |
 
 在包含该入口的源码根目录运行。准备完整只读 `original_game/`，工具从真实 START 派生已声明的焦点／配置副本，并保留未知字节；不支持的来源会在启动前拒绝。原版对照另需 `FD2.EXE` 与 DOSBox-X；普通 SDL 程序启动不需要 `FD2.EXE`。Python 依赖沿用 Pillow、NumPy 和 SciPy。App 与 driver 必须来自同一源码及构建配置；以下示例使用已配置的 Windows Release 构建。
 
@@ -264,25 +265,28 @@ if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
 $App = Join-Path $Root 'src/Release/fd2sdl.exe'
 $Driver = Join-Path $Build 'Release/fd2_field_play_input_driver.exe'
 $Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
-$Common = @('--root', $Root, '--game', $App, '--driver', $Driver, '--dosbox', $Dosbox)
+$Bootstrap = 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf'
+$Common = @('--root', $Root, '--game', $App, '--driver', $Driver, '--dosbox', $Dosbox, '--bootstrap', $Bootstrap)
 
 # 默认只核资源、来源与输出路径；不创建产物或调用进程／显示／设备 API。
 python -B tools/run_audio_checks.py @Common --artifacts "$env:TEMP/fd2-a7-audio-dry-new"
 
-# 默认五场；输出目录必须尚不存在，位于源码及原资源目录外，父目录须已存在。
+# 默认六场；输出目录必须尚不存在，位于源码及原资源目录外，父目录须已存在。
 & $Driver run-job 3600000 python -B tools/run_audio_checks.py @Common --artifacts "$env:TEMP/fd2-a7-audio-all-new" --execute
 
 # 或仅选择所需场景，使用另一个新输出目录；不能与上面的实际运行并行。
 & $Driver run-job 3600000 python -B tools/run_audio_checks.py @Common --scenarios options active-load --artifacts "$env:TEMP/fd2-a7-audio-load-new" --execute
 ```
 
-按实际安装位置替换 `$Dosbox`，使用 Scoop `current` 所指向的真实 EXE，不传 shim。省略 `--execute` 时，即使返回 `0`，报告也只是 `ready_not_executed`／`ok=false`。选择项必须非空且不重复；实际运行必须包在 owned `run-job` 内，不能直接裸跑 Python。任一端失败即停止后续端点，不自动补键或重试。成功、失败和超时均先显式停止录音及 WGC helper，再正常关闭本轮目标；必要的强制清理会保留记录，不能算正常通过。
+按实际安装位置替换 `$Dosbox` 和已冻结版本的 `$Bootstrap`，使用 Scoop `current` 所指向的真实 EXE，不传 shim。当前原版使用固定 48 kHz 参照，首窗前及 owned 关闭后通过 `original_reference` 验证资源／驱动／bootstrap／本轮配置与 quiet argv；旧 44.1 kHz 报告保原身份。省略 `--execute` 时，即使返回 `0`，报告也只是 `ready_not_executed`／`ok=false`。选择项必须非空且不重复；实际运行必须包在 owned `run-job` 内，不能直接裸跑 Python。任一端失败即停止后续端点，不自动补键或重试。成功、失败和超时均先显式停止录音及 WGC helper，再正常关闭本轮目标；必要的强制清理会保留记录，不能算正常通过。
 
-实际入口在首个窗口前共用 `fd2_display_requirement.py`，显示唤醒与必要临时电源设置按上文新授权／恢复规范执行，实际 active console、活动桌面、console／session ON 与 WGC 判据仍须满足。临时显示需求在全部清理及来源守卫结束后由同线程撤销，撤销失败不能记为通过。该前置不保证整段持续 ON 或固定 FPS。原版以本轮 DOSBox-X `mixer nosound=true` 保留声音仿真和 `HOST_W` 原生 WAV；SDL 在真实回调中保留设备输出抑制前的 AppMix，同时向设备提交静音。两端都不改用户系统混音器的静音或音量，录音窗上限仍为 120 秒。
+实际入口在首个窗口前共用 `fd2_display_requirement.py` 的 strict ON 门；若需授权唤醒，由既有外层完成并留恢复记录后再进入本门，不能把 OFF 当通过。实际 active console、活动桌面、console／session ON 与 WGC 判据仍须满足。临时显示需求在全部清理及来源守卫结束后由同线程撤销，撤销失败不能记为通过。该前置不保证整段持续 ON 或固定 FPS。原版以本轮 DOSBox-X `mixer nosound=true` 保留声音仿真和 `HOST_W` 原生 WAV；SDL 使用 v3 AppMix，在主线程成功 Put 之后保留同次原 mix 的 S16/32768 无损回译，同时向设备提交等长静音；不是设备 callback 或可听证据。两端都不改用户系统混音器的静音或音量，录音窗上限仍为 120 秒。
 
 需要高亮的菜单／确认框 ACK 使用同 PID／HWND 的 WGC series，按 `frames.jsonl` 顺序消费每一条完整记录，保留 PNG、时间戳、ready 和正常 stop 摘要。确认框两按钮都未高亮时，在同一 15 秒期限内继续等；一旦观察到明确 NO 立即失败，不能用后来 YES 覆盖。全部目标、helper、来源、隔离资源、二进制及关闭后的证据守卫通过，显示需求成功释放后，才发布 `comparison.json`。
 
-顶层 `ok=true` 仅表示所选场景的资源／Save／请求结果、正常清理和闭合音频采集通过；`sfx-reenable` 还必须通过上述有限 SFX 身份门。它不表示 BGM 音色、波形、设备或扬声器输出、绝对时序通过，也不证明 OFF 区间绝对无声或某次 ESC 与唯一声音实例一一对应。曲目请求日志不替代声学曲目身份；完整 A7 既有语义与原版证据仍按[音频计划](../plans/audio.md)分别登记。
+顶层 `ok=true` 仅表示所选场景的资源／Save／请求结果、正常清理和闭合音频采集通过；`sfx-reenable` 还必须通过上述有限 SFX 身份门。它不表示 BGM 音色、波形、设备或扬声器输出、绝对时序通过，也不证明 OFF 区间绝对无声或某次 ESC 与唯一声音实例一一对应。`leave` 的YES前启动持续WGC，首次完整416可见即请求SDL v3显式stop；原WAV随正常退出封包。任一端缺416、未正常退出或封包失败即保FAIL，不补键。它不要求返回标题，也不把有限音频窗升级为完整4秒fade。
+
+曲目请求日志不替代声学曲目身份；完整 A7 既有语义与原版证据仍按[音频计划](../plans/audio.md)分别登记。
 
 2026-11-07，18项纯测试及五场原版／SDL路径已按实际候选通过：`r1-audio-gui-20261107-c1` 的 options 两端，及修复采集器后的 `c2` 其余四场，两批共240个连续捕获 helper 正常退出。这不是同一 driver 的单轮五场；首轮 active-load 的采集器退出异常仍保留为失败。具体来源及音频范围见[阶段记录](../plans/stage-log.md#r1windows-本地交付许可与常规音频回归)。历史 `tools/testing/a7-evidence/` 冻结 worker 仍只对应各自封存输入和既有证据，不因永久入口存在而升级范围。以下纯测试可分别在 Windows／Linux 运行；本轮 Linux 未执行，实际 WGC／后台输入入口仅支持 Windows。
 
@@ -1083,3 +1087,22 @@ F4全资源／软件合成与正常WGC反馈分账，实际候选、失败及残
 同一个QPC域用整数跨乘比较SRT100ns与按键完成后的QPC上界，并要求poll_started不早于该界；Frame index、PNG mtime或Python monotonic不能代此门。SRT晚于arrival的原因尚未测明，不加固定offset修正。completed-tap是保守投递边界，不签guest某PC消费、最初150ms、真实PIC或扫描时点；host quiet2s也是判图防抖，不是帧时间稳定证明。
 
 当前通用显示授权及owned／原件／用户SAV／配置守卫继续有效；只有本轮拥有的PID／HWND可接收输入，截图与正常关闭均沿统一设施。内层strict ON不等于禁止外层按既有授权作一次有界显示恢复；任何路径都先清owned、核来源，再由原线程恢复显示需求及真正改动的设置，不改混音器或历史F1收据。
+
+## F5 13h SDL 终端代表
+
+`fd2_vga_scanout_sdl_probe` 只在显式 `--f5-scanout-sdl` 下初始化VIDEO，固定30s上限；没有原游戏、存档或Audio输入，不绑定Main SOURCE。它给定两幅不同的400物理行，借现VGA索引页／DAC和唯一320×400纹理，按640×400横2／纵1最近邻提交。独立预期由 `tools/testing/vga_scanout_sdl_patterns.py::rgb(phase)` 直接给出，不读取C、截图或资源。
+
+该probe不注册为会开窗的CTest。Windows构建及直接逻辑检查：
+
+```powershell
+cmake --build $Build --config Debug --target fd2_vga_scanout_sdl_test fd2_vga_scanout_sdl_probe
+ctest --test-dir $Build -C Debug --output-on-failure -R '^(vga_scanout_sdl|vga_scanout_sdl_tools)$'
+```
+
+Linux使用独立构建目录，构建同两个target并运行同名CTest；本轮Linux／X11／Xvfb未执行。上述CTest中的SDL终端、clock／input观察边界是替身；不能据此签真实窗口。
+
+原生控制端复用 `driver run-job`、`windows_display_requirement`、`run_original_comparison.running`／`Capture.key`／`driver_call(...,"capture",...)`。必须先冻结本次probe／driver／实际CL和链接依赖、原件／用户档守卫，再在新隔离目录执行：等待phase0的flushed stdout ACK，取两次新的离散WGC HWND client；仅投递一次SPACE，等phase1 ACK后再取两次；全部与对应768000B RGB逐byte相等才发ESC并核正常0退出。四张原始client都须恰640×400，不调用旧 `Capture.frame` 的320×200 normalize，不resize、猜裁切、加mask或容差。ACK只是SDL提交完成，不是捕获通过。
+
+窗口不激活，输入只投递实际owned PID／HWND。固定SDL3.2.12的后台WM_KEYDOWN经 `SDL_SendKeyboardKey` 生成无focus／windowID0事件，因此probe在唯一SDL窗口且无其它SDL焦点时接受ID0；非零异窗、其它focus和repeat仍拒。禁止为满足过滤而设focus、注入SDL事件或使用全局游戏输入。SetHint被同值环境变量优先而返回false时，须核effective禁止激活值，不覆盖环境或误报初始化失败。
+
+静态两页使用独立新WGC会话，记录首尾geometry、原图SHA、RGB SHA和宿主捕获区间；现离散helper不导出WGC帧QPC，不能写成连续帧或原PIC相位资格。成功、失败与取消都保原目录，正常关目标后核owned残余和文件守卫，再同线程恢复显示需求。新的被测路径修复需要新目录；原01／02失败不改签，实际03通过及清理身份见[F5记录](../plans/f5-source-research-history.md#13h-sdl-终端与实际-400-行-wgc)。

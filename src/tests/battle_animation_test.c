@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "input.h"
+void battle_test_input_pump(fd2_input *input);
 
 #define SDL_GetTicks battle_test_ticks
 uint64_t battle_test_ticks_ns(void);
@@ -103,19 +105,27 @@ static void battle_observe_frame(fd2_vga *vga) {
         watched_hp[watched_count++]=watch->exchange->units[1].hp;
     if (quit_frame && frames==quit_frame) vga->input.quit_requested=1;
 }
-void fd2_vga_present(fd2_vga *vga) {
+int fd2_vga_present(fd2_vga *vga) {
     /* 模拟旧present对foreign owner的消费，不能用无副作用spy掩盖。 */
     vga->frame_deadline_ns=vga->frame_interval_ns=0;battle_observe_frame(vga);
+return 0;
 }
-void fd2_wait_ticks(uint32_t value) {
+int fd2_wait_ticks(uint32_t value) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     if(preamble_capture){preamble_waits++;if(value!=1u || frames!=preamble_waits)preamble_bad_wait++;}
     if(ray_capture && ray_wait_count<32u) {
         ray_wait_values[ray_wait_count]=value;ray_wait_frames[ray_wait_count++]=frames;
         if(ray_quit_at_six && value==6u)screen.input.quit_requested=1;
     }
     ticks+=value;fake_ms+=(uint64_t)value*55u;
+return 0;
 }
-void fd2_delay_ms(uint32_t value) {
+int fd2_delay_ms(uint32_t value) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     composite_observe_delay(value);
     if(return_clear_watch && value==2u)return_fade_delay2++;
     delays+=value;fake_ms+=value;
@@ -123,13 +133,21 @@ void fd2_delay_ms(uint32_t value) {
     if (value==200 && last_present_hash!=hud_hash(screen.framebuffer)) stale_wait200++;
     if (value==40 && (last_present_dac[0] || last_present_dac[1] || last_present_dac[2]))
         bad_white_wait++;
+return 0;
 }
-void fd2_vga_present_timed(fd2_vga *vga,uint32_t frame_ms) {
+int fd2_vga_present_timed(fd2_vga *vga,uint32_t frame_ms) {
     fd2_vga_present(vga);fd2_delay_ms(frame_ms);
+return 0;
 }
 /* upload只观察提交帧/退出，不消费deadline，不代真实设备。 */
-void fd2_vga_upload_current_frame(fd2_vga *vga) { battle_observe_frame(vga); }
-void fd2_vga_wait_frame_deadline(fd2_vga *vga) { (void)vga; }
+void fd2_vga_upload_current_frame(fd2_vga *vga) {
+    battle_observe_frame(vga);
+#ifdef FD2_CLOCK_FAILURE_TEST
+    clock_fault_upload(vga);
+#endif
+}
+int fd2_vga_wait_frame_deadline(fd2_vga *vga) { (void)vga; return 0;
+}
 static void map_background(const fd2_field_game *current,fd2_vga *vga) {
     return_calls++;returned_hp=current->units.items[1].hp;
     memset(vga->framebuffer,(uint8_t)(20+returned_hp),64000);
@@ -297,6 +315,9 @@ int fd2_vga_palette_add(fd2_vga *vga,int first,int last,int32_t value) {
 }
 int battle_test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
         size_t index,int loops,float gain) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     if (capture_map && map_cue_count<64) {
         map_cue_banks[map_cue_count]=bank->archive.data;
         map_cue_indices[map_cue_count++]=index;
@@ -317,6 +338,9 @@ int battle_test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
     return cue_failure ? -1:0;
 }
 int battle_test_pcm_stop(fd2_pcm_player *player) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     if(composite_owner && composite_owner->magic_exchange && composite_stop_count<4u) {
         const fd2_battle_magic_exchange *e=composite_owner->magic_exchange;
         composite_stop_bank_flags[composite_stop_count++]=(e->sound.archive.data?1u:0u)|
@@ -3074,3 +3098,5 @@ int main(int argc, char **argv) {
 
 /* 正式视觉接口使用NS；本测试仍沿原毫秒调度器。 */
 uint64_t battle_test_ticks_ns(void) { return battle_test_ticks()*UINT64_C(1000000); }
+
+#include "vga_owner_wait_test_bridge.h"

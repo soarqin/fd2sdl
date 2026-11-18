@@ -2,6 +2,8 @@
 
 本页只登记**已完成阶段原范围**和历史证据，不是当前待办表。当前优先级和未开放域只查[当前计划](development.md)。S0—S5 均已完成各自授权范围；G5 `4d7ed15` 的原完成域保留，结果恢复、审计表达和旧调色等补充各由独立阶段闭合，不撤销旧阶段。F1—F6已获连续实施授权，未完成阶段不提前计入本页。
 
+2026-11-18：以下长历史保留交付时边界。当前终态以游戏表现、正常操作／结果和存档为准；纯CPU／IRQ／PIT／PIC、驱动ABI／原栈或全内存形式不再是产品完成门。后续真实待办及新增DOS-CLEAN只由总计划与A01—A22矩阵维护。
+
 ## 1. 完成摘要
 
 表内“完成”只指所列交付及其当时有效域，不指未开放关卡或全游戏所有状态。早期阶段存在多提交／多候选，表中如实列关键提交，不补造单一完成commit。A5随B5、A6随B6，不另造重复记录。
@@ -36,8 +38,11 @@
 | S3 | stage2—10／11—19战斗批次、stage20仅入场，96来源绑定；结果调用续点、恢复、只读准备交接与必要总览修正 | `ad5a63e`；`build/s3/local-integration.json` | [S3报告](s3-batch-integration.md)、[S3记录](stage-log.md#s3-按依赖闭包批量接入正式流程2026-11-14) | C12的24项CTest／当前探针；3组双端代表中turn3／victory按明确源码影响继承，stage12为C12新实做。受控而非自然整关；13隔离／14引用与450拒绝保留，旧fade当时留S4 |
 | S4 | 旧 Scene／App／准备调色和调试转场尾修复、审计信任边界、全历史有限资格及统一回归／精简 | `0cca15f`；`build/s4/local-integration.json` | [S4报告](s4-unified-review.md)、[S4记录](stage-log.md#s4-统一审查全历史回归与精简2026-11-14) | 同C01的120项CTest、1661工具项／0skip，当前原码／C及6组fresh pair；历史30组／146登记有限资格，不称全fresh。13／14隔离和450拒绝不解除，原精度／平台边界保留 |
 | S5 | 原13槽／14依赖闭合；stage20—25与26—29两批战斗／交接／结局、有限Scene能力及正式恢复 | 本阶段完整提交；`build/s5/local-integration.json` | [S5报告](s5-batch-expansion.md)、[S5记录](stage-log.md#s5-隔离语义闭合与后续批量接入2026-11-14)、[研究历史](s5-investigation-history.md) | C22 18项CTest含124工具项；source／参数／资源全账、有限原码／C、分候选原生及严格资格分账。450拒绝、外来32 credits及原精度／平台边界保留；不称全游戏所有状态或一次全fresh |
+| F5 | 音乐／PCM／传输、两处stop、G2重播及失败／关闭前缀 | 完整阶段提交／本地集成见`build/f5/subject-delivery-20261118/local-integration.json` | [F5报告](f5-audio-device.md)、[阶段记录](stage-log.md#f5音乐音效与生命周期交付2026-11-18) | Windows；Nuked有意差异；分候选证据分别保身份。正常联合与Title无skip时长留F6，随后先独立DOS-CLEAN |
 
 ## 2. 长历史与实际收据
+
+F5按表现目标交付，同Audio／BGM owner下保音乐事件／loop／fade、PCM整数采样／双声部混合及宿主有界输出；修leave／开场两处漏stop和空条目G2重播。原G1／G2连续录音、后继SDL-only录音及离线多乐句／粗节奏合证分别保身份；正常LEAVE双端完整416及正常exit0。新的显示失败后缀保原绘制／清理前缀，错误优先于HOST，停止后继cue／输入／回合。14音频、5clock、音乐／owner及23直接检查按真实分轮保失败与修复，不拼一次全绿。1312函数／573登记发布无字节／类型／边界变化。详见[F5报告](f5-audio-device.md)，整阶段提交／集成、主线构建及用户SAV守卫只认两树`build/f5/subject-delivery-20261118/local-integration.json`。**完整正常A17—A19仍需F6跨系统联合**；纯硬件形式门已退出，独立DOS-CLEAN之后才进入F6。
 
 F4共享呈现／资源主体以完整阶段包交付，实际提交／本地集成、主线重建与用户SAV保护见两树`build/f4/subject-delivery-20261117/local-integration.json`。[F4报告](f4-presentation.md)保16300唯一span及26行算子／绑定组合、分候选原CPU／真实C／静态／原生、PUB05与完整源码身份；源／consumer分母不当成功率。SHORT双HP条、线性页／底图／palette、Magic三表／圆心／HOST及工作页owner已修。34直接CTest按32＋两夹具定向修正分账；工具优化保旧公式／透明0／容差、补逐帧deadline和owned活性，并非放宽像素。四轮Magic12原生均FAIL且无SDL后缀，最后原端100帧完整stop及独立Game C9只保各自资格。**完整A14—A16未合签**：[正常before／C11双端及其它联合](f4-presentation.md#5-f6必须接回的完整域)、QK与当前候选join仍待F6；主体交付后继续F5，未扩Nuked例外或改最终目标。两个固定普通startup provider在F4有源闭合，F2历史“未决”状态不继续当当前阻塞。
 
@@ -74,11 +79,11 @@ B／A／R历史路线为B0—B7及所需A→A7／A8→R1，之后SD1→SD2→SD3
 
 | 边界 | 当前结论／后续处理 |
 |---|---|
-| 严格运行时LE全对象／BSS | 旧严格门未通过，需新selector／object base／完整dump；历史21个非零BSS／stack字节不得自动豁免。只阻塞严格运行时等价声明；见[LE规范](../reverse-engineering/le-validation.md)与[审计§13.4](common-logic-audit.md#134-共用限制与精简结论) |
-| 完整音画／共享随机同轨／绝对时序 | 全targetFX／SFX、全部像素、严格PIC／绝对时钟及两端全随机轨迹没有被现有有限门证明。Natural各端实战不同不自动归因RNG；见[审计§13.4](common-logic-audit.md#134-共用限制与精简结论) |
+| 严格运行时LE全对象／BSS | 早期未过及F1后续L0／L1来源结果分别保[F1身份](f1-reference-domain.md)；不再以全RAM／BSS形式一致卡产品完成。正常被游戏消费的状态仍按A04／A08／A09／A20核实 |
+| 完整音画／共享随机结果／正常时间 | 全targetFX／SFX、全部正常画面／输入及共享RNG结果须由当前矩阵联合核实，有限样本不能代签。严格PIC／CPU／绝对首phase形式已退出必做，旧失败保历史身份 |
 | 音频用户选择与物理设备 | 保留Nuked原始响度／音色，不加BGM补偿；不等于设备可听、路由／拔插、绝对静音、唯一播放实例或全波形通过。PCM原义修正不受该选择禁止；见[音频边界](audio.md) |
-| 输入／END旧症状 | 有限FIFO／caller读清键已修复，宿主repeat仍近似。旧首次END默认NO原因未定位，后来的YES样本不抹掉旧失败；再次复现按原接收链取证，不无源猜改 |
+| 输入／END旧症状 | F2已修FIFO／BIOS映射及repeat，正常时点与后续RNG／结果仍待联合。旧首次END默认NO和后继样本不改签；再次复现按实际接收／消费核对，不无源猜改 |
 | 未知字节／资源有效域 | fresh未写9B、heap尾与全游戏读者未完全确认；Loaded已有字节按本端preload保留。未确认资源／未来CFG拒绝；不以SAV unused补热初值或以节点数作完整率 |
 | 平台／发布 | 历史Linux证据保原身份，后续Windows验收不反写为Linux／macOS已验；R1仅Windows本地包和已列离线重建，不是其它平台发布或自动分发 |
 
-这些边界忠实保留旧交付身份，不代表原版一致。2026-11-14用户要求新的完全对齐审查，剩余差异／未证域已统一进入[新矩阵A01—A22](full-alignment-audit.md)及[当前计划F1—F6](development.md#4-新优先级与依赖)，不重开G／SD／S历史。用户重新选定Windows最终验收及保留Nuked声音并明记差异；其余旧有限域不作为永久豁免。`39422ae`仅交付审查计划；用户随后授权连续实施，F1已按主体范围交付，QK仍未通过；F2机制主体与最终联合残余分别见[F2报告](f2-time-input-rng.md)。
+这些边界忠实保留旧交付身份，不代表原版一致。2026-11-14用户要求新的完全对齐审查，剩余差异／未证域已统一进入[新矩阵A01—A22](full-alignment-audit.md)及[当前计划F1—F6及DOS-CLEAN](development.md)，不重开G／SD／S历史。用户重新选定Windows最终验收及保留Nuked声音并明记差异；其余旧有限域不作为永久豁免。`39422ae`仅交付审查计划；用户随后授权连续实施，F1已按主体范围交付，QK仍未通过；F2机制主体与最终联合残余分别见[F2报告](f2-time-input-rng.md)。

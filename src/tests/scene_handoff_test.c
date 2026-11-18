@@ -7,6 +7,7 @@
 #include <string.h>
 #include "scene.h"
 #include "field_prepare.h"
+#include "field_event.h"
 #include "field_background.h"
 #include "portrait.h"
 #include "static_data.h"
@@ -16,8 +17,17 @@
     return 1; } } while (0)
 
 static uint64_t test_ms;
+/* 3231b完整源：323e1 stop、32417 play11、327bb stop，再327d9 script98。 */
+static unsigned opening_music_tracking,opening_music_count,opening_music_98,opening_music_bad;
+static unsigned opening_music_failure,opening_music_host;
+static int opening_music_tracks[3];
+static size_t opening_music_fragments[3];
+static int scene_test_bgm_play(fd2_bgm_player *player,size_t track,int loops);
+static int scene_test_bgm_stop(fd2_bgm_player *player);
+static int scene_test_movement_get(uint8_t id,const uint8_t **bytes,size_t *size);
 /* 有限dialog CLI的旁路观察；NULL时既有回归路径完全不变。 */
 static void (*dialog_probe_observer)(fd2_vga *,char,uint32_t);
+static void (*scene_upload_probe)(fd2_vga *);
 static int dialog_probe_audio_failure;
 static int dialog_probe_feed_on_read;
 static int (*dialog_probe_ready_key)(void);
@@ -226,7 +236,7 @@ static int scene_test_portrait_decode_frame(fd2_image *image,
         portrait_frame_override >= 0 ? (size_t)portrait_frame_override : frame);
 }
 
-static void scene_test_present(fd2_vga *vga) {
+static int scene_test_present(fd2_vga *vga) {
     if(dialog_probe_observer)dialog_probe_observer(vga,'P',0);
     if (presents < 32) presented_darkness[presents]=current_darkness;
     presents++;
@@ -237,6 +247,7 @@ static void scene_test_present(fd2_vga *vga) {
     fd2_input_begin_test_frame(&vga->input, test_ms);
     if (presents == quit_at_frame || presents > 100000)
         vga->input.quit_requested = 1;
+return 0;
 }
 
 static void scene_test_input_frame(fd2_input *input) {
@@ -249,18 +260,29 @@ static void scene_test_input_frame(fd2_input *input) {
     }
     fd2_input_begin_test_frame(input,test_ms);
 }
-static void scene_test_wait_deadline(fd2_vga *vga) {
-    if(dialog_probe_wait_deadline){dialog_probe_wait_deadline(vga);return;}
+static int scene_test_wait_deadline(fd2_vga *vga) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
+    if(dialog_probe_wait_deadline){dialog_probe_wait_deadline(vga);return 0;}
     vga->frame_deadline_ns=0;vga->frame_interval_ns=0;
+return 0;
 }
 
-static void scene_test_present_timed(fd2_vga *vga, uint32_t ms) {
-    if(dialog_probe_timed){dialog_probe_timed(vga,ms);return;}
+static int scene_test_present_timed(fd2_vga *vga, uint32_t ms) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
+    if(dialog_probe_timed){dialog_probe_timed(vga,ms);return 0;}
     test_ms += ms;
     scene_test_present(vga);
+return 0;
 }
 
-static void scene_test_delay(uint32_t ms) {
+static int scene_test_delay(uint32_t ms) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     if(dialog_probe_observer)dialog_probe_observer(current_vga,'D',ms);
     if(fixed_tick_tracking) {
         if(ms!=1u)fixed_tick_exhausted=1;
@@ -278,6 +300,7 @@ static void scene_test_delay(uint32_t ms) {
     }
     if (((quit_on_preview_delay && ms == 800) || (quit_on_delay_ms && ms==quit_on_delay_ms)) && current_vga)
         current_vga->input.quit_requested = 1;
+return 0;
 }
 
 static uint64_t scene_test_ticks(void) { return test_ms; }
@@ -287,6 +310,7 @@ static fd2_field_page *scene_test_page_create(void) {
 }
 static void scene_test_upload(fd2_vga *vga) {
     if(dialog_probe_observer)dialog_probe_observer(vga,'U',0);
+    if(scene_upload_probe)scene_upload_probe(vga);
     if(fixed_tick_tracking)fixed_tick_uploads++;
     if(dialog_wait_tracking) {
         if(dialog_wait_uploads!=dialog_wait_delays)dialog_wait_bad_order=1;
@@ -330,7 +354,10 @@ static void scene_test_clear_keys(fd2_input *input) {
     if(motion_tracking && motion_clears==motion_quit_clear)input->quit_requested=1;
     if(arrival_tracking && arrival_clears==arrival_quit_clear)input->quit_requested=1;
 }
-static void scene_test_wait_ticks(uint32_t ticks) {
+static int scene_test_wait_ticks(uint32_t ticks) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_fault_wait()<0)return -71;
+#endif
     if(dialog_probe_observer)dialog_probe_observer(current_vga,'T',ticks);
     if(motion_tracking) {
         motion_waits++;motion_wait_ticks+=ticks;
@@ -349,6 +376,7 @@ static void scene_test_wait_ticks(uint32_t ticks) {
         fd2_input_begin_test_frame(&current_vga->input,test_ms);
     }
     if(arrival_tracking && arrival_waits==arrival_quit_wait)current_vga->input.quit_requested=1;
+return 0;
 }
 static int scene_test_audio(fd2_field_audio *audio,fd2_field_sfx cue) {
     if(dialog_probe_observer){dialog_probe_observer(current_vga,'A',(uint32_t)cue);return dialog_probe_audio_failure?-1:0;}
@@ -367,15 +395,18 @@ static int scene_test_water_tick(fd2_vga *vga,uint64_t now) {
 /* 既有向量冻结每个叶内的tick；live逐读/跨tick资格由专用live测试验证。
  * 不让链接core的真实SDL时钟绕过本TU的受控时间轴。 */
 uint64_t scene_test_ticks_ns(void);
-static int scene_test_actor_live(fd2_field_visual_state *state) {
+static int scene_test_actor_live(const fd2_vga *output,fd2_field_visual_state *state) {
+    (void)output;
     scene_clock_leaf('A');
     return fd2_field_visual_actor_step(state,scene_test_ticks_ns());
 }
-static int scene_test_terrain_live(fd2_field_visual_state *state) {
+static int scene_test_terrain_live(const fd2_vga *output,fd2_field_visual_state *state) {
+    (void)output;
     scene_clock_leaf('T');
     return fd2_field_visual_terrain_step(state,scene_test_ticks_ns());
 }
-static int scene_test_range_live(fd2_field_visual_state *state,int32_t override) {
+static int scene_test_range_live(const fd2_vga *output,fd2_field_visual_state *state,int32_t override) {
+    (void)output;
     scene_clock_leaf('R');
     return fd2_field_visual_range_step(state,scene_test_ticks_ns(),override);
 }
@@ -383,8 +414,9 @@ static int scene_test_water_live(fd2_vga *vga) {
     scene_clock_leaf('W');
     return scene_test_water_tick(vga,scene_test_ticks_ns());
 }
-static int scene_test_background_live(fd2_field_page *page,int dx,int dy,
+static int scene_test_background_live(const fd2_vga *output,fd2_field_page *page,int dx,int dy,
         int cx,int cy,int px,int py,int advance) {
+    (void)output;
     scene_clock_leaf('B');
     return fd2_field_background_draw(page,dx,dy,cx,cy,px,py,scene_test_ticks_ns(),advance);
 }
@@ -414,6 +446,22 @@ static int scene_test_actors_page_live(fd2_vga *vga,fd2_field_page *page,
         break;
     }
     return fd2_field_units_render_page(page,sprites,units,cx,cy,idle,cursor,vga->actor_jitter_phase);
+}
+
+/* 和本TU其它等待一样只推进test_ms；不能让链接vga.c读取真实SDL时间，
+ * 再让下一对白的合成时间倒退。真实movement等待边界由bios_wait覆盖。 */
+static int scene_test_movement_tick(fd2_vga *vga) {
+    if(!vga || fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
+    if(fd2_input_take_quit(&vga->input))return 1;
+    uint64_t actual;
+    if(fd2_vga_observe_checked(vga,scene_test_ticks_ns(),&actual)<0)return -1;
+    if(fd2_bios_tick_signed_ns(actual)==vga->movement_tick && scene_test_wait_ticks(1)<0)
+        return -1;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
+    if(fd2_input_take_quit(&vga->input))return 1;
+    if(fd2_vga_observe_checked(vga,scene_test_ticks_ns(),&actual)<0)return -1;
+    vga->movement_tick=fd2_bios_tick_signed_ns(actual);
+    return 0;
 }
 
 /* core 中仍有正式 scene.o；本 TU 的公开入口私有改名，避免重复定义。 */
@@ -461,7 +509,10 @@ static int scene_test_actors_page_live(fd2_vga *vga,fd2_field_page *page,
 #define fd2_vga_palette_subtract scene_test_palette_subtract
 #define fd2_vga_palette_add scene_test_palette_add
 #define fd2_delay_ms scene_test_delay
+#define fd2_vga_delay_ms(vga,value) scene_test_delay(value)
 #define fd2_wait_ticks scene_test_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) scene_test_wait_ticks(value)
+#define fd2_vga_wait_movement_tick scene_test_movement_tick
 #define fd2_input_clear_keys scene_test_clear_keys
 #define fd2_input_take_key scene_test_take_key
 #define fd2_input_begin_frame scene_test_input_frame
@@ -479,6 +530,9 @@ uint64_t scene_test_ticks_ns(void);
 #define fd2_field_units_render_page_actor_live scene_test_actor_page_live
 #define fd2_field_units_render_page_live scene_test_actors_page_live
 #define fd2_static_flow_lookup scene_test_flow_lookup
+#define fd2_bgm_play scene_test_bgm_play
+#define fd2_bgm_stop scene_test_bgm_stop
+#define fd2_field_movement_script_get scene_test_movement_get
 /* scene.h已在宏前读取；为旧entry到后定义source入口的调用保留私有原型。 */
 int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
     fd2_field_game *game,fd2_field_audio *audio,int fast,const char *source_id);
@@ -527,7 +581,10 @@ int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
 #undef fd2_vga_palette_subtract
 #undef fd2_vga_palette_add
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
+#undef fd2_vga_wait_movement_tick
 #undef fd2_input_clear_keys
 #undef fd2_input_take_key
 #undef fd2_input_begin_frame
@@ -543,6 +600,9 @@ int fd2_scene_play_stage_source_flow(fd2_vga *vga,const fd2_archive *fdother,
 #undef fd2_field_units_render_page_actor_live
 #undef fd2_field_units_render_page_live
 #undef fd2_static_flow_lookup
+#undef fd2_bgm_play
+#undef fd2_bgm_stop
+#undef fd2_field_movement_script_get
 
 static void reset_controls(fd2_vga *vga) {
     fd2_field_page_destroy(test_page);
@@ -552,9 +612,11 @@ static void reset_controls(fd2_vga *vga) {
     vga->field_page=test_page;
     fd2_input_init(&vga->input);
     test_ms = 1000;
+    fd2_bios_clock_reset(0,0); /* 每个独立场景同时重置其合成时钟owner。 */
     fixed_tick_tracking=fixed_tick_at=fixed_tick_count=fixed_tick_delays=0;
     fixed_tick_exhausted=fixed_tick_quit_delay=fixed_tick_uploads=0;
     presents = quit_at_frame = quit_on_preview_delay = 0;
+    scene_upload_probe=NULL;
     dialog_wait_tracking=dialog_wait_uploads=dialog_wait_delays=0;
     dialog_wait_bad_order=dialog_wait_quit_upload=0;
     quit_on_delay_ms=0;water_calls=0;quit_on_water_tick=0;
@@ -579,6 +641,8 @@ static void reset_controls(fd2_vga *vga) {
     presents_at_portrait_failure = -1;
     failed_portrait_identity = (size_t)-1;
     trace_fragments = 0; fragment_log_count = 0; last_fragment = 0;
+    opening_music_tracking=opening_music_count=opening_music_98=opening_music_bad=0;
+    opening_music_failure=opening_music_host=0;
     tracked_cursor = NULL; memset(cursor_by_fragment, 0, sizeof(cursor_by_fragment));
     current_darkness=0;memset(presented_darkness,-1,sizeof(presented_darkness));
     palette_tracking=palette_trace_count=palette_attempts=palette_uploads=palette_delays=0;
@@ -883,6 +947,72 @@ static int test_shared_initialization_definition(const fd2_archive *fdother) {
     free(nodes); fd2_field_game_close(resources); free(resources); return 0;
 }
 
+static int scene_test_bgm_play(fd2_bgm_player *player,size_t track,int loops) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
+    (void)player;
+    if(opening_music_tracking) {
+        if(loops || opening_music_count>=3u){opening_music_bad=1;return -1;}
+        opening_music_fragments[opening_music_count]=last_fragment;
+        opening_music_tracks[opening_music_count++]=(int)track;
+    }
+    return 0;
+}
+static int scene_test_bgm_stop(fd2_bgm_player *player) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
+    (void)player;
+    if(opening_music_tracking) {
+        if(opening_music_count>=3u){opening_music_bad=1;return -1;}
+        opening_music_fragments[opening_music_count]=last_fragment;
+        opening_music_tracks[opening_music_count++]=-1;
+        if(opening_music_host)current_vga->input.quit_requested=1;
+        if(opening_music_failure)return -1;
+    }
+    return 0;
+}
+static int scene_test_movement_get(uint8_t id,const uint8_t **bytes,size_t *size) {
+    if(opening_music_tracking && id==98u) {
+        opening_music_98++;
+        if(opening_music_count!=3u || opening_music_tracks[2]!=-1 || last_fragment!=9u)
+            opening_music_bad=1;
+    }
+    return fd2_field_movement_script_get(id,bytes,size);
+}
+
+/* 独立327af..327de源序；真实cold路径断言与真实stop叶前缀分账。
+ * 正常text9/script98/roster写集由下方已有完整newgame用例实际走过。 */
+static int test_opening_music_tail_boundary(void) {
+    const fd2_static_flow *source=scene_flow_find("scene.opening.031");CHECK(source);
+    int text=fd2_static_flow_label(source,"text_24"),move=fd2_static_flow_label(source,"move_25");
+    const fd2_static_flow_node *t=fd2_static_flow_at(source,text),*m=fd2_static_flow_at(source,move);
+    CHECK(t && m && !strcmp(t->op,"text") && t->args[0]==9 &&
+        !strcmp(m->op,"move") && m->args[0]==98 && m->args[1]==1);
+    int stop=fd2_static_flow_edge(source,t,FD2_FLOW_NEXT);
+    const fd2_static_flow_node *s=fd2_static_flow_at(source,stop);
+    CHECK(s && !strcmp(s->op,"bgm") && s->args[0]==-1 && s->views==FD2_FLOW_PRESENT &&
+        fd2_static_flow_edge(source,s,FD2_FLOW_NEXT)==move);
+    fd2_static_flow_node nodes[]={*s,
+        {.id="after",.op="ensure_count",.args={2},.edges={2,-1,-1,-1,-1,-1,-1,-1},.views=FD2_FLOW_PRESENT},
+        {.id="end",.op="end",.edges={-1,-1,-1,-1,-1,-1,-1,-1},.views=FD2_FLOW_PRESENT}};
+    nodes[0].edges[FD2_FLOW_NEXT]=1;
+    fd2_static_flow flow={"test.opening.music.stop-prefix",nodes,3,0};
+    for(unsigned mode=0;mode<3;mode++) {
+        fd2_vga vga;reset_controls(&vga);fd2_scene_field_state state={0};state.units.count=1;
+        scene_host_quit_requested=0;
+        scene_flow_context context={0};context.vga=&vga;context.state=&state;
+        context.bgm=(fd2_bgm_player *)&context;context.fast=1;
+        opening_music_tracking=1;opening_music_failure=mode==1;opening_music_host=mode==2;
+        int result=scene_flow_run(&context,&flow);
+        CHECK(result==(mode ? -1:0) && opening_music_count==1 && opening_music_tracks[0]==-1 &&
+            state.units.count==(mode ? 1u:2u) && !opening_music_bad && !opening_music_98);
+        CHECK(!!scene_host_quit_requested==(mode==2));
+    }
+    opening_music_tracking=0;scene_host_quit_requested=0;return 0;
+}
+
 static int test_natural_stage0_handoff(const fd2_archive *fdother,
                                       int *final_present) {
     static const uint8_t expected[][4] = {
@@ -900,8 +1030,15 @@ static int test_natural_stage0_handoff(const fd2_archive *fdother,
     unsigned random_calls=0;fd2_scene_runtime runtime={scene_counted_random,&random_calls,{0,0,0},&roster};
     reset_controls(&vga);
     memset(&handoff, 0xa5, sizeof(handoff));
-    CHECK(scene_test_play_handoff_with_runtime(&vga, fdother, NULL, NULL, 1,
+    opening_music_tracking=1;trace_fragments=1;
+    CHECK(scene_test_play_handoff_with_runtime(&vga, fdother,(fd2_bgm_player *)&vga,NULL,1,
                                   &handoff,&runtime) == FD2_SCENE_RESULT_OK);
+    static const int expected_music[]={-1,11,-1};
+    static const size_t expected_fragments[]={1,1,9};
+    CHECK(opening_music_count==3u && opening_music_98==1u && !opening_music_bad &&
+        !memcmp(opening_music_tracks,expected_music,sizeof(expected_music)) &&
+        !memcmp(opening_music_fragments,expected_fragments,sizeof(expected_fragments)));
+    opening_music_tracking=0;
     CHECK(roster.unit_count==4 && !memcmp(roster.unit_area+320u,snapshot.roster+320u,2240u));
     CHECK(handoff.valid && handoff.stage == 0);
     CHECK(handoff.units.count == sizeof(expected) / sizeof(expected[0]));
@@ -1036,6 +1173,7 @@ static int test_host_quit_has_no_handoff(const fd2_archive *fdother,
     fd2_scene_runtime runtime={scene_counted_random,&rng_calls,{0,0,0},NULL};
     CHECK(scene_test_play_handoff_with_runtime(&vga,fdother,NULL,NULL,0,
                                   &handoff,&runtime) == FD2_SCENE_RESULT_HOST_QUIT);
+    CHECK(!fd2_bios_clock_error() && !fd2_vga_output_error(&vga));
     CHECK(!handoff.valid && handoff.units.count == 0);
     CHECK(archive_opens == 4 && archive_closes == archive_opens);
     CHECK(presents < 100000);
@@ -2527,7 +2665,14 @@ static int test_scene_fixed_tick_contract(void) {
         vga->frame_deadline_ns=UINT64_C(999999999999);vga->frame_interval_ns=16000000;
         vga->input.queued_count=1;vga->input.queued_keys[0].key=FD2_INPUT_KEY_Z;*before=*vga;
         fixed_tick_count=cases[i].count;
-        for(unsigned j=0;j<fixed_tick_count;j++)fixed_tick_ns[j]=fd2_bios_tick_start_ns(cases[i].reads[j]);
+        /* reads是原低WORD，不是可倒退的宿主ns；跨WORD边界展开绝对tick，
+         * 保所有独立原读值／延迟期望。checked时钟须拒绝真正倒退的host输入。 */
+        uint64_t absolute_tick=cases[i].reads[0];
+        for(unsigned j=0;j<fixed_tick_count;j++) {
+            uint64_t next=(absolute_tick&~UINT64_C(0xffff))|cases[i].reads[j];
+            if(next<absolute_tick)next+=UINT64_C(0x10000);
+            absolute_tick=next;fixed_tick_ns[j]=fd2_bios_tick_start_ns(next);
+        }
         fixed_tick_tracking=1;
         CHECK(scene_fixed_ticks(vga,cases[i].goal,0)==0);
         CHECK(fixed_tick_at==cases[i].count && fixed_tick_delays==cases[i].delays &&
@@ -2568,6 +2713,7 @@ int main(int argc, char **argv) {
     if(argc==2 && !strcmp(argv[1],"--s4-palette-vectors"))return palette_vectors();
     CHECK(test_scene_fixed_tick_contract()==0);
     CHECK(test_palette_consumers()==0);
+    CHECK(test_opening_music_tail_boundary()==0);
     CHECK(test_scene_flow_graph()==0);
     CHECK(test_source_logic_only_end()==0);
     CHECK(test_scene_flow_view_commit()==0);

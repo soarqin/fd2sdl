@@ -37,6 +37,7 @@ static int fake_take_quit(fd2_input *input) {return (input && input->quit_reques
 static void reset(uint32_t origin,uint64_t now) {
     fd2_bios_clock_reset(origin,0);now_ns=now;polls=quit_poll=clock_reads=script_at=script_count=0;clock_script=NULL;
 }
+static void no_service(void *unused) {(void)unused;}
 int main(void) {
     fd2_input input;fd2_input_init(&input);
     fd2_input_set_test_key_state(&input,SDL_SCANCODE_F2,1);
@@ -70,6 +71,15 @@ int main(void) {
     CHECK(fd2_vga_wait_movement_tick(&vga)==1 && !now_ns && !vga.movement_tick);
     CHECK(fd2_vga_wait_movement_tick(NULL)==-1);
     CHECK(!memcmp(&input,&before,sizeof(input)));
-    puts("bios_wait: production wait boundaries, 65535/WORD/day wrap, HOST and FIFO protection passed; no GUI/original");
+    /* 独立源条件：BIOS在第11/22IRQ才链。主业务已跨11IRQ但未泵时，
+     * 17aa9入口必须先取当前BDA=1，不能用旧0在首poll后立即结束。 */
+    reset(0,0);CHECK(fd2_bios_clock_ail_attach(0,65536u)==0);
+    CHECK(fd2_bios_clock_install_mdi(0,no_service,NULL)==0u);
+    CHECK(fd2_bios_clock_install_dig(0,no_service,NULL)==4u);
+    now_ns=UINT64_C(55000830);CHECK(fd2_bios_clock_ticks(now_ns)==0u);
+    fd2_wait_ticks(1);CHECK(now_ns==UINT64_C(110001660) && fd2_bios_clock_ticks(now_ns)==2u);
+    CHECK(!memcmp(&input,&before,sizeof(input)));
+    reset(0,0);
+    puts("bios_wait: production wait boundaries, AIL current entry, 65535/WORD/day wrap, HOST and FIFO protection passed; no GUI/original");
     return 0;
 }

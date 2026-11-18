@@ -11,11 +11,12 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "audio_probe_output.h"
+#include "audio_clock_fixture.h"
 #include "../third_party/nukedopl3.h"
 
+#ifndef FD2_OPL_PROBE_UNHOOKED
 static void observed_write(opl3_chip *, uint16_t, uint8_t);
 static void observed_generate(opl3_chip *, int16_t *);
-#ifndef FD2_OPL_PROBE_UNHOOKED
 #define OPL3_WriteReg observed_write
 #define OPL3_GenerateResampled observed_generate
 #endif
@@ -72,6 +73,9 @@ static bool render_case(const char *original, uint32_t rate, uint64_t frames,
     config.open_device = 0; config.allow_null = 1;
     fd2_audio *audio = fd2_audio_create(&config);
     if (!audio) return false;
+    if (fd2_test_audio_clock_prepare(audio) != 0) {
+        (void)fd2_bios_clock_close();fd2_audio_destroy(audio);return false;
+    }
     std::string music = std::string(original) + "/FDMUS.DAT";
     std::string bank = std::string(original) + "/SAMPLE.AD";
     fd2_bgm_config bgm{};
@@ -79,7 +83,8 @@ static bool render_case(const char *original, uint32_t rate, uint64_t frames,
     bgm.sample_rate = static_cast<int>(rate);
     fd2_bgm_player *player = fd2_bgm_create(audio, &bgm);
     trace.player = player;
-    bool ok = player && !fd2_audio_has_device(audio) && fd2_bgm_play(player, 18, 0) == 0;
+    bool ok = player && fd2_test_audio_clock_after_mdi(audio) == 0 &&
+        !fd2_audio_has_device(audio) && fd2_bgm_play(player, 18, 0) == 0;
     float output[512 * 2];
     trace.phase = 1;
     for (uint64_t done = 0; ok && done < frames;) {
@@ -106,6 +111,7 @@ static bool render_case(const char *original, uint32_t rate, uint64_t frames,
     fd2_audio_error error = FD2_AUDIO_ERROR_NONE;
     ok &= fd2_audio_get_first_error(audio, &error) == 0 && error == FD2_AUDIO_ERROR_NONE;
     trace.phase = 2;
+    (void)fd2_bios_clock_close();
     fd2_audio_destroy(audio); // 原owner顺序：先retire，再释放BGM/archive。
     fd2_bgm_destroy(player);
     trace.player = nullptr;
@@ -141,7 +147,10 @@ static bool outputs(const fd2_probe_outputs *paths, uint32_t rate,
     hooked = false;
 #endif
     if (std::fprintf(stream,
-        "{\"schema\":\"fd2-title18-offline-opl-v1\",\"track\":18,\"sample_rate\":%u,"
+        "{\"schema\":\"fd2-title18-offline-opl-v2\",\"track\":18,\"sample_rate\":%u,"
+        "\"logic_owner\":\"main-thread\",\"clock_source\":\"shared-bios-ail-pit\","
+        "\"timer_profile_us\":[8333,5000,54925],\"initial_phase_policy\":\"completed-program-zero\","
+        "\"initial_phase_qualified\":false,\"callback_timing_model\":\"instantaneous-no-cpu\","
         "\"frames\":%llu,\"generated_samples\":%llu,\"block_frames\":%zu,\"hook_enabled\":%s,"
         "\"writes\":%zu,\"overflow\":%s,\"trace_capacity\":%zu,\"timer_ticks\":%u,"
         "\"sequence_status_before_retire\":%d,\"sequence_volume_before_retire\":%d,"
@@ -175,6 +184,7 @@ static bool self_test(const char *original) {
 }
 } // namespace
 
+#ifndef FD2_OPL_PROBE_UNHOOKED
 static void observed_write(opl3_chip *chip, uint16_t reg, uint8_t value) {
     if (!trace.chip) trace.chip = chip;
     if (trace.chip != chip || reg > 0x1ff) trace.bad_chip = true;
@@ -191,6 +201,7 @@ static void observed_generate(opl3_chip *chip, int16_t *output) {
     OPL3_GenerateResampled(chip, output);
     ++trace.generated;
 }
+#endif
 
 int main(int argc, char **argv) {
     const char *original = nullptr, *events = nullptr, *metadata = nullptr;

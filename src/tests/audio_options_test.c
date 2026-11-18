@@ -1,55 +1,82 @@
-/* sfx_play @0x25a96（原FUN_000231de）/sfx_play_secondary @0x25b45
- * （原FUN_0002328d）：51E62仅gate未来cue，owner退休不受gate影响。离线纯测。 */
+/* sfx_play25a96/25b45：51E62先于sync/资源/stop；两view共享唯一gate。
+ * 39805/41770仅stop8，DMA共同尾与正在借用的P不因禁用消失。无设备纯测。 */
 #include "audio_pcm.h"
-#include <math.h>
 #include <stdio.h>
 #include <string.h>
-static int observed_play(fd2_audio*,fd2_audio_bus,fd2_audio_source,float);
-#define fd2_audio_play_source observed_play
+static unsigned control_syncs;
+static int observed_sync(fd2_audio *audio);
+#define fd2_audio_sync observed_sync
 #include "../audio_pcm.c"
-#undef fd2_audio_play_source
+#undef fd2_audio_sync
+#include "pcm_clock_fixture.h"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"%s:%d: %s\n",__func__,__LINE__,#x);return 1;}}while(0)
-typedef struct{fd2_audio_source source;unsigned retire_count;} Observation;
-static Observation observations[48];static size_t observation_count;
-static size_t observed_render(void *p,float *out,size_t n){Observation *o=p;return o->source.render(o->source.userdata,out,n);}
-static void observed_retire(void *p,fd2_audio_retire_reason why){Observation *o=p;++o->retire_count;if(o->source.retire)o->source.retire(o->source.userdata,why);}
-static int observed_play(fd2_audio *a,fd2_audio_bus bus,fd2_audio_source source,float gain){
- if(observation_count==48)return -1;Observation *o=&observations[observation_count++];o->source=source;o->retire_count=0;
- fd2_audio_source wrapped={observed_render,observed_retire,o};return fd2_audio_play_source(a,bus,wrapped,gain);
+static int observed_sync(fd2_audio *audio) {++control_syncs;return fd2_audio_sync(audio);}
+
+static void make_bank(uint8_t data[18]) {
+    memcpy(data,"LLLLLL",6);data[6]=10;data[7]=data[8]=data[9]=0;
+    memset(data+10,192,8);
 }
-static int option(fd2_pcm_player *p,int enabled){
- return fd2_pcm_player_set_enabled(p,enabled);
+
+static int disabled_gate_is_before_sync_resource_and_stop(void) {
+    uint8_t bytes[18];make_bank(bytes);fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank,bytes,sizeof(bytes))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,0,0,FD2_PCM_TEST_GAIN)==0 &&
+          fd2_pcm_play_replace(&f.secondary,&bank,0,0,FD2_PCM_TEST_GAIN)==0);
+    CHECK(fd2_audio_dig_service(&f.driver.dig)==1 &&
+          f.driver.dig.samples[0].status==4 && f.driver.dig.samples[1].status==4);
+    /* 任一view写的是同一51E62；无sync、无原播放源停止或DMA清零。 */
+    unsigned syncs=control_syncs;
+    fd2_audio_dig before=f.driver.dig;
+    CHECK(fd2_pcm_player_set_enabled(&f.primary,0)==0 && f.driver.dig.enabled==0);
+    before.enabled=0;CHECK(!memcmp(&before,&f.driver.dig,sizeof(before)) && control_syncs==syncs);
+    fd2_pcm_driver saved=f.driver;fd2_pcm_player p=f.primary,q=f.secondary;
+    fd2_ail_timer clock=*fd2_bios_clock_ail_state();
+    uint64_t now=fd2_audio_now_ns(f.audio);
+    /* 非法资源/循环/gain不能在disabled时泄入资源或sync；不执行越界读。 */
+    CHECK(fd2_pcm_play(&f.primary,NULL,SIZE_MAX,-1,1.0f)==0);
+    CHECK(fd2_pcm_play_replace(&f.secondary,NULL,SIZE_MAX,-1,0.0f)==0);
+    CHECK(fd2_pcm_stop(&f.primary)==0 && fd2_pcm_stop(&f.secondary)==0);
+    CHECK(control_syncs==syncs && !memcmp(&saved,&f.driver,sizeof(saved)) &&
+          !memcmp(&p,&f.primary,sizeof(p)) && !memcmp(&q,&f.secondary,sizeof(q)) &&
+          !memcmp(&clock,fd2_bios_clock_ail_state(),sizeof(clock)) && fd2_audio_now_ns(f.audio)==now);
+    CHECK(fd2_pcm_player_set_enabled(&f.secondary,2)<0 && !memcmp(&saved,&f.driver,sizeof(saved)));
+    CHECK(fd2_pcm_player_set_enabled(&f.secondary,1)==0 && f.driver.dig.enabled==1);
+    uint8_t tail[4096];memcpy(tail,f.driver.dig.dma,sizeof(tail));
+    fd2_dig_sample primary=f.driver.dig.samples[0],secondary=f.driver.dig.samples[1];
+    CHECK(fd2_pcm_stop(&f.primary)==0);primary.status=8;
+    CHECK(!memcmp(&primary,&f.driver.dig.samples[0],sizeof(primary)) &&
+          !memcmp(&secondary,&f.driver.dig.samples[1],sizeof(secondary)) &&
+          !memcmp(tail,f.driver.dig.dma,sizeof(tail)));
+    /* disabled从不挡App终态quiesce／clock close／借用释放。 */
+    CHECK(fd2_pcm_player_set_enabled(&f.primary,0)==0);
+    CHECK(fd2_pcm_test_close(&f)==0 && f.driver.dig.closed && !f.driver.dig.timer &&
+          !f.driver.audio && !f.primary.driver && !f.secondary.driver);
+    fd2_pcm_bank_close(&bank);memset(bytes,0xcc,sizeof(bytes));return 0;
 }
-static void make_bank(uint8_t *data){memcpy(data,"LLLLLL",6);data[6]=10;data[7]=data[8]=data[9]=0;memset(data+10,192,8);}
-static int old_sample_survives_off_owner_still_retires(void){
- uint8_t bytes[18];make_bank(bytes);fd2_pcm_bank bank;CHECK(fd2_pcm_bank_open_mem(&bank,bytes,sizeof(bytes))==0);
- fd2_audio_config config={11025,0,1};fd2_audio *a=fd2_audio_create(&config);fd2_pcm_player p;CHECK(a&&fd2_pcm_player_init(&p,a,11025)==0);
- CHECK(fd2_pcm_play_replace(&p,&bank,0,0,1.f)==0);float output[4];CHECK(fd2_audio_render_offline(a,output,1)==1);
- CHECK(option(&p,0)==0);CHECK(fd2_audio_render_offline(a,output,1)==1);float ongoing=output[0];
- CHECK(fd2_pcm_play_replace(&p,&bank,0,1,1.f)==0);CHECK(fd2_pcm_stop(&p)==0);
- CHECK(fd2_audio_render_offline(a,output,1)==1);float after_cue=output[0];size_t count=observation_count;
- fd2_audio_destroy(a);unsigned retired=observations[0].retire_count;int free_state=atomic_load(&p.voices[0].state);
- fd2_pcm_player_close(&p);fd2_pcm_bank_close(&bank);memset(bytes,0xcc,sizeof(bytes));
- CHECK(fabsf(ongoing-.5f)<.0001f && fabsf(after_cue-.5f)<.0001f);
- CHECK(count==1 && retired==1 && free_state==0);
- /* 原bank内存已无效后，重开全新owner不得再访问或二次退休旧source。 */
- make_bank(bytes);CHECK(fd2_pcm_bank_open_mem(&bank,bytes,sizeof(bytes))==0);a=fd2_audio_create(&config);CHECK(a&&fd2_pcm_player_init(&p,a,11025)==0);
- CHECK(fd2_pcm_play_replace(&p,&bank,0,1,1.f)==0 && fd2_audio_render_offline(a,output,1)==1);
- fd2_audio_destroy(a);fd2_pcm_player_close(&p);fd2_pcm_bank_close(&bank);
- CHECK(observation_count==2 && observations[0].retire_count==1 && observations[1].retire_count==1);return 0;
+
+static int close_and_new_scope_do_not_reuse_borrowed_source(void) {
+    for(unsigned generation=0;generation<2;generation++) {
+        uint8_t bytes[18];make_bank(bytes);memset(bytes+10,generation?255:0,8);
+        fd2_pcm_bank bank;CHECK(fd2_pcm_bank_open_mem(&bank,bytes,sizeof(bytes))==0);
+        fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+        CHECK(f.driver.dig.samples[0].status==2 && f.driver.dig.samples[1].status==2 &&
+              !f.driver.dig.samples[0].data && !f.driver.dig.samples[1].data);
+        CHECK(fd2_pcm_play_replace(&f.secondary,&bank,0,0,FD2_PCM_TEST_GAIN)==0 &&
+              f.driver.dig.samples[1].data==bytes+10);
+        CHECK(fd2_pcm_player_set_enabled(&f.secondary,0)==0);
+        CHECK(fd2_pcm_test_close(&f)==0);
+        fd2_pcm_bank_close(&bank);memset(bytes,0xcc,sizeof(bytes));
+        fd2_audio_dig saved=f.driver.dig;
+        CHECK(fd2_pcm_stop(&f.secondary)<0 && fd2_bios_clock_advance(UINT64_C(1000000000))<0 &&
+              !memcmp(&saved,&f.driver.dig,sizeof(saved)));
+    }
+    return 0;
 }
-static int two_handles_and_bad_option(void){
- uint8_t bytes[18];make_bank(bytes);fd2_pcm_bank bank;CHECK(fd2_pcm_bank_open_mem(&bank,bytes,sizeof(bytes))==0);
- fd2_audio_config config={11025,0,1};fd2_audio *a=fd2_audio_create(&config);fd2_pcm_player p,q;CHECK(a&&fd2_pcm_player_init(&p,a,11025)==0&&fd2_pcm_player_init(&q,a,11025)==0);
- CHECK(fd2_pcm_play_replace(&p,&bank,0,0,.5f)==0&&fd2_pcm_play_replace(&q,&bank,0,0,.5f)==0);float out[2];CHECK(fd2_audio_render_offline(a,out,1)==1);
- size_t count=observation_count;CHECK(option(&p,0)==0&&option(&q,0)==0);
- CHECK(fd2_pcm_play(&p,NULL,99,-1,1.f)==0&&fd2_pcm_play_replace(&q,NULL,99,-1,1.f)==0);
- CHECK(fd2_pcm_stop(&p)==0&&fd2_pcm_stop(&q)==0&&observation_count==count);
- CHECK(fd2_audio_render_offline(a,out,1)==1&&fabsf(out[0]-.5f)<.0001f);
- CHECK(fd2_pcm_player_set_enabled(&p,2)==-1&&p.enabled==0);
- CHECK(option(&p,1)==0&&option(&q,1)==0&&fd2_pcm_stop(&p)==0&&fd2_pcm_stop(&q)==0);
- CHECK(fd2_audio_render_offline(a,out,1)==1&&out[0]==0.f);fd2_audio_destroy(a);fd2_pcm_player_close(&p);fd2_pcm_player_close(&q);fd2_pcm_bank_close(&bank);return 0;
+
+int main(void) {
+    if(disabled_gate_is_before_sync_resource_and_stop() ||
+       close_and_new_scope_do_not_reuse_borrowed_source())return 1;
+    puts("audio options: shared gate/no-sync/stop8/tail/borrowed lifecycle PASS; no device/GUI");
+    return 0;
 }
-int main(void){if(old_sample_survives_off_owner_still_retires())return 1;
- if(two_handles_and_bad_option())return 1;
- puts("audio_options_test: ok (no device/GUI)");return 0;}

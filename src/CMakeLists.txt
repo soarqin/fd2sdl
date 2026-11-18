@@ -132,6 +132,24 @@ if(MSVC)
     add_compile_options(/utf-8 /experimental:c11atomics /std:c11)
 endif()
 
+# 单一游戏时间与音频调度；不链接DOS硬件研究。
+add_library(fd2_clock STATIC bios_clock.c ail_timer.c)
+target_include_directories(fd2_clock PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(fd2_clock PUBLIC ${FD2SDL_SDL3_TARGET})
+link_libraries(fd2_clock)
+
+# 仅保留影响实际PCM输出的采样、双声部混合和量化核。
+add_library(fd2_audio_native STATIC audio_dig.c sb_dma_provider.c
+    sb_channel.c audio_sb.c mixdown_dc.c)
+target_include_directories(fd2_audio_native PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(fd2_audio_native PUBLIC fd2_clock)
+if(MSVC)
+    target_compile_options(fd2_audio_native PRIVATE /W4 /fp:strict)
+else()
+    target_compile_options(fd2_audio_native PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+link_libraries(fd2_audio_native)
+
 # 所有消费端（包括独立列源测试）链接同一份只读流程实例。
 add_library(fd2_static_definitions STATIC static_data.c)
 target_include_directories(fd2_static_definitions PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -172,7 +190,7 @@ set(FD2SDL_CORE_SOURCES
     field_ai.c
     field_combat.c
     field_rng.c
-    bios_clock.c
+
     field_item.c
     field_prepare_item.c
     field_prepare.c
@@ -364,6 +382,19 @@ if(BUILD_TESTING)
     set_tests_properties(field_stage_tables PROPERTIES
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 
+    # 主线程transport私有TU；mock设备/宿主时间，真实共享BIOS/AIL，不开设备。
+    add_executable(fd2_audio_transport_test
+        tests/audio_transport_test.c )
+    target_include_directories(fd2_audio_transport_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_audio_transport_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    if(MSVC)
+        target_compile_options(fd2_audio_transport_test PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(fd2_audio_transport_test PRIVATE -Wall -Wextra -Wpedantic)
+        target_link_libraries(fd2_audio_transport_test PRIVATE m)
+    endif()
+    add_test(NAME audio_transport COMMAND fd2_audio_transport_test)
+
     add_executable(fd2_audio_test
         tests/audio_test.c
         audio.c
@@ -391,6 +422,7 @@ if(BUILD_TESTING)
         target_compile_options(fd2_audio_lifecycle_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME audio_lifecycle COMMAND fd2_audio_lifecycle_test)
+    add_test(NAME audio_failed_install_source COMMAND fd2_audio_lifecycle_test --abandon-source)
 
     # 正式快速入口：无效音频后端不得使玩法初始化失败；dummy video不算窗口验收。
     add_test(NAME audio_unavailable_field_quick_entry
@@ -403,6 +435,8 @@ if(BUILD_TESTING)
     # 仅显式--execute才打开真实设备，不注册为自动CTest，供owned串行实际验收。
     add_executable(fd2_audio_device_probe
         tests/audio_device_probe.c audio_pcm_capture.c)
+    add_test(NAME audio_device_probe_dry COMMAND fd2_audio_device_probe --dry-run)
+    set_tests_properties(audio_device_probe_dry PROPERTIES TIMEOUT 10 LABELS "audio;unit")
     target_include_directories(fd2_audio_device_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_audio_device_probe PRIVATE ${FD2SDL_SDL3_TARGET})
     if(MSVC)
@@ -499,6 +533,10 @@ if(BUILD_TESTING)
         audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
     add_executable(fd2_bgm_native_sequence_test tests/bgm_native_sequence_test.cpp
         audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_first_packet_test tests/bgm_first_packet_test.cpp
+        audio.c audio_pcm.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
+    add_executable(fd2_bgm_bank_resource_failure_test tests/bgm_bank_resource_failure_test.cpp
+        audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
     add_executable(fd2_bgm_options_test tests/bgm_options_test.cpp
         audio.c audio_pcm_capture.c archive.c third_party/nukedopl3.c third_party/model_ail.c)
     add_executable(fd2_audio_options_test tests/audio_options_test.c
@@ -512,6 +550,7 @@ if(BUILD_TESTING)
         PROPERTIES CXX_STANDARD 17)
     target_compile_definitions(fd2_bgm_opl_trace_probe_unhooked PRIVATE FD2_OPL_PROBE_UNHOOKED=1)
     foreach(target fd2_bgm_sbpro2_test fd2_bgm_sequence_volume_test fd2_bgm_native_sequence_test
+                   fd2_bgm_first_packet_test fd2_bgm_bank_resource_failure_test
                    fd2_bgm_options_test fd2_audio_options_test
                    fd2_bgm_opl_trace_probe fd2_bgm_opl_trace_probe_unhooked)
         target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -524,8 +563,12 @@ if(BUILD_TESTING)
         endif()
     endforeach()
     add_test(NAME bgm_sbpro2 COMMAND fd2_bgm_sbpro2_test)
+    add_test(NAME bgm_startup_owner COMMAND fd2_bgm_sbpro2_test --startup-owner)
+    set_tests_properties(bgm_startup_owner PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30)
     add_test(NAME bgm_sequence_volume COMMAND fd2_bgm_sequence_volume_test)
     add_test(NAME bgm_native_sequence COMMAND fd2_bgm_native_sequence_test)
+    add_test(NAME bgm_first_packet_native_content COMMAND fd2_bgm_first_packet_test)
+    add_test(NAME bgm_bank_resource_failure COMMAND fd2_bgm_bank_resource_failure_test)
     add_test(NAME bgm_options COMMAND fd2_bgm_options_test)
     add_test(NAME audio_options COMMAND fd2_audio_options_test)
     add_test(NAME bgm_opl_trace COMMAND fd2_bgm_opl_trace_probe --self-test
@@ -533,6 +576,7 @@ if(BUILD_TESTING)
     add_test(NAME bgm_opl_trace_unhooked COMMAND fd2_bgm_opl_trace_probe_unhooked --self-test
         --original "${CMAKE_CURRENT_SOURCE_DIR}/../original_game")
     set_tests_properties(bgm_sbpro2 bgm_sequence_volume bgm_native_sequence bgm_options audio_options
+        bgm_first_packet_native_content bgm_bank_resource_failure
         bgm_opl_trace bgm_opl_trace_unhooked PROPERTIES
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30)
     if(Python3_Interpreter_FOUND)
@@ -592,7 +636,7 @@ if(BUILD_TESTING)
 
     add_executable(fd2_dialog_flow_test
         tests/dialog_flow_test.c
-        dialog_flow.c bios_clock.c
+        dialog_flow.c
     )
     target_include_directories(fd2_dialog_flow_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR})
@@ -810,7 +854,7 @@ if(BUILD_TESTING)
     add_test(NAME field_render_scope COMMAND fd2_field_render_scope_test)
 
     add_executable(fd2_field_background_test tests/field_background_test.c
-        field_background.c field_page.c archive.c image.c bios_clock.c)
+        field_background.c field_page.c archive.c image.c  )
     target_include_directories(fd2_field_background_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_background_test PRIVATE ${FD2SDL_SDL3_TARGET})
     add_test(NAME field_background COMMAND fd2_field_background_test)
@@ -846,7 +890,7 @@ if(BUILD_TESTING)
 
     add_executable(fd2_field_visual_test
         tests/field_visual_test.c
-        field_visual.c bios_clock.c
+        field_visual.c
         input.c
         archive.c
         shape.c
@@ -989,7 +1033,7 @@ if(BUILD_TESTING)
     )
     add_test(NAME field_attack COMMAND fd2_field_attack_test)
 
-    add_executable(fd2_bios_clock_test tests/bios_clock_test.c)
+    add_executable(fd2_bios_clock_test tests/bios_clock_test.c )
     target_include_directories(fd2_bios_clock_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_bios_clock_test PRIVATE ${FD2SDL_SDL3_TARGET})
     if(MSVC)
@@ -999,7 +1043,16 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME bios_clock COMMAND fd2_bios_clock_test)
 
-    add_executable(fd2_bios_wait_test tests/bios_wait_test.c bios_clock.c input.c field_page.c)
+    add_executable(fd2_bios_clock_ail_test tests/bios_clock_ail_test.c )
+    target_include_directories(fd2_bios_clock_ail_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bios_clock_ail_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME bios_clock_ail COMMAND fd2_bios_clock_ail_test)
+    add_executable(fd2_bios_clock_cpp_test tests/bios_clock_cpp_test.cpp  )
+    target_include_directories(fd2_bios_clock_cpp_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_bios_clock_cpp_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME bios_clock_cpp COMMAND fd2_bios_clock_cpp_test)
+    # 同一fd2_clock的SOURCE owner/checked回执；不另编第二timer/Audio。
+    add_executable(fd2_bios_wait_test tests/bios_wait_test.c   input.c field_page.c)
     target_include_directories(fd2_bios_wait_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_bios_wait_test PRIVATE ${FD2SDL_SDL3_TARGET})
     if(MSVC)
@@ -1451,7 +1504,10 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(fd2_field_play_result_test PRIVATE ${FD2SDL_SDL3_TARGET})
     target_compile_definitions(fd2_field_play_result_test PRIVATE
+        fd2_delay_ms=__wrap_fd2_delay_ms
         fd2_wait_ticks=__wrap_fd2_wait_ticks
+        fd2_vga_delay_ms=__wrap_fd2_vga_delay_ms
+        fd2_vga_wait_ticks=__wrap_fd2_vga_wait_ticks
         fd2_bios_tick_low_ns=__wrap_fd2_bios_tick_low_ns
         fd2_bios_tick_signed_ns=__wrap_fd2_bios_tick_signed_ns
         fd2_field_water_tick_live=__wrap_fd2_field_water_tick_live
@@ -1477,7 +1533,7 @@ if(BUILD_TESTING)
         fd2_scene_play_stage_victory=__wrap_fd2_scene_play_stage_victory
         fd2_scene_play_game_over=__wrap_fd2_scene_play_game_over
         fd2_vga_present=__wrap_fd2_vga_present
-        fd2_vga_upload_current_frame=__wrap_fd2_vga_present
+        fd2_vga_upload_current_frame=__wrap_fd2_vga_upload_current_frame
         fd2_vga_present_timed=__wrap_fd2_vga_present_timed
         fd2_input_take_action=__wrap_fd2_input_take_action
         fd2_field_game_open_detail=__wrap_fd2_field_game_open_detail
@@ -1775,7 +1831,7 @@ if(BUILD_TESTING)
     add_executable(fd2_magic_fx_test tests/magic_fx_test.c magic_fx.c)
     add_executable(fd2_battle_animation_test
         tests/battle_animation_test.c
-        figani.c magic_fx.c tile.c field_page.c field_info.c field_visual.c bios_clock.c field_item.c field_magic.c field_unit.c field_unit_base.c
+        figani.c magic_fx.c tile.c field_page.c field_info.c field_visual.c   field_item.c field_magic.c field_unit.c field_unit_base.c
         field_unit_stats.c field_attack.c field_path.c field_move_profile.c
         map_sprite.c image.c archive.c portrait.c text.c font.c field.c shape.c
         audio_pcm.c audio.c audio_pcm_capture.c field_effect.c field_audio.c)
@@ -1795,12 +1851,91 @@ if(BUILD_TESTING)
     set_tests_properties(figani magic_fx battle_animation field_magic_full PROPERTIES
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/.. TIMEOUT 30)
 
+    # 独立源公式生成合成向量；不读取原资源或执行待测C生成expected。
+    set(fd2_native_vector_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/native_audio")
+    set(fd2_sb_channel_vectors "${fd2_native_vector_dir}/sb_channel_vectors.h")
+    add_custom_command(OUTPUT "${fd2_sb_channel_vectors}"
+        COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py"
+            --header "${fd2_sb_channel_vectors}"
+        DEPENDS "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py" VERBATIM)
+    add_executable(fd2_sb_channel_test tests/sb_channel_test.c "${fd2_sb_channel_vectors}")
+    target_include_directories(fd2_sb_channel_test PRIVATE "${fd2_native_vector_dir}")
+    add_test(NAME sb_channel COMMAND fd2_sb_channel_test)
+
+    set(fd2_dig_sb_vectors "${fd2_native_vector_dir}/dig_sb_vectors.h")
+    add_custom_command(OUTPUT "${fd2_dig_sb_vectors}"
+        COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/testing/dig_sb_vectors.py"
+            --channel-model "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py"
+            --header "${fd2_dig_sb_vectors}"
+        DEPENDS "${FD2_STATIC_ROOT}/tools/testing/dig_sb_vectors.py"
+            "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py" VERBATIM)
+    add_executable(fd2_audio_sb_test tests/audio_sb_test.c "${fd2_dig_sb_vectors}")
+    target_include_directories(fd2_audio_sb_test PRIVATE "${fd2_native_vector_dir}")
+    add_test(NAME audio_sb_bridge COMMAND fd2_audio_sb_test)
+
+    add_executable(fd2_sb_dma_provider_test tests/sb_dma_provider_test.c)
+    target_compile_definitions(fd2_sb_dma_provider_test PRIVATE _CRT_SECURE_NO_WARNINGS)
+    add_test(NAME sb_dma_provider COMMAND fd2_sb_dma_provider_test
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/sb_dma_requests.txt")
+
+    set(fd2_mixdown_vectors "${CMAKE_CURRENT_BINARY_DIR}/mixdown_dc_vectors.bin")
+    add_custom_command(OUTPUT "${fd2_mixdown_vectors}"
+        COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/testing/mixdown_dc_vectors.py"
+            --root "${FD2_STATIC_ROOT}" --build-dir "${CMAKE_CURRENT_BINARY_DIR}"
+            --output "${fd2_mixdown_vectors}"
+        DEPENDS "${FD2_STATIC_ROOT}/tools/testing/mixdown_dc_vectors.py" VERBATIM)
+    add_executable(fd2_mixdown_dc_test tests/mixdown_dc_test.c "${fd2_mixdown_vectors}")
+    target_compile_definitions(fd2_mixdown_dc_test PRIVATE _CRT_SECURE_NO_WARNINGS)
+    add_test(NAME mixdown_dc COMMAND fd2_mixdown_dc_test "${fd2_mixdown_vectors}")
+    foreach(fd2_numeric IN ITEMS fd2_sb_channel_test fd2_audio_sb_test fd2_sb_dma_provider_test fd2_mixdown_dc_test)
+        if(MSVC)
+            target_compile_options(${fd2_numeric} PRIVATE /W4 /fp:strict)
+        else()
+            target_compile_options(${fd2_numeric} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+    endforeach()
+    foreach(fd2_model IN ITEMS sb_channel mixdown_dc)
+        add_test(NAME ${fd2_model}_output_paths COMMAND ${Python3_EXECUTABLE} -B
+            -m unittest discover -s "${FD2_STATIC_ROOT}/tools/tests"
+            -p "test_${fd2_model}_vectors.py")
+    endforeach()
+    set_tests_properties(sb_channel audio_sb_bridge sb_dma_provider mixdown_dc
+        sb_channel_output_paths mixdown_dc_output_paths PROPERTIES TIMEOUT 15 LABELS "audio;unit")
+
+    set(fd2_original_vectors "${fd2_native_vector_dir}/audio_original_vectors.h")
+    add_custom_command(OUTPUT "${fd2_original_vectors}"
+        COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/testing/audio_original_vectors.py"
+            --header "${fd2_original_vectors}"
+        DEPENDS "${FD2_STATIC_ROOT}/tools/testing/audio_original_vectors.py"
+            "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py"
+            "${FD2_STATIC_ROOT}/tools/testing/dig_sb_vectors.py" VERBATIM)
+    add_executable(fd2_audio_original_test tests/audio_original_test.c audio_pcm.c
+        archive.c "${fd2_original_vectors}")
+    target_include_directories(fd2_audio_original_test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}" "${fd2_native_vector_dir}")
+    target_link_libraries(fd2_audio_original_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_executable(fd2_pcm_shared_dig_test tests/audio_dig_test.c audio_pcm.c archive.c)
+    target_include_directories(fd2_pcm_shared_dig_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(fd2_pcm_shared_dig_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    foreach(fd2_control IN ITEMS fd2_audio_original_test fd2_pcm_shared_dig_test)
+        target_compile_definitions(${fd2_control} PRIVATE _CRT_SECURE_NO_WARNINGS)
+        if(MSVC)
+            target_compile_options(${fd2_control} PRIVATE /W4 /fp:strict)
+        else()
+            target_compile_options(${fd2_control} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+    endforeach()
+    add_test(NAME audio_original COMMAND fd2_audio_original_test)
+    add_test(NAME pcm_shared_dig_external COMMAND fd2_pcm_shared_dig_test)
+    set_tests_properties(audio_original pcm_shared_dig_external PROPERTIES TIMEOUT 15 LABELS "audio;unit")
+
     # 应用侧静音前PCM observer；全部为合成输入/设备调用mock，不开设备或GUI。
     add_executable(fd2_audio_pcm_capture_test
         tests/audio_pcm_capture_test.c audio.c audio_pcm_capture.c)
     add_executable(fd2_audio_pcm_capture_hook_test
         tests/audio_pcm_capture_hook_test.c audio_pcm_capture.c)
-    foreach(fd2_test IN ITEMS fd2_audio_pcm_capture_test fd2_audio_pcm_capture_hook_test)
+    add_executable(fd2_audio_pcm_quantizer_test tests/audio_pcm_quantizer_test.c)
+    foreach(fd2_test IN ITEMS fd2_audio_pcm_capture_test fd2_audio_pcm_capture_hook_test fd2_audio_pcm_quantizer_test)
         target_include_directories(${fd2_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_link_libraries(${fd2_test} PRIVATE ${FD2SDL_SDL3_TARGET})
         if(MSVC)
@@ -1811,10 +1946,88 @@ if(BUILD_TESTING)
     endforeach()
     add_test(NAME audio_pcm_capture_boundaries COMMAND fd2_audio_pcm_capture_test
         "${CMAKE_CURRENT_BINARY_DIR}/pcm-boundary-artifacts")
-    add_test(NAME audio_pcm_capture_callback_order COMMAND fd2_audio_pcm_capture_hook_test
+    add_test(NAME audio_pcm_capture_main_order COMMAND fd2_audio_pcm_capture_hook_test
         "${CMAKE_CURRENT_BINARY_DIR}/pcm-hook-artifacts")
-    set_tests_properties(audio_pcm_capture_boundaries audio_pcm_capture_callback_order
+    add_test(NAME audio_pcm_capture_quantizer COMMAND fd2_audio_pcm_quantizer_test)
+    set_tests_properties(audio_pcm_capture_boundaries audio_pcm_capture_main_order audio_pcm_capture_quantizer
         PROPERTIES TIMEOUT 15 LABELS "audio;unit")
+
+    get_target_property(clock_sources fd2_bios_wait_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_vga_test tests/clock_error_vga_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_bios_wait_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_vga_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_vga_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_vga_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_vga COMMAND fd2_clock_error_vga_test)
+    get_target_property(clock_sources fd2_field_visual_live_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_visual_test tests/clock_error_visual_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_field_visual_live_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_visual_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_visual_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_visual_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_visual COMMAND fd2_clock_error_visual_test)
+    get_target_property(clock_sources fd2_field_prepare_play_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_prepare_test tests/clock_error_prepare_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_field_prepare_play_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_prepare_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_prepare_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_prepare_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_prepare COMMAND fd2_clock_error_prepare_test)
+    get_target_property(clock_sources fd2_field_progress_play_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_play_test tests/clock_error_play_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_field_progress_play_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_play_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_play_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_play_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_play COMMAND fd2_clock_error_play_test)
+    get_target_property(clock_sources fd2_scene_handoff_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_scene_test tests/clock_error_scene_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_scene_handoff_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_scene_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_scene_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_scene_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_scene COMMAND fd2_clock_error_scene_test)
+    get_target_property(clock_sources fd2_battle_animation_test SOURCES)
+    list(REMOVE_AT clock_sources 0)
+    add_executable(fd2_clock_error_battle_test tests/clock_error_battle_test.c ${clock_sources})
+    get_target_property(clock_defs fd2_battle_animation_test COMPILE_DEFINITIONS)
+    if(clock_defs)
+        target_compile_definitions(fd2_clock_error_battle_test PRIVATE ${clock_defs})
+    endif()
+    target_include_directories(fd2_clock_error_battle_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_battle_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    add_test(NAME clock_error_battle COMMAND fd2_clock_error_battle_test)
+    set_tests_properties(clock_error_vga clock_error_visual clock_error_prepare
+        clock_error_play clock_error_scene clock_error_battle PROPERTIES TIMEOUT 30 LABELS "clock;unit")
+
+    add_executable(fd2_clock_error_scene_audio_test
+        tests/clock_error_scene_audio_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+    target_include_directories(fd2_clock_error_scene_audio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(fd2_clock_error_scene_audio_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    foreach(lane prepare play scene battle)
+        add_test(NAME clock_audio_return_${lane}
+            COMMAND fd2_clock_error_${lane}_test --audio-return)
+        set_tests_properties(clock_audio_return_${lane} PROPERTIES TIMEOUT 30 LABELS "clock;unit")
+    endforeach()
+    add_test(NAME clock_audio_return_main COMMAND fd2_main_title_resource_test --audio-return)
+    add_test(NAME clock_audio_return_bridges COMMAND fd2_clock_error_scene_audio_test)
+    set_tests_properties(clock_audio_return_main clock_audio_return_bridges
+        PROPERTIES TIMEOUT 30 LABELS "clock;unit")
 
     # 测试中的 assert 包含实际调用；Release 也必须执行，不能得到空跑假绿。
     get_directory_property(fd2_targets BUILDSYSTEM_TARGETS)
@@ -1873,4 +2086,26 @@ if(BUILD_TESTING)
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_item_runner.py)
     add_test(NAME g2_composite_frame_gate COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_composite_frames.py)
+endif()
+
+# owner-aware新故障族；旧golden与SOURCE故障测试保持各自命令身份。
+if(BUILD_TESTING)
+    foreach(lane visual prepare play scene battle)
+        add_test(NAME clock_output_owner_${lane}
+            COMMAND fd2_clock_error_${lane}_test --output-owner)
+        set_tests_properties(clock_output_owner_${lane} PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30 LABELS "clock;unit")
+    endforeach()
+    add_test(NAME clock_output_owner_game
+        COMMAND fd2_field_detail_flow_test --output-errors)
+    set_tests_properties(clock_output_owner_game PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30 LABELS "clock;unit")
+    if(TARGET fd2_vga_scanout_sdl_test)
+        add_test(NAME vga_output_owner_waits
+            COMMAND fd2_vga_scanout_sdl_test --owner-waits)
+        add_test(NAME vga_output_owner_scope
+            COMMAND fd2_vga_scanout_sdl_test --scope-owner)
+        set_tests_properties(vga_output_owner_waits vga_output_owner_scope
+            PROPERTIES TIMEOUT 15 LABELS "clock;unit")
+    endif()
 endif()

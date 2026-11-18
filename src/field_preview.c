@@ -37,11 +37,12 @@ int fd2_field_preview_run(fd2_vga *vga,
     }
     printf("%s\n", once ? ", fast" : "");
 
+    int result=0;
     int running = 1;
     while (running) {
         fd2_field_game_tick(&game, SDL_GetTicksNS());
         fd2_field_game_render(&game, vga);
-        fd2_vga_present(vga);
+        if(fd2_vga_present(vga)<0){result=-1;break;}
         if (once) break;
 
         if (fd2_input_take_quit(&vga->input)) running = 0;
@@ -69,9 +70,9 @@ int fd2_field_preview_run(fd2_vga *vga,
                     break;
             }
         }
-        fd2_delay_ms(16);
+        if(fd2_vga_delay_ms(vga,16)<0){result=-1;break;}
     }
 
     fd2_field_game_close(&game);
-    return 0;
+    return result;
 }

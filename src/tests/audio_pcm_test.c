@@ -7,6 +7,7 @@
 #include "audio.h"
 #include "audio_pcm.h"
 #include "field_audio.h"
+#include "pcm_clock_fixture.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -43,10 +44,6 @@ static size_t make_bank(uint8_t *data) {
     data[17] = 128;
     data[18] = 255;
     return 19;
-}
-
-static int near(float a, float b) {
-    return fabsf(a - b) < 0.0001f;
 }
 
 static int test_field_sfx_mapping(void) {
@@ -110,295 +107,198 @@ static int test_field_footstep_mapping(void) {
     return 0;
 }
 
-/* 原40240整个函数的独立机器码向量：volume100/pan64/type0，
- * stereo16输出2/3的左右表均为(u-128)*202；不引用生产默认gain常量。 */
-static float original_default_u8(uint8_t value) {
-    return ((int)value - 128) * 202.0f / 32768.0f;
+/* 完整40240/49690/49891的既有独立公式：初fraction=1/2，11025→22050。
+ * 单个N byte片段写2N-1个build值；byte指针floor((j+1)/2)，每值乘202。
+ * 这里核field_audio→真实shared driver的绑定，不把该表当48k final PCM。 */
+static int source_build(unsigned byte) { return ((int)byte-128)*202; }
+static uint8_t source_u8(int value) {
+    if(value>32767)value=32767;
+    else if(value< -32768)value= -32768;
+    return (uint8_t)((value+32768)/256);
 }
 
 static int test_field_default_amplitude_table(void) {
-    uint8_t data[35 + 256];
-    make_index_bank(data, 6, 128); /* 最后sample5扩成完整0..255字节序列。 */
-    for (size_t i = 0; i < 256; i++) data[35 + i] = (uint8_t)i;
-    fd2_pcm_bank bank;
-    CHECK(fd2_pcm_bank_open_mem(&bank, data, sizeof(data)) == 0);
-    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
+    uint8_t data[35+256];make_index_bank(data,6,128);
+    for(unsigned i=0;i<256;i++)data[35+i]=(uint8_t)i;
+    fd2_pcm_bank bank;CHECK(fd2_pcm_bank_open_mem(&bank,data,sizeof(data))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
     fd2_field_audio field_audio;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
-    fd2_field_audio_init(&field_audio, &player, &bank, NULL, NULL);
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
-    float output[512];
-    CHECK(fd2_audio_render_offline(audio, output, 256) == 256);
-    for (size_t i = 0; i < 256; i++) {
-        CHECK(output[i * 2] == original_default_u8((uint8_t)i));
-        CHECK(output[i * 2 + 1] == original_default_u8((uint8_t)i));
+    fd2_field_audio_init(&field_audio,&f.primary,&bank,NULL,NULL);
+    CHECK(fd2_field_audio_play(&field_audio,FD2_FIELD_SFX_DETAIL_OPEN)==0);
+    CHECK(f.primary.driver==&f.driver && f.secondary.driver==&f.driver);
+    CHECK(f.driver.dig.samples[0].data==data+35 &&
+          f.driver.dig.samples[0].length==256 && f.driver.dig.samples[0].status==4);
+    CHECK(fd2_audio_dig_service(&f.driver.dig)==1);
+    CHECK(f.driver.dig.last_half==0 && f.driver.dig.entered_active==1 &&
+          f.driver.dig.samples[0].status==2 && f.driver.dig.samples[0].position==256);
+    for(unsigned i=0;i<FD2_DIG_HALF;i++) {
+        int expected=i<511u ? source_build((i+1u)/2u):0;
+        CHECK(f.driver.dig.build[i]==expected);
+        CHECK(f.driver.dig.dma[1][i]==source_u8(expected));
+        CHECK(f.driver.dig.dma[0][i]==128);
     }
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-    fd2_pcm_bank_close(&bank);
-    return 0;
+    CHECK(fd2_pcm_test_close(&f)==0);fd2_pcm_bank_close(&bank);return 0;
 }
 
 static int test_field_audio_dispatch(void) {
-    uint8_t ui_data[76], battle_data[76], arrival_data[16];
-    fd2_pcm_bank ui_bank, battle_bank, arrival_bank;
-    CHECK(fd2_pcm_bank_open_mem(
-        &ui_bank, ui_data, make_index_bank(ui_data, 14, 128)) == 0);
-    CHECK(fd2_pcm_bank_open_mem(
-        &battle_bank, battle_data,
-        make_index_bank(battle_data, 14, 160)) == 0);
-    CHECK(fd2_pcm_bank_open_mem(
-        &arrival_bank, arrival_data,
-        make_index_bank(arrival_data, 1, 192)) == 0);
-    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
-    fd2_field_audio field_audio;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
-    fd2_field_audio_init(&field_audio, &player, &ui_bank, &battle_bank,
-                         &arrival_bank);
-
-    float output[2];
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(133)));
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DIALOG_GLYPH) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(130)));
-    CHECK(fd2_field_audio_play(
-        &field_audio, FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(139)));
-    CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
-    CHECK(field_audio.footstep_counter == 1);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(137)));
-    for (int i = 0; i < 3; i++)
-        CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
-    CHECK(field_audio.footstep_counter == 4);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 0.0f));
-    CHECK(fd2_field_audio_play_footstep(&field_audio, 0, 1, 1) == 0);
-    CHECK(field_audio.footstep_counter == 5);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(137)));
-    CHECK(fd2_field_audio_play(
-        &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(192)));
-    CHECK(fd2_field_audio_play(
-        &field_audio, FD2_FIELD_SFX_ACTOR_GROUP_FLASH) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(161)));
-    CHECK(fd2_field_audio_play(
-        &field_audio, FD2_FIELD_SFX_STAGE_TRANSITION) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], original_default_u8(171)));
-
-    fd2_field_audio_init(&field_audio, &player, NULL, &battle_bank,
-                         &arrival_bank);
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_DETAIL_OPEN) != 0);
-    fd2_field_audio_init(&field_audio, NULL, &ui_bank, &battle_bank,
-                         &arrival_bank);
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_EARTHQUAKE) != 0);
-
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-
-    fd2_audio_config fallback_config = {
-        .sample_rate = 11025, .open_device = 1, .allow_null = 1,
-    };
-    fd2_audio *fallback = fd2_audio_create(&fallback_config);
-    CHECK(fallback && !fd2_audio_has_device(fallback));
-    fd2_pcm_player fallback_player;
-    CHECK(fd2_pcm_player_init(&fallback_player, fallback, 11025) == 0);
-    fd2_field_audio_init(&field_audio, &fallback_player,
-                         &ui_bank, &battle_bank, &arrival_bank);
-    CHECK(fd2_field_audio_play(&field_audio, FD2_FIELD_SFX_EARTHQUAKE) == 0);
-    int active = 0;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
-        active += atomic_load(&fallback_player.voices[i].state) != 0;
-    CHECK(active == 0);
-    fd2_audio_destroy(fallback);
-    fd2_pcm_player_close(&fallback_player);
-
-    fd2_pcm_bank_close(&arrival_bank);
-    fd2_pcm_bank_close(&battle_bank);
-    fd2_pcm_bank_close(&ui_bank);
-    return 0;
+    uint8_t ui_data[76],battle_data[76],arrival_data[16];
+    fd2_pcm_bank ui,battle,arrival;
+    CHECK(fd2_pcm_bank_open_mem(&ui,ui_data,make_index_bank(ui_data,14,128))==0);
+    CHECK(fd2_pcm_bank_open_mem(&battle,battle_data,make_index_bank(battle_data,14,160))==0);
+    CHECK(fd2_pcm_bank_open_mem(&arrival,arrival_data,make_index_bank(arrival_data,1,192))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+    CHECK(!fd2_audio_has_device(f.audio)); /* null输出仍保P/DMA逻辑，不开设备。 */
+    fd2_field_audio a;fd2_field_audio_init(&a,&f.primary,&ui,&battle,&arrival);
+    static const struct {fd2_field_sfx cue;unsigned bank,index;} cases[]={
+        {FD2_FIELD_SFX_DETAIL_OPEN,0,5},{FD2_FIELD_SFX_DIALOG_GLYPH,0,2},
+        {FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11,0,11},
+        {FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL,2,0},
+        {FD2_FIELD_SFX_ACTOR_GROUP_FLASH,1,1},
+        {FD2_FIELD_SFX_STAGE_TRANSITION,1,11},{FD2_FIELD_SFX_EARTHQUAKE,1,13}};
+    const uint8_t *bases[]={ui_data+62,battle_data+62,arrival_data+10};
+    fd2_dig_sample secondary=f.driver.dig.samples[1];
+    uint8_t initial_dma[4096];memcpy(initial_dma,f.driver.dig.dma,sizeof(initial_dma));
+    for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        CHECK(fd2_field_audio_play(&a,cases[i].cue)==0);
+        const fd2_dig_sample *p=&f.driver.dig.samples[0];
+        CHECK(p->data==bases[cases[i].bank]+cases[i].index && p->length==1 &&
+              !p->position && p->loop_count==1 && p->status==4);
+        CHECK(!memcmp(&secondary,&f.driver.dig.samples[1],sizeof(secondary)));
+        CHECK(!memcmp(initial_dma,f.driver.dig.dma,sizeof(initial_dma)));
+    }
+    CHECK(fd2_field_audio_play_footstep(&a,0,1,1)==0 && a.footstep_counter==1);
+    CHECK(f.driver.dig.samples[0].data==ui_data+62+9);
+    for(unsigned i=0;i<3;i++) {
+        fd2_audio_dig saved=f.driver.dig;
+        CHECK(fd2_field_audio_play_footstep(&a,0,1,1)==0);
+        CHECK(!memcmp(&saved,&f.driver.dig,sizeof(saved)));
+    }
+    CHECK(a.footstep_counter==4 && fd2_field_audio_play_footstep(&a,0,1,1)==0 &&
+          a.footstep_counter==5 && f.driver.dig.samples[0].data==ui_data+62+9);
+    fd2_audio_dig saved=f.driver.dig;
+    fd2_field_audio_init(&a,&f.primary,NULL,&battle,&arrival);
+    CHECK(fd2_field_audio_play(&a,FD2_FIELD_SFX_DETAIL_OPEN)<0);
+    fd2_field_audio_init(&a,NULL,&ui,&battle,&arrival);
+    CHECK(fd2_field_audio_play(&a,FD2_FIELD_SFX_EARTHQUAKE)<0);
+    CHECK(!memcmp(&saved,&f.driver.dig,sizeof(saved)));
+    CHECK(fd2_pcm_test_close(&f)==0);
+    fd2_pcm_bank_close(&arrival);fd2_pcm_bank_close(&battle);fd2_pcm_bank_close(&ui);return 0;
 }
 
 static int test_one_shot_and_loop(void) {
-    uint8_t data[19];
-    fd2_pcm_bank bank;
-    CHECK(fd2_pcm_bank_open_mem(&bank, data, make_bank(data)) == 0);
-    CHECK(fd2_pcm_bank_count(&bank) == 2);
-    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
+    uint8_t data[19];fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank,data,make_bank(data))==0 && fd2_pcm_bank_count(&bank)==2);
+    static const int one[]={-25856,0,0,25654,25654};
+    static const int twice[]={0,25654,25654,0,25654,25654};
+    for(unsigned c=0;c<2;c++) {
+        fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+        CHECK(fd2_pcm_play(&f.primary,&bank,c,c+1,FD2_PCM_TEST_GAIN)==0);
+        CHECK(fd2_audio_dig_service(&f.driver.dig)==1);
+        unsigned count=c?6u:5u;const int *expected=c?twice:one;
+        for(unsigned i=0;i<FD2_DIG_HALF;i++) {
+            int value=i<count?expected[i]:0;
+            CHECK(f.driver.dig.build[i]==value && f.driver.dig.dma[1][i]==source_u8(value));
+            CHECK(f.driver.dig.dma[0][i]==128);
+        }
+        CHECK(f.driver.dig.samples[0].status==2 && f.driver.dig.samples[0].loop_count==1 &&
+              f.driver.dig.samples[0].position==(c?2u:3u));
+        CHECK(fd2_pcm_test_close(&f)==0);
+    }
+    fd2_pcm_bank_close(&bank);return 0;
+}
 
-    CHECK(fd2_pcm_play(&player, &bank, 0, 1, 1.0f) == 0);
-    float output[8];
-    CHECK(fd2_audio_render_offline(audio, output, 4) == 4);
-    CHECK(near(output[0], -1.0f));
-    CHECK(near(output[2], 0.0f));
-    CHECK(near(output[4], 127.0f / 128.0f));
-    CHECK(near(output[6], 0.0f));
-    for (size_t i = 0; i < 4; i++) CHECK(near(output[i * 2], output[i * 2 + 1]));
-
-    CHECK(fd2_pcm_play(&player, &bank, 1, 2, 1.0f) == 0);
-    float looped[10];
-    CHECK(fd2_audio_render_offline(audio, looped, 5) == 5);
-    CHECK(near(looped[0], 0.0f));
-    CHECK(near(looped[2], 127.0f / 128.0f));
-    CHECK(near(looped[4], 0.0f));
-    CHECK(near(looped[6], 127.0f / 128.0f));
-    CHECK(near(looped[8], 0.0f));
-
-    CHECK(fd2_pcm_play(&player, &bank, 0, 1, 1.0f) == 0);
-    float replaced[2];
-    CHECK(fd2_audio_render_offline(audio, replaced, 1) == 1);
-    CHECK(near(replaced[0], -1.0f));
-    CHECK(fd2_pcm_play_replace(&player, &bank, 1, 1, 1.0f) == 0);
-    CHECK(fd2_audio_render_offline(audio, replaced, 1) == 1);
-    CHECK(near(replaced[0], 0.0f));
-    int active = 0;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
-        active += atomic_load(&player.voices[i].state) != 0;
-    CHECK(active == 1);
-    CHECK(fd2_pcm_stop(&player) == 0);
-    CHECK(fd2_audio_render_offline(audio, replaced, 1) == 1);
-    CHECK(near(replaced[0], 0.0f));
-    active = 0;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
-        active += atomic_load(&player.voices[i].state) != 0;
-    CHECK(active == 0);
-
-    CHECK(fd2_pcm_play(&player, &bank, 2, 1, 1.0f) != 0);
-    CHECK(fd2_pcm_play(&player, &bank, 0, -1, 1.0f) != 0);
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-    fd2_pcm_bank_close(&bank);
-    return 0;
+static int test_two_handles_stop_and_failed_replace_prefix(void) {
+    uint8_t data[19];fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank,data,make_bank(data))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,0,0,FD2_PCM_TEST_GAIN)==0);
+    CHECK(fd2_pcm_play_replace(&f.secondary,&bank,1,0,FD2_PCM_TEST_GAIN)==0);
+    CHECK(fd2_audio_dig_service(&f.driver.dig)==1 && f.driver.dig.entered_active==2);
+    uint8_t tail[4096];int32_t build[FD2_DIG_HALF];
+    memcpy(tail,f.driver.dig.dma,sizeof(tail));memcpy(build,f.driver.dig.build,sizeof(build));
+    fd2_dig_sample primary=f.driver.dig.samples[0],secondary=f.driver.dig.samples[1];
+    CHECK(primary.status==4 && secondary.status==4);
+    CHECK(fd2_pcm_stop(&f.primary)==0);primary.status=8;
+    CHECK(!memcmp(&primary,&f.driver.dig.samples[0],sizeof(primary)));
+    CHECK(!memcmp(&secondary,&f.driver.dig.samples[1],sizeof(secondary)));
+    CHECK(!memcmp(tail,f.driver.dig.dma,sizeof(tail)) && !memcmp(build,f.driver.dig.build,sizeof(build)));
+    CHECK(fd2_pcm_play_replace(&f.secondary,&bank,2,1,FD2_PCM_TEST_GAIN)==FD2_DIG_H_ARGUMENT);
+    secondary.status=8;
+    CHECK(!memcmp(&secondary,&f.driver.dig.samples[1],sizeof(secondary)));
+    CHECK(!memcmp(tail,f.driver.dig.dma,sizeof(tail)) && !memcmp(build,f.driver.dig.build,sizeof(build)));
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,1,3,FD2_PCM_TEST_GAIN)==0);
+    CHECK(f.driver.dig.samples[0].status==4 && f.driver.dig.samples[0].data==data+17 &&
+          f.driver.dig.samples[0].length==2 && !f.driver.dig.samples[0].position &&
+          f.driver.dig.samples[0].loop_count==3 && f.driver.dig.playing==1);
+    CHECK(!memcmp(&secondary,&f.driver.dig.samples[1],sizeof(secondary)));
+    CHECK(!memcmp(tail,f.driver.dig.dma,sizeof(tail)) && !memcmp(build,f.driver.dig.build,sizeof(build)));
+    fd2_audio_dig saved=f.driver.dig;
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,0,-1,FD2_PCM_TEST_GAIN)==FD2_DIG_H_ARGUMENT);
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,0,1,1.0f)==FD2_DIG_H_PROFILE);
+    CHECK(!memcmp(&saved,&f.driver.dig,sizeof(saved)));
+    CHECK(fd2_pcm_test_close(&f)==0);fd2_pcm_bank_close(&bank);return 0;
 }
 
 static int test_replacement_burst(void) {
-    uint8_t data[19];
-    fd2_pcm_bank bank;
-    CHECK(fd2_pcm_bank_open_mem(&bank, data, make_bank(data)) == 0);
-    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
-
-    /* 主线程可以在音频回调消费 command 之前收到多次导航和确认；最后
-     * 一次确认不得因等待 retire 的旧 voice 占满 pool 而丢失。 */
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
-        CHECK(fd2_pcm_play_replace(&player, &bank, i & 1u, 1, 1.0f) == 0);
-    float output[2];
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    CHECK(near(output[0], 0.0f));
-    int active = 0;
-    for (size_t i = 0; i < FD2_PCM_MAX_VOICES; i++)
-        active += atomic_load(&player.voices[i].state) != 0;
-    CHECK(active == 1);
-
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-    fd2_pcm_bank_close(&bank);
-    return 0;
+    uint8_t data[19];fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank,data,make_bank(data))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+    CHECK(fd2_pcm_play_replace(&f.secondary,&bank,1,0,FD2_PCM_TEST_GAIN)==0);
+    fd2_dig_sample other=f.driver.dig.samples[1];
+    uint8_t dma[4096];memcpy(dma,f.driver.dig.dma,sizeof(dma));
+    fd2_ail_timer clock=*fd2_bios_clock_ail_state();
+    /* 97是固定有界输入长度，故意超过旧24槽；不是新的容量或功能分母。 */
+    for(unsigned i=0;i<97;i++) {
+        CHECK(fd2_pcm_play_replace(&f.primary,&bank,i&1u,i%3u+1u,FD2_PCM_TEST_GAIN)==0);
+        CHECK(!memcmp(&other,&f.driver.dig.samples[1],sizeof(other)));
+        CHECK(!memcmp(dma,f.driver.dig.dma,sizeof(dma)));
+    }
+    CHECK(f.driver.dig.samples[0].data==data+14 && f.driver.dig.samples[0].length==3 &&
+          f.driver.dig.samples[0].status==4 && !f.driver.dig.samples[0].position &&
+          f.driver.dig.samples[0].loop_count==1);
+    CHECK(!memcmp(&clock,fd2_bios_clock_ail_state(),sizeof(clock)) && fd2_audio_now_ns(f.audio)==0);
+    CHECK(fd2_pcm_test_close(&f)==0);fd2_pcm_bank_close(&bank);return 0;
 }
 
-static int test_independent_sample_handles(void) {
-    uint8_t bank_a_data[19], bank_b_data[19];
-    fd2_pcm_bank bank_a, bank_b;
-    CHECK(fd2_pcm_bank_open_mem(&bank_a, bank_a_data,
-                                make_bank(bank_a_data)) == 0);
-    CHECK(fd2_pcm_bank_open_mem(&bank_b, bank_b_data,
-                                make_bank(bank_b_data)) == 0);
-    fd2_audio_config config = {.sample_rate = 11025, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player primary, secondary;
-    CHECK(audio && fd2_pcm_player_init(&primary, audio, 11025) == 0);
-    CHECK(fd2_pcm_player_init(&secondary, audio, 11025) == 0);
-
-    CHECK(fd2_pcm_play_replace(&primary, &bank_a, 0, 1, 1.0f) == 0);
-    CHECK(fd2_pcm_play_replace(&secondary, &bank_b, 1, 1, 1.0f) == 0);
-    float output[2];
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    /* primary sample[0]=-1，secondary sample[0]=0；两 handle 同时活动。 */
-    CHECK(near(output[0], -1.0f));
-    CHECK(fd2_pcm_stop(&primary) == 0);
-    CHECK(fd2_audio_render_offline(audio, output, 1) == 1);
-    /* 停 primary 不能停止 secondary；其第二个 byte 为 255。 */
-    CHECK(near(output[0], 127.0f / 128.0f));
-
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&secondary);
-    fd2_pcm_player_close(&primary);
-    fd2_pcm_bank_close(&bank_b);
-    fd2_pcm_bank_close(&bank_a);
-    return 0;
-}
-
-static int test_infinite_extreme_downsampling(void) {
-    uint8_t data[19];
-    fd2_pcm_bank bank;
-    CHECK(fd2_pcm_bank_open_mem(&bank, data, make_bank(data)) == 0);
-    fd2_audio_config config = {.sample_rate = 1, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, INT_MAX) == 0);
-    CHECK(fd2_pcm_play(&player, &bank, 1, 0, 1.0f) == 0);
-    float output[6];
-    CHECK(fd2_audio_render_offline(audio, output, 3) == 3);
-    CHECK(near(output[0], 0.0f));
-    CHECK(near(output[2], 127.0f / 128.0f));
-    CHECK(near(output[4], 0.0f));
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-    fd2_pcm_bank_close(&bank);
-
-    fd2_pcm_bank invalid;
-    CHECK(fd2_pcm_bank_open_mem(&invalid, NULL, 0) != 0);
-    fd2_pcm_bank_close(&invalid);
-    return 0;
-}
-
-static int test_resampling(void) {
-    uint8_t data[19];
-    fd2_pcm_bank bank;
-    CHECK(fd2_pcm_bank_open_mem(&bank, data, make_bank(data)) == 0);
-    fd2_audio_config config = {.sample_rate = 22050, .open_device = 0};
-    fd2_audio *audio = fd2_audio_create(&config);
-    fd2_pcm_player player;
-    CHECK(audio && fd2_pcm_player_init(&player, audio, 11025) == 0);
-    CHECK(fd2_pcm_play(&player, &bank, 0, 1, 1.0f) == 0);
-    float output[14];
-    CHECK(fd2_audio_render_offline(audio, output, 7) == 7);
-    const float expected[] = {-1.0f, -0.5f, 0.0f,
-                              63.5f / 128.0f, 127.0f / 128.0f,
-                              127.0f / 128.0f, 0.0f};
-    for (size_t i = 0; i < 7; i++) CHECK(near(output[i * 2], expected[i]));
-    fd2_audio_destroy(audio);
-    fd2_pcm_player_close(&player);
-    fd2_pcm_bank_close(&bank);
+static int test_profile_rejection_and_borrowed_lifecycle(void) {
+    uint8_t data[19];fd2_pcm_bank bank;
+    CHECK(fd2_pcm_bank_open_mem(&bank,data,make_bank(data))==0);
+    fd2_pcm_test_fixture f;CHECK(fd2_pcm_test_open(&f)==0);
+    fd2_pcm_player rejected,saved_player;memset(&rejected,0xa5,sizeof(rejected));saved_player=rejected;
+    fd2_audio_dig saved=f.driver.dig;fd2_ail_timer clock=*fd2_bios_clock_ail_state();
+    CHECK(fd2_pcm_player_init(&rejected,f.audio,11025)==FD2_DIG_H_SHARED_DRIVER_REQUIRED); /* 正式不能误走legacy。 */
+    CHECK(fd2_pcm_player_init_shared(&rejected,&f.driver,0,INT_MAX)==FD2_DIG_H_PROFILE);
+    CHECK(fd2_pcm_player_init_shared(&rejected,&f.driver,2,11025)==FD2_DIG_H_ARGUMENT);
+    CHECK(!memcmp(&saved_player,&rejected,sizeof(rejected)) &&
+          !memcmp(&saved,&f.driver.dig,sizeof(saved)) &&
+          !memcmp(&clock,fd2_bios_clock_ail_state(),sizeof(clock)));
+    CHECK(fd2_pcm_play_replace(&f.primary,&bank,0,0,FD2_PCM_TEST_GAIN)==0);
+    CHECK(fd2_pcm_test_close(&f)==0);
+    CHECK(f.driver.dig.closed && !f.driver.dig.timer && !f.driver.audio &&
+          !f.primary.driver && !f.secondary.driver);
+    saved=f.driver.dig;
+    CHECK(fd2_pcm_stop(&f.primary)<0 && fd2_bios_clock_advance(UINT64_C(1000000000))<0);
+    CHECK(!memcmp(&saved,&f.driver.dig,sizeof(saved)));
+    fd2_pcm_bank_close(&bank);memset(data,0xcc,sizeof(data));
+    /* 正确终结借用后重用同buffer；新scope不再引用旧directory或旧P callback。 */
+    CHECK(fd2_pcm_bank_open_mem(&bank,data,make_bank(data))==0 && fd2_pcm_test_open(&f)==0);
+    CHECK(fd2_pcm_play_replace(&f.secondary,&bank,1,1,FD2_PCM_TEST_GAIN)==0);
+    CHECK(f.driver.dig.samples[0].status==2 && f.driver.dig.samples[0].data==NULL &&
+          f.driver.dig.samples[1].data==data+17);
+    CHECK(fd2_pcm_test_close(&f)==0);fd2_pcm_bank_close(&bank);
+    fd2_pcm_bank invalid;CHECK(fd2_pcm_bank_open_mem(&invalid,NULL,0)<0);fd2_pcm_bank_close(&invalid);
     return 0;
 }
 
 int main(void) {
-    CHECK(test_field_sfx_mapping() == 0);
-    CHECK(test_field_footstep_mapping() == 0);
-    CHECK(test_field_default_amplitude_table() == 0);
-    CHECK(test_field_audio_dispatch() == 0);
-    CHECK(test_one_shot_and_loop() == 0);
-    CHECK(test_replacement_burst() == 0);
-    CHECK(test_independent_sample_handles() == 0);
-    CHECK(test_resampling() == 0);
-    CHECK(test_infinite_extreme_downsampling() == 0);
-    puts("audio PCM tests: ok");
+    CHECK(test_field_sfx_mapping()==0);
+    CHECK(test_field_footstep_mapping()==0);
+    CHECK(test_field_default_amplitude_table()==0);
+    CHECK(test_field_audio_dispatch()==0);
+    CHECK(test_one_shot_and_loop()==0);
+    CHECK(test_two_handles_stop_and_failed_replace_prefix()==0);
+    CHECK(test_replacement_burst()==0);
+    CHECK(test_profile_rejection_and_borrowed_lifecycle()==0);
+    puts("audio PCM: shared normal consumer/build/DMA/tail/gate/lifecycle PASS; no device/PIC-wave claim");
     return 0;
 }

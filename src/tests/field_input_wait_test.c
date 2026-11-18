@@ -23,9 +23,12 @@ static void source_observe(unsigned role,unsigned value) {
     if((unsigned)source_fail_role==role)source_game->failure=FD2_FIELD_FAILURE_ACTION;
     if((unsigned)source_quit_role==role)source_vga->input.quit_requested=1;
 }
-static void wait_test_present(fd2_vga *target) {(void)target;source_observe(2,0);}
-static void wait_test_ticks(uint32_t ticks) {source_observe(3,ticks);}
-static void wait_test_delay(uint32_t ms) {source_observe(4,ms);}
+static int wait_test_present(fd2_vga *target) {(void)target;source_observe(2,0);return 0;
+}
+static int wait_test_ticks(uint32_t ticks) {source_observe(3,ticks);return 0;
+}
+static int wait_test_delay(uint32_t ms) {source_observe(4,ms);return 0;
+}
 static uint64_t wait_test_ns(void) {
     uint64_t value=now_ns;reads++;
     if(reads==advance_read)now_ns=advance_ns;
@@ -68,12 +71,16 @@ static void wait_copy_upload(fd2_vga *vga) {
 #define fd2_vga_present wait_test_present
 #define fd2_vga_upload_current_frame wait_copy_upload
 #define fd2_wait_ticks wait_test_ticks
+#define fd2_vga_wait_ticks(vga,value) wait_test_ticks(value)
 #define fd2_delay_ms wait_test_delay
+#define fd2_vga_delay_ms(vga,value) wait_test_delay(value)
 #include "../field_play.c"
 #undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef SDL_GetTicksNS
 #undef fd2_field_water_tick_live
 #undef fd2_field_water_tick

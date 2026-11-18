@@ -54,7 +54,7 @@ static int prepare_service_picker_widgets(prepare_ui *ui,int arrows) {
                 s->candidates,count,first,s->cursor,ui->vga->prepare_sprite_phase);break;
         case PREPARE_PICK_DEPLOYMENT: {
             /* 2b4fb调用1297d，共享App idle/cursor；不另持5tick sprite相位。 */
-            if(fd2_field_visual_actor_step_live(&ui->vga->field_visual)<0)return -1;
+            if(fd2_field_visual_actor_step_live(ui->vga,&ui->vga->field_visual)<0)return -1;
             result=fd2_field_prepare_draw_deployment(ui->vga,ui->assets,state,s->selection,
                 s->quota-1u,(size_t)s->cursor,ui->vga->field_visual.actor_idle_phase,
                 &s->selection_label,&s->selection_cursor);
@@ -177,7 +177,7 @@ static int prepare_service_pick_list(prepare_ui *ui,unsigned *port) {
             free(next);free(before);
             if(scrolling){if(scrolling==1)s->host_quit=1;return -1;}
         }
-        if(prepare_host_present(ui,&host_deadline)){s->host_quit=1;return prepare_host_stop(ui,&host_deadline,-1);}
+        {int presented=prepare_host_present(ui,&host_deadline);if(presented){if(presented>0)s->host_quit=1;return prepare_host_stop(ui,&host_deadline,-1);}}
     }
 }
 
@@ -205,7 +205,7 @@ static int prepare_service_selection_open(prepare_ui *ui) {
     for(int phase=11;phase>=0;phase--) {
         int cue=fd2_field_detail_sfx_for_phase(1,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
         fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-        if(present_copy(ui)){s->host_quit=1;return -1;}
+        {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
     }
     /* 2af28打开12帧后明确4e381，后继2b67f只消费一键。 */
     return prepare_service_clear_keys(ui) ? -1 : 0;
@@ -219,10 +219,10 @@ static int prepare_service_selection_close(prepare_ui *ui) {
     for(int phase=0;phase<12;phase++) {
         int cue=fd2_field_detail_sfx_for_phase(0,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
         fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-        if(present_copy(ui)){s->host_quit=1;return -1;}
+        {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
     }
     memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
-    if(present_copy(ui)){s->host_quit=1;return -1;}
+    {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
     free(s->page_background);free(s->page);s->page_background=NULL;s->page=NULL;s->page_kind=0;
     return 0;
 }
@@ -303,13 +303,13 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
                 if(moved<0 || (moved && sound(ui,0)!=0))return prepare_host_stop(ui,&host_deadline,-1);
                 if(prepare_service_picker_draw(ui)!=0)return prepare_host_stop(ui,&host_deadline,-1);
             }
-            uint32_t tick=(uint32_t)fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+            uint32_t tick;if(prepare_clock_bits(ui->vga,&tick)<0)return prepare_host_stop(ui,&host_deadline,-1);
             if(tick!=ui->vga->prepare_pick_tick) {
-                ui->vga->prepare_pick_tick=(uint32_t)fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+                if(prepare_clock_bits(ui->vga,&ui->vga->prepare_pick_tick)<0)return prepare_host_stop(ui,&host_deadline,-1);
                 /* 2b67f先写53F46再call2b4fb；下游失败保已到达的App写点。 */
                 if(prepare_service_picker_draw(ui)!=0)return prepare_host_stop(ui,&host_deadline,-1);
             }
-            if(prepare_host_present(ui,&host_deadline)){s->host_quit=1;return prepare_host_stop(ui,&host_deadline,-1);}
+            {int presented=prepare_host_present(ui,&host_deadline);if(presented){if(presented>0)s->host_quit=1;return prepare_host_stop(ui,&host_deadline,-1);}}
         }
     }
     if(!strcmp(op,"equipment_open")) {
@@ -329,7 +329,7 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         for(int phase=11;phase>=0;phase--) {
             int cue=fd2_field_detail_sfx_for_phase(1,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
             fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-            if(present_copy(ui)){s->host_quit=1;return -1;}
+            {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
         }
         if(prepare_service_clear_keys(ui))return -1; /* 17e0b尾17ee8。 */
         s->equipment_selected=0;return 1;
@@ -361,10 +361,10 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         if(!s->page || !s->page_background || s->page_kind!=4)return -1;
         for(int phase=0;phase<12;phase++) {
             fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-            if(present_copy(ui)){s->host_quit=1;return -1;}
+            {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
         }
         memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
-        if(present_copy(ui)){s->host_quit=1;return -1;}
+        {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
         free(s->page_background);free(s->page);s->page_background=NULL;s->page=NULL;s->page_kind=0;
         s->active_portraits=s->equipment_previous_portraits;s->notice_origin=s->equipment_previous_origin;
         s->equipment_previous_portraits=NULL;

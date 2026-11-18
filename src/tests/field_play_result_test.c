@@ -17,6 +17,19 @@
 #include "static_data.h"
 #include "bios_clock.h"
 
+/* 19df7@1a2dc..1a306：独立源序T(text416返回)/S(stop)/D(200ms)/C(close)。
+ * 只替测试宿主等待与音乐提交，不测声卡时间或为产品增加钩子。 */
+static struct {
+    unsigned kind,count,stops,holds,closes,bad;
+    char order[4];
+    fd2_vga *vga;
+} leave_music;
+static int leave_music_stop(void);
+static void leave_music_record(char event) {
+    if(leave_music.count>=sizeof(leave_music.order)){leave_music.bad=1;return;}
+    leave_music.order[leave_music.count++]=event;
+}
+
 /* main @0x25bf4（原同名）：25dce返回后先25dd5/25e02查53ECC，
  * 不再进11aa8。这里只合成已完成伤害/death的记录前缀，controller/result
  * 后置使用真实Game；故事/AI余段另标机制夹具，不称自然原版运行。 */
@@ -108,14 +121,17 @@ static int closing_focus_frames,s0_focus_frames,scripted_source_present;
 static fd2_field_runtime_present_fn observed_runtime;
 static void *observed_runtime_userdata;
 #undef fd2_wait_ticks
+#undef fd2_vga_wait_ticks
 #undef fd2_input_clear_keys
-void fd2_wait_ticks(uint32_t ticks);
+int fd2_wait_ticks(uint32_t ticks);
 void fd2_input_clear_keys(fd2_input *input);
-void __wrap_fd2_wait_ticks(uint32_t ticks) {
-    if(!focus_case || !focus_started){fd2_wait_ticks(ticks);return;}
+int __wrap_fd2_wait_ticks(uint32_t ticks) {
+    if(leave_music.kind)return 0; /* 本组只核源序；旧用例仍走原替身/真实等待。 */
+    if(!focus_case || !focus_started){return fd2_wait_ticks(ticks);}
     focus_ticks++;if(ticks!=1u)focus_bad=1;
     if(focus_present_calls!=focus_refreshes)focus_bad=1; /* 不允许wait叶重复present。 */
     if(focus_case==4)focus_vga->input.quit_requested=1;
+return 0;
 }
 void __wrap_fd2_input_clear_keys(fd2_input *input) {
     if(return_probe.armed)return_probe.clears++;
@@ -154,6 +170,7 @@ int __wrap_fd2_field_game_runtime_refresh(fd2_field_game *game,fd2_vga *vga,int 
     if(app_roster_controller==1)app_roster_live_game=game;
     if(return_probe.armed)return_probe.renders++;
     (void)vga;result_frame_refresh_seen(game);
+    if(leave_music.kind==9 && leave_music.closes)return -1;
     if(phase_only==0 || phase_only==3)render_fixture_owned_info(game,vga);
     if(focus_case && focus_started) {
         focus_refreshes++;
@@ -208,7 +225,7 @@ int fd2_field_game_execute_storage_action(fd2_field_game *, fd2_field_system_act
                                          const char *, size_t *);
 #undef fd2_field_game_runtime_summary_refresh
 #undef fd2_vga_present_timed
-void fd2_vga_present_timed(fd2_vga *,uint32_t);
+int fd2_vga_present_timed(fd2_vga *,uint32_t);
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -290,7 +307,8 @@ int __wrap_fd2_bgm_play(fd2_bgm_player *p, size_t track, int loops) {
     (void)p; (void)loops; if(music_probe && music_request_count<8) music_request_tracks[music_request_count++]=(int)track; return 0;
 }
 int __wrap_fd2_bgm_stop(fd2_bgm_player *p) {
-    (void)p; if(music_probe && music_request_count<8) music_request_tracks[music_request_count++]=-1; return 0;
+    (void)p; if(leave_music.kind)return leave_music_stop();
+    if(music_probe && music_request_count<8) music_request_tracks[music_request_count++]=-1; return 0;
 }
 int __wrap_fd2_bgm_current_track(const fd2_bgm_player *p) {
     (void)p; return music_probe && music_request_count ? music_request_tracks[music_request_count-1] : -1;
@@ -965,9 +983,12 @@ int __wrap_fd2_scene_play_common_step(fd2_vga *vga,
     return scene_result;
 }
 
-void __wrap_fd2_vga_present(fd2_vga *vga) {
+int __wrap_fd2_vga_present(fd2_vga *vga) {
+    if(leave_music.kind && leave_music.holds && !leave_music.closes) {
+        leave_music.closes++;leave_music_record('C');
+    }
     if(app_roster_controller) {
-        if(++app_roster_frames>8){app_roster_controller_bad=1;vga->input.quit_requested=1;return;}
+        if(++app_roster_frames>8){app_roster_controller_bad=1;vga->input.quit_requested=1;return 0;}
         if(app_roster_controller==1) {
             fd2_field_game *game=app_roster_live_game;
             /* 10010没有1197b：必须有正常actor返回后才提交结果。
@@ -987,20 +1008,20 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             }
             app_roster_controller=2;
         }
-        return;
+        return 0;
     }
     if(return_probe.kind) {
         if(return_probe.armed && ++return_probe.presents>4) {
             return_probe.bad=1;vga->input.quit_requested=1;
         }
-        return;
+        return 0;
     }
     /* 观察真实runtime step，不能把普通11aa8刷新也当同步focus。
      * 这些状态脚本只在外帧投下一操作；源wait/clear仍走真实叶。 */
     if(scripted_source_present) {
         if(s0_case)s0_focus_frames++;
         if(closing_case)closing_focus_frames++;
-        return;
+        return 0;
     }
     if(focus_case) {
         if(focus_started)focus_present_calls++;
@@ -1011,7 +1032,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             if((focus_case==2 && focus_refreshes==1) || (focus_case==3 && focus_refreshes==2))
                 vga->input.quit_requested=1;
         }
-        return;
+        return 0;
     }
     if (s0_case) {
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
@@ -1055,25 +1076,38 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             fd2_input_set_test_key_state(&vga->input, key, 1);
             fd2_input_begin_test_frame(&vga->input, (uint64_t)s0_frames * 100u + 1u);
         }
-        return;
+        return 0;
     }
     if(final_info_sentinel_case) {
         vga->info_panel_suppressed=173;
         if(final_info_sentinel_case<3)vga->input.quit_requested=1;
         if(final_info_sentinel_case==2)active_game->failure=FD2_FIELD_FAILURE_EVENT_DATA;
-        return;
+        return 0;
     }
     if ((is_leave_case() || march_case) && active_game &&
         active_game->interaction==FD2_FIELD_INTERACTION_SYSTEM_MENU &&
         active_game->system_menu.page==FD2_FIELD_SYSTEM_PAGE_CONFIRMATION) {
         fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,0);
-        if(!legacy_system_choice_sent && result_choice_buttons_visible(vga)) {
+        if(leave_music.kind==2 || leave_music.kind==3) {
+            fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RIGHT,0);
+            fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_ESCAPE,0);
+            if(result_choice_buttons_visible(vga)) {
+                if(!legacy_system_choice_sent) {
+                    fd2_input_set_test_key_state(&vga->input,leave_music.kind==2 ?
+                        SDL_SCANCODE_RIGHT:SDL_SCANCODE_ESCAPE,1);
+                    legacy_system_choice_sent=leave_music.kind==2 ? 1:2;
+                } else if(leave_music.kind==2 && legacy_system_choice_sent==1) {
+                    fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
+                    legacy_system_choice_sent=2;
+                }
+            }
+        } else if(!legacy_system_choice_sent && result_choice_buttons_visible(vga)) {
             legacy_system_choice_sent=1;
             fd2_input_set_test_key_state(&vga->input,SDL_SCANCODE_RETURN,1);
         }
         fd2_input_begin_test_frame(&vga->input,(uint64_t)++legacy_system_frames*100u);
         if(legacy_system_frames>120)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     if (result_frame_case) {
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
@@ -1103,7 +1137,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
         }
         if(result_frame_samples>120)vga->input.quit_requested=1;
         fd2_input_begin_test_frame(&vga->input, (uint64_t)result_frame_samples * 100u);
-        return;
+        return 0;
     }
     if (closing_case) {
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
@@ -1122,7 +1156,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
         } else vga->input.quit_requested = 1;
         fd2_input_begin_test_frame(&vga->input,
             (uint64_t)(closing_frames + closing_outer_frames) * 100u);
-        return;
+        return 0;
     }
     if (summary_case) {
         ++summary_present;
@@ -1145,7 +1179,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                     !fd2_input_has_any_key(&vga->input);
                 vga->input.quit_requested=1;
             }
-            return;
+            return 0;
         }
         for (int key = 1; key < SDL_SCANCODE_COUNT; key++)
             fd2_input_set_test_key_state(&vga->input, (SDL_Scancode)key, 0);
@@ -1175,7 +1209,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
         }
         fd2_input_begin_test_frame(&vga->input, (uint64_t)summary_present * 100u);
         if (summary_present > 8) vga->input.quit_requested = 1;
-        return;
+        return 0;
     }
     if (storage_quit_action) {
         if (active_game->system_menu.animation_phase) {
@@ -1185,11 +1219,11 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                 if (storage_quit_error) active_game->failure = FD2_FIELD_FAILURE_EVENT_DATA;
             }
         }
-        return;
+        return 0;
     }
     if (remainder_case) {
         if (++action_sent > 5) vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     if (item_case) {
         item_frames++;
@@ -1284,7 +1318,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
         }
         fd2_input_begin_test_frame(&vga->input, (uint64_t)item_frames * 100u);
         if (item_frames > 8) vga->input.quit_requested = 1;
-        return;
+        return 0;
     }
     if (march_case && active_game && active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_MARCH_CONFIRM) {
@@ -1343,7 +1377,7 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                 vga->input.quit_requested = 1;
             }
             if (controller_present_count > 40) vga->input.quit_requested = 1;
-            return;
+            return 0;
         }
         if (controller_present_count == 1) {
             fd2_input_set_test_key_state(&vga->input, SDL_SCANCODE_RETURN, 1);
@@ -1373,13 +1407,14 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
             vga->input.quit_requested = 1;
         }
         if (controller_present_count > 40) vga->input.quit_requested = 1;
-        return;
+        return 0;
     }
     if (is_leave_case() && active_game &&
         active_game->last_system_action ==
             FD2_FIELD_SYSTEM_ACTION_LEAVE_BATTLE &&
         !leave_text_presented && vga->framebuffer[RESULT_FRAME_GLYPH_OFFSET] == 0xcd) {
         ++leave_text_presented;
+        if(leave_music.kind)leave_music_record('T');
         leave_state_checked = active_game->turn_number == 17 &&
             active_game->active_side == 2 &&
             active_game->phase_next_action_ms == 1 &&
@@ -1389,12 +1424,13 @@ void __wrap_fd2_vga_present(fd2_vga *vga) {
                    sizeof(unchanged_units)) == 0;
         if (terminal_case == 8) vga->input.quit_requested = 1;
     }
+return 0;
 }
 
-void __wrap_fd2_vga_present_timed(fd2_vga *vga,uint32_t milliseconds) {
+int __wrap_fd2_vga_present_timed(fd2_vga *vga,uint32_t milliseconds) {
     if(s0_case || result_frame_case || is_leave_case() || march_case || controller_case>=3)
-        __wrap_fd2_vga_present(vga);
-    else fd2_vga_present_timed(vga,milliseconds);
+        return __wrap_fd2_vga_present(vga);
+    return fd2_vga_present_timed(vga,milliseconds);
 }
 
 static int closing_animation(fd2_vga *vga, int opening) {
@@ -2249,12 +2285,75 @@ static int controller_return_gate_test(fd2_vga *vga,const fd2_archive *fdother) 
     return 0;
 }
 
+
+/* source oracle：19df7的T/S/D/C次序；不是从实现事件日志生成expected。 */
+static int leave_music_stop(void) {
+    leave_music.stops++;leave_music_record('S');
+    if(leave_text_presented!=1 || !leave_state_checked || leave_music.holds || leave_music.closes)
+        leave_music.bad=1;
+    if(leave_music.kind==6 || leave_music.kind==7)leave_music.vga->input.quit_requested=1;
+    return leave_music.kind==6 ? -1:0; /* 真提交错与HOST同时出现，ERROR优先。 */
+}
+
+#undef fd2_delay_ms
+#undef fd2_vga_delay_ms
+int fd2_delay_ms(uint32_t milliseconds);
+int __wrap_fd2_delay_ms(uint32_t milliseconds) {
+    if(!leave_music.kind){return fd2_delay_ms(milliseconds);}
+    if(milliseconds==200u && leave_text_presented) {
+        leave_music.holds++;leave_music_record('D');
+        if(leave_music.stops!=1 || leave_music.closes)leave_music.bad=1;
+        if(leave_music.kind==8)leave_music.vga->input.quit_requested=1;
+    }
+    if((leave_music.kind==2 || leave_music.kind==3) && legacy_system_choice_sent==2 &&
+        active_game && active_game->interaction==FD2_FIELD_INTERACTION_BROWSE)
+        leave_music.vga->input.quit_requested=1;
+return 0;
+}
+
+static int leave_music_boundary_test(fd2_vga *vga,const fd2_archive *other) {
+    /* NO/取消由实际choice输入；其它UI像素仍用本TU既有显式替身。 */
+    static const struct {unsigned kind;fd2_field_play_result result;const char *prefix;} cases[]={
+        {1,FD2_FIELD_PLAY_RETURN_LEAVE_GAME,"TSDC"},
+        {2,FD2_FIELD_PLAY_RETURN_HOST_QUIT,""}, /* NO正常返回后由fixture关宿主。 */
+        {3,FD2_FIELD_PLAY_RETURN_HOST_QUIT,""}, /* Esc同上，无accepted/stop。 */
+        {4,FD2_FIELD_PLAY_RETURN_ERROR,""}, /* 缺prompt/accepted依赖，首写前。 */
+        {5,FD2_FIELD_PLAY_RETURN_HOST_QUIT,"T"}, /* 文本上传时HOST，不能stop。 */
+        {6,FD2_FIELD_PLAY_RETURN_ERROR,"TS"}, /* stop错误与HOST同时，首错优先。 */
+        {7,FD2_FIELD_PLAY_RETURN_HOST_QUIT,"TS"}, /* stop已提交，后续不等200。 */
+        {8,FD2_FIELD_PLAY_RETURN_HOST_QUIT,"TSD"}, /* hold期间HOST，不能close。 */
+        {9,FD2_FIELD_PLAY_RETURN_ERROR,"TSDC"} /* 196cb尾refresh错误保stop前缀。 */
+    };
+    for(size_t i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        memset(&leave_music,0,sizeof(leave_music));leave_music.kind=cases[i].kind;leave_music.vga=vga;
+        terminal_case=cases[i].kind==4 ? 7:cases[i].kind==5 ? 8:3;
+        leave_missing_resource=0;leave_text_presented=leave_state_checked=action_sent=0;
+        failure_called=0;app_option_probe=1;fd2_input_init(&vga->input);
+        fd2_field_play_context context;fd2_field_play_context_init(&context,(fd2_bgm_player *)&context);
+        fd2_field_play_result got=fd2_field_play_run_context(vga,other,0,0,NULL,NULL,NULL,0,&context);
+        size_t count=strlen(cases[i].prefix);
+        if(got!=cases[i].result || leave_music.bad || leave_music.count!=count ||
+            memcmp(leave_music.order,cases[i].prefix,count))
+            fprintf(stderr,"leave music case%u got=%d expected=%d order=%.*s count=%u stops=%u holds=%u closes=%u bad=%u\n",
+                cases[i].kind,got,cases[i].result,(int)leave_music.count,leave_music.order,
+                leave_music.count,leave_music.stops,leave_music.holds,leave_music.closes,leave_music.bad);
+        CHECK(got==cases[i].result && !leave_music.bad && leave_music.count==count &&
+            !memcmp(leave_music.order,cases[i].prefix,count));
+        CHECK(leave_music.stops==(cases[i].kind==1 || cases[i].kind>=6) &&
+            context.music_error==(cases[i].kind==6));
+        if(cases[i].kind==2 || cases[i].kind==3)CHECK(legacy_system_choice_sent==2 && !leave_text_presented);
+    }
+    memset(&leave_music,0,sizeof(leave_music));terminal_case=app_option_probe=0;
+    fd2_input_init(&vga->input);return 0;
+}
+
 int main(void) {
     CHECK(app_rng_bootstrap_test()==0);
     fd2_vga vga = {0};
     vga.field_page=fd2_field_page_create();CHECK(vga.field_page);
     fd2_archive fdother = {0};
     CHECK(fd2_archive_open(&fdother, "original_game/FDOTHER.DAT") == 0);
+    CHECK(leave_music_boundary_test(&vga,&fdother)==0);
     CHECK(controller_return_gate_test(&vga,&fdother)==0);
     CHECK(focus_runtime_test(&vga,&fdother)==0);
     CHECK(result_frame_barrier_test(&vga, &fdother) == 0);
@@ -2505,3 +2604,16 @@ int main(void) {
     puts("field_play_result_test: ok");
     return 0;
 }
+
+/* upload保持void接口；与int present复用同一观察器，不另计提交。 */
+void __wrap_fd2_vga_upload_current_frame(fd2_vga *vga){(void)__wrap_fd2_vga_present(vga);}
+
+/* 新ABI仍复用同一旧依赖spy，不改变帧/队列/业务expected。 */
+#ifdef fd2_vga_delay_ms
+#undef fd2_vga_delay_ms
+#endif
+#ifdef fd2_vga_wait_ticks
+#undef fd2_vga_wait_ticks
+#endif
+int __wrap_fd2_vga_delay_ms(fd2_vga *vga,uint32_t ms){(void)vga;return __wrap_fd2_delay_ms(ms);}
+int __wrap_fd2_vga_wait_ticks(fd2_vga *vga,uint32_t ticks){(void)vga;return __wrap_fd2_wait_ticks(ticks);}

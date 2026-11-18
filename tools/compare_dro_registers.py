@@ -24,8 +24,18 @@ def integer(value, low, high, field):
 
 
 def validate_trace(rows, meta):
-    if meta.get('schema') != 'fd2-title18-offline-opl-v1' or type(meta.get('track')) is not int or meta['track'] != 18:
+    if meta.get('schema') not in ('fd2-title18-offline-opl-v1', 'fd2-title18-offline-opl-v2') or type(meta.get('track')) is not int or meta['track'] != 18:
         raise ValueError('require the declared Title18 offline probe protocol')
+    shared_clock = dict(logic_owner='main-thread', clock_source='shared-bios-ail-pit',
+        timer_profile_us=[8333, 5000, 54925], initial_phase_policy='completed-program-zero',
+        initial_phase_qualified=False, callback_timing_model='instantaneous-no-cpu')
+    if meta['schema'].endswith('-v2'):
+        if any(type(meta.get(key)) is not type(value) or meta[key] != value
+               for key, value in shared_clock.items()) or any(
+                   type(value) is not int for value in meta['timer_profile_us']):
+            raise ValueError('require the explicit v2 shared-clock input and unqualified phase')
+    elif any(key in meta for key in shared_clock):
+        raise ValueError('legacy v1 cannot carry the v2 shared-clock identity')
     rate = integer(meta.get('sample_rate'), 1, 192000, 'sample_rate')
     frames = integer(meta.get('frames'), 1, (1 << 64) - 1, 'frames')
     if meta.get('hook_enabled') is not True or meta.get('overflow') is not False:

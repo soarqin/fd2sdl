@@ -34,7 +34,7 @@ static void title_ani_upload(fd2_vga *vga) {
     if(title_ani_stream && title_ani_emit(title_ani_frames?"frame":"start",title_ani_frames,0))title_ani_failed=1;
     title_ani_frames++;
 }
-static void title_ani_delay(uint32_t ms) {
+static int title_ani_delay(uint32_t ms) {
     uint32_t expected=title_ani_case==2u?90u:15u;
     if(ms!=expected || title_ani_frames!=title_ani_delays+1u)title_ani_failed=1;
     title_ani_delays++;
@@ -44,6 +44,7 @@ static void title_ani_delay(uint32_t ms) {
         title_ani_vga->input.queued_keys[0].bios_code=0x1c0d;
     }
     if(title_ani_case==3u && title_ani_frames==6u)title_ani_vga->input.quit_requested=1;
+    return 0;
 }
 static void title_ani_clear(fd2_input *input) {
     title_ani_clears++;fd2_input_clear_keys(input);
@@ -53,10 +54,12 @@ static void title_ani_clear(fd2_input *input) {
 #undef fd2_animation_play
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #define fd2_animation_play_hooked title_ani_private_play_hooked
 #define fd2_animation_play title_ani_private_play
 #define fd2_vga_upload_current_frame title_ani_upload
 #define fd2_delay_ms title_ani_delay
+#define fd2_vga_delay_ms(vga,value) title_ani_delay(value)
 #define fd2_input_clear_keys title_ani_clear
 #include "../animation.c"
 #undef rd_u16_le
@@ -64,6 +67,7 @@ static void title_ani_clear(fd2_input *input) {
 #undef fd2_animation_play
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_input_clear_keys
 static int title_ani_decode(fd2_vga *vga,const fd2_archive *ani,int index,uint32_t delay,
         int check,fd2_animation_frame_hook hook,void *userdata) {

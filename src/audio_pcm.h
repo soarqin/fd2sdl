@@ -1,21 +1,17 @@
 #ifndef FD2_AUDIO_PCM_H
 #define FD2_AUDIO_PCM_H
-
 #include <stddef.h>
 #include <stdint.h>
-#include <stdatomic.h>
-
 #include "archive.h"
 #include "audio.h"
-
-#define FD2_PCM_MAX_VOICES 24
+#include "audio_dig.h"
 
 typedef struct {
     fd2_archive archive;
 } fd2_pcm_bank;
 
 /* 两种 open 都借用输入数据；parent fdother 或 data buffer 必须保持有效，
- * 直到 bank 关闭且引用它的全部 voice 已 retire。失败时 bank 保持可安全 close。 */
+ * 直到对应P不再借用；终态先driver quiesce再关闭bank。失败可安全close。 */
 int fd2_pcm_bank_open(fd2_pcm_bank *bank, const fd2_archive *fdother,
                       size_t entry_index);
 int fd2_pcm_bank_open_mem(fd2_pcm_bank *bank, const uint8_t *data,
@@ -23,27 +19,38 @@ int fd2_pcm_bank_open_mem(fd2_pcm_bank *bank, const uint8_t *data,
 void fd2_pcm_bank_close(fd2_pcm_bank *bank);
 size_t fd2_pcm_bank_count(const fd2_pcm_bank *bank);
 
-typedef struct {
-    _Atomic int state;
-    const uint8_t *data;
-    size_t length;
-    size_t index;
-    uint64_t fraction;
-    uint32_t source_rate;
-    uint32_t output_rate;
-    int loop_count;
-    int finished;
-    _Atomic int stop_requested;
-} fd2_pcm_voice;
-
-typedef struct {
+/* 正式App只有一份D/P0/P1/build/DMA；Audio借用D连接SB channel。 */
+typedef struct fd2_pcm_driver {
     fd2_audio *audio;
-    int source_rate;
-    int enabled; /* 51E62投影；主线程未来cue门，不是当前source增益。 */
-    fd2_pcm_voice voices[FD2_PCM_MAX_VOICES];
-} fd2_pcm_player;
+    fd2_audio_dig dig;
+    int normal_bound, quiesced;
+} fd2_pcm_driver;
 
-/* source_rate 来自 AIL sample 初始化；FD2 的已确认默认值为 11025 Hz。 */
+typedef struct fd2_pcm_player {
+    fd2_pcm_driver *driver;
+    unsigned handle;
+    int source_rate;
+} fd2_pcm_player;
+/* 53EF1对应成功安装的同driver，与OS stream/静音/未来cue gate分开。 */
+static inline int fd2_pcm_player_available(const fd2_pcm_player *player) {
+    return player && player->driver && player->driver->audio &&
+        player->driver->dig.attached && !player->driver->dig.closed && !player->driver->quiesced;
+}
+
+/* 正式Main：MDI创建之后用同Audio安装DIG，两个view借同driver。
+ * 每个D只初始化一次；Load/START/换曲不得重调。失败也可能已建立Audio借用
+ * （normal_bound=1），D必须活到quiesce→clock_close→AudioDestroy→close结束，
+ * 不能仅因返回负值就free/复用。Main的零初始化D覆盖完整App生命周期。 */
+int fd2_pcm_driver_init(fd2_pcm_driver *driver,fd2_audio *audio);
+int fd2_pcm_player_init_shared(fd2_pcm_player *player,fd2_pcm_driver *driver,
+                               unsigned handle,int source_rate);
+/* 终态：quiesce有源Reset → clock_close → AudioDestroy → driver_close。 */
+int fd2_pcm_driver_quiesce(fd2_pcm_driver *driver);
+void fd2_pcm_driver_close(fd2_pcm_driver *driver);
+/* 显式external仅有限控制/诊断，不冒正常输出、物理quiesce资格。 */
+int fd2_pcm_driver_init_external(fd2_pcm_driver *driver,fd2_audio *audio,
+                                const fd2_dig_external_sb16 *provider);
+/* 旧implicit接口只返回H_SHARED_DRIVER_REQUIRED，无写；正式必须shared。 */
 int fd2_pcm_player_init(fd2_pcm_player *player, fd2_audio *audio,
                         int source_rate);
 /* sfx_play @0x25a96（原FUN_000231de）/sfx_play_secondary @0x25b45
@@ -56,13 +63,14 @@ int fd2_pcm_play(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                  size_t sample_index, int loop_count, float gain);
 
 /* 复现一个 AIL sample handle：sfx_play @0x25a96 先调用
- * ail_end_sample @0x39805，再启动新样本；index -1 仅执行停止。
+ * ail_stop_sample @0x39805（原登记ail_end_sample）：status4→8，保位置及DMA；
+ * 真正ail_end_sample为0x398df。随后启动新样本；index -1 仅执行停止。
  * 不同 fd2_pcm_player 对应不同原版 handle，停止／替换不能误停另一 handle。 */
 int fd2_pcm_play_replace(fd2_pcm_player *player, const fd2_pcm_bank *bank,
                          size_t sample_index, int loop_count, float gain);
 int fd2_pcm_stop(fd2_pcm_player *player);
 
-/* 必须先销毁 fd2_audio（触发所有 source retire），再关闭 bank/player。 */
+/* driver quiesce→clock关闭→AudioDestroy→driver close之后关闭view/bank。 */
 void fd2_pcm_player_close(fd2_pcm_player *player);
 
 #endif /* FD2_AUDIO_PCM_H */

@@ -7,7 +7,7 @@
  * 全部时钟/上传为记录桩，不执行SDL/真实等待；expected取原指令与循环。 */
 static int played_cues;
 static fd2_field_sfx last_cue;
-static unsigned presents,quit_after_present;
+static unsigned presents,quit_after_present,output_fail_after_present;
 typedef struct {char kind;uint32_t value;} order_event;
 static order_event order_trace[512];
 static size_t order_count;
@@ -29,21 +29,27 @@ int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue) {
 void fd2_vga_upload_current_frame(fd2_vga *vga) {
     record_order('P',vga->framebuffer[0]);
     if(++presents==quit_after_present)vga->input.quit_requested=1;
+    if(presents==output_fail_after_present)vga->output_error=FD2_VGA_OUTPUT_LOCK;
 }
-void fd2_vga_present(fd2_vga *vga) {
+int fd2_vga_present(fd2_vga *vga) {
     legacy_calls++;fd2_vga_upload_current_frame(vga);
+return 0;
 }
-void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
+int fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms) {
     (void)frame_ms;legacy_calls++;fd2_vga_upload_current_frame(vga);
+return 0;
 }
-void fd2_vga_wait_frame_deadline(fd2_vga *vga) { (void)vga;legacy_calls++; }
-void fd2_wait_ticks(uint32_t ticks) {
+int fd2_vga_wait_frame_deadline(fd2_vga *vga) { (void)vga;legacy_calls++; return 0;
+}
+int fd2_wait_ticks(uint32_t ticks) {
     record_order('T',ticks);
     if(++wait_calls==quit_after_wait && waiting_vga)waiting_vga->input.quit_requested=1;
+return 0;
 }
-void fd2_delay_ms(uint32_t milliseconds) {
+int fd2_delay_ms(uint32_t milliseconds) {
     record_order('M',milliseconds);
     if(++wait_calls==quit_after_wait && waiting_vga)waiting_vga->input.quit_requested=1;
+return 0;
 }
 int fd2_input_take_quit(fd2_input *input) {return input && input->quit_requested;}
 
@@ -175,7 +181,7 @@ static int test_page_payloads_and_frame_barriers(void) {
             CHECK(fd2_field_effect_frames_take_page(&frames,(i+1)%count,page)==-1);
         }
         hook_state state={0,-1,effect==0?200:77,effect==2};
-        played_cues=0;presents=0;quit_after_present=0;
+        played_cues=0;presents=0;quit_after_present=output_fail_after_present=0;vga.output_error=0;
         CHECK(fd2_field_effect_play_hooked(&frames,&vga,&audio,0,effect_frame_hook,&state)==0);
         CHECK(state.calls==fd2_field_effect_frame_count((fd2_field_effect)effect));
         uint8_t pixel;
@@ -203,7 +209,7 @@ static int test_page_payloads_and_frame_barriers(void) {
 
 static void reset_order(fd2_vga *vga) {
     order_count=0;order_overflow=0;order_enabled=1;
-    played_cues=0;presents=0;quit_after_present=0;
+    played_cues=0;presents=0;quit_after_present=output_fail_after_present=0;vga->output_error=0;
     wait_calls=0;quit_after_wait=0;legacy_calls=0;waiting_vga=vga;
     vga->input.quit_requested=0;
 }
@@ -294,6 +300,28 @@ static int test_wait_error_and_host_prefix(void) {
     order_enabled=0;waiting_vga=NULL;return 0;
 }
 
+static int output_error_hook(fd2_field_effect effect,size_t frame,size_t source,
+    fd2_vga *vga,void *userdata){
+ (void)effect;(void)frame;(void)source;(void)userdata;
+ vga->output_error=FD2_VGA_OUTPUT_LOCK;vga->input.quit_requested=1;return 1;
+}
+static int test_output_error_prefix(void){
+ fd2_vga vga={0};fd2_field_audio audio={0};fd2_field_effect_frames frames={0};
+ CHECK(order_frames(&frames,0)==0);
+ for(unsigned last=0;last<2;last++)for(unsigned host=0;host<2;host++){
+  reset_order(&vga);output_fail_after_present=last?11u:1u;quit_after_present=host?output_fail_after_present:0;
+  CHECK(fd2_field_effect_play_hooked(&frames,&vga,&audio,1,order_hook,NULL)<0);
+  CHECK(presents==output_fail_after_present&&wait_calls==(last?10u:0u)&&played_cues==1&&!legacy_calls);
+  CHECK(vga.framebuffer[0]==11&&vga.input.quit_requested==(int)host&&vga.output_error==FD2_VGA_OUTPUT_LOCK);
+  unsigned saved_presents=presents,saved_waits=wait_calls;
+  CHECK(fd2_field_effect_play_hooked(&frames,&vga,&audio,1,order_hook,NULL)<0&&presents==saved_presents&&wait_calls==saved_waits&&played_cues==1);
+ }
+ reset_order(&vga);
+ CHECK(fd2_field_effect_play_hooked(&frames,&vga,&audio,0,output_error_hook,NULL)<0);
+ CHECK(!presents&&!wait_calls&&played_cues==1&&vga.framebuffer[0]==11&&vga.input.quit_requested);
+ fd2_field_effect_frames_close(&frames);order_enabled=0;waiting_vga=NULL;return 0;
+}
+
 int main(void) {
     CHECK(test_frame_sequences() == 0);
     CHECK(test_sfx_schedule() == 0);
@@ -302,6 +330,9 @@ int main(void) {
     CHECK(test_page_payloads_and_frame_barriers()==0);
     CHECK(test_original_wait_order()==0);
     CHECK(test_wait_error_and_host_prefix()==0);
+    CHECK(test_output_error_prefix()==0);
     puts("field effect tests: ok");
     return 0;
 }
+
+#include "vga_owner_wait_test_bridge.h"

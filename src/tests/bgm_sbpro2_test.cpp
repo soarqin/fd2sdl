@@ -4,14 +4,28 @@
  * 表和 35fa..36a9 指令算式（不是原 kernel 或运行时 OPL 证据）。 */
 #include <cstdint>
 static void observed_native(void *, uint8_t, uint8_t, uint8_t);
+static void observed_message_batch(void *,const uint8_t *,uint32_t,uint32_t);
+static void observed_request_prefix(void *,uint32_t);
+static void observed_startup_owner(void *,unsigned);
+#define FD2_BGM_STARTUP_OWNER_TRACE(d,p) observed_startup_owner(d,p)
+#define FD2_BGM_REQUEST_PREFIX_TRACE(p,pc) observed_request_prefix(p,pc)
+#define FD2_BGM_MESSAGE_BATCH_TRACE(d,b,u,c) observed_message_batch(d,b,u,c)
 #define FD2_BGM_NATIVE_TRACE(voice,status,a,b) observed_native(voice,status,a,b)
 #include "../bgm.cpp"
+#include "audio_clock_fixture.h"
 
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr,"%s:%d: %s\n",__func__,__LINE__,#x); return false; } } while (0)
 
 static bool setup(AilDriver &voice) {
     CHECK(load_ail_bank("original_game/SAMPLE.AD", voice.instruments));
     reset_driver(&voice);
+    /* 私有rawdriver给定前态：显式合法注册全162项，不把冷bank当runtime cache。
+     * 此请求顺序只属于该fixture，不称自然曲史；2268B/192slots容量已独立闭合。 */
+    for(unsigned bank:{0u,127u})for(unsigned patch=0;patch<128;patch++) {
+        int key=instrument_index(uint8_t(patch),uint8_t(bank));
+        if(key>=0 && voice.instruments[size_t(key)].present)
+            CHECK(register_instrument(&voice,uint8_t(patch),uint8_t(bank)));
+    }
     driver_patch(&voice,0,0); driver_patch(&voice,1,0); driver_patch(&voice,2,0);
     return true;
 }
@@ -83,8 +97,9 @@ static bool allocator_vectors() {
     driver_note_on(&voice,1,90,100);driver_note_on(&voice,2,91,100);
     CHECK(active(voice)==20 && voice.voices[18].opl_channel==kUnassigned && voice.voices[19].opl_channel==kUnassigned);
     driver_note_on(&voice,0,92,100);CHECK(active(voice)==20 && !find_note(voice,0,92));
-    /* 3127 的无硬件早返：保留已证原行为，不按 MIDI 常识清逻辑槽。 */
-    driver_note_off(&voice,1,90);CHECK(find_note(voice,1,90));
+    /* 3127本体无硬件早返保活；39cc返回后3a12另有无条件active=0。 */
+    release_voice(&voice,voice.voices[18]);CHECK(find_note(voice,1,90));
+    driver_note_off(&voice,1,90);CHECK(!find_note(voice,1,90));
     driver_controller(&voice,0,112,0);driver_controller(&voice,1,112,64);
     /* CC112 只存值，不能提前重分配。 */
     CHECK(voice.voices[18].opl_channel==kUnassigned);
@@ -204,12 +219,15 @@ static bool actual_four_tracks() {
     AilDriver driver;CHECK(load_ail_bank("original_game/SAMPLE.AD",driver.instruments));reset_driver(&driver);
     struct Track {size_t index;unsigned notes,pedals;};const Track tracks[]={{18,2256,0},{11,513,66},{19,329,0},{12,572,0}};
     for(const Track &track:tracks) {
-        TrackObservation o;o.voice.driver=&driver;o.voice.track=static_cast<int>(track.index);prepare_sequence(&o.voice);
+        TrackObservation o;o.voice.driver=&driver;prepare_sequence(&o.voice,track.index!=16 && track.index!=17);
         const uint8_t *data=nullptr;size_t size=0;CHECK(fd2_archive_get(&archive,track.index,&data,&size)==0);
         NativeSequence prepared;auto before=driver_bytes(driver);current_observation=&o;
         CHECK(prepare_native_sequence(prepared,data,size));
         CHECK(o.callbacks==0 && driver_bytes(driver)==before);
         o.voice.sequence=prepared;o.voice.sequence.loop_remaining=1;
+        /* 正式446bc..446f2：旧包preflush先于503；同driver cache跨曲保留。 */
+        flush_driver_messages(&driver);
+        if(prepared.install_timbres)CHECK(install_sequence_timbres(&driver,prepared));
         CHECK(begin_sequence(&o.voice));int inherited_rr=driver.last_free_channel;
         for(unsigned i=0;i<60000 && o.voice.sequence.status==4;++i)native_sequence_tick(&o.voice);
         CHECK(o.voice.sequence.status==2 && !o.voice.sequence.queue_overflow);
@@ -226,12 +244,16 @@ static bool sequence_cache_and_retirement() {
     first.driver=&driver;prepare_sequence(&first);CHECK(begin_sequence(&first));
     seq_patch(&first,0,5);seq_controller(&first,0,7,77);seq_controller(&first,0,10,100);seq_controller(&first,0,6,12);
     seq_controller(&first,0,64,127);seq_controller(&first,0,112,64);seq_note_on(&first,0,60,100,1000000);seq_note_off(&first,0,60);
+    flush_driver_messages(&driver); /* 原42270：构造给定已提交before，不把私有seq_*当独立硬件API。 */
     CHECK(active(driver)==1 && driver.voices[0].deferred);int rr=driver.last_free_channel;
     second.driver=&driver;auto before=driver_bytes(driver);prepare_sequence(&second);CHECK(!begin_sequence(&second));CHECK(driver_bytes(driver)==before);
     bgm_retire(&first,FD2_AUDIO_RETIRE_REPLACED);
-    CHECK(!driver.active_sequence && active(driver)==0 && driver.last_free_channel==rr);
+    CHECK(!driver.active_sequence && active(driver)==1 && driver.voices[0].deferred && driver.queued_bytes==6);
+    mdi_timer_service(&driver); /* stop后原下一service才提交缓存的两个reset。 */
+    CHECK(active(driver)==0 && driver.last_free_channel==rr);
     CHECK(driver.pedals[0]==0 && driver.priorities[0]==0 && driver.volumes[0]==77 && driver.pans[0]==100 && driver.pitch_ranges[0]==12 && driver.patches[0]==5);
-    CHECK(begin_sequence(&second));seq_note_on(&second,0,61,100,1000000);CHECK(find_note(driver,0,61)->opl_channel==(rr+1)%18);
+    CHECK(begin_sequence(&second));seq_note_on(&second,0,61,100,1000000);flush_driver_messages(&driver);
+    CHECK(find_note(driver,0,61)->opl_channel==(rr+1)%18);
     /* 旧 source 迟到的 retire 不能清理已激活的新 source。 */
     before=driver_bytes(driver);bgm_retire(&first,FD2_AUDIO_RETIRE_DESTROYED);CHECK(driver_bytes(driver)==before);
     /* 原 stop 按本 seq 缓存，而非按全 driver channel 值扫清。 */
@@ -240,56 +262,145 @@ static bool sequence_cache_and_retirement() {
     const fd2_audio_retire_reason reasons[]={FD2_AUDIO_RETIRE_FINISHED,FD2_AUDIO_RETIRE_STOPPED,FD2_AUDIO_RETIRE_REPLACED,FD2_AUDIO_RETIRE_STOLEN,FD2_AUDIO_RETIRE_DROPPED,FD2_AUDIO_RETIRE_DESTROYED};
     for(auto reason:reasons){BgmVoice voice;voice.driver=&driver;prepare_sequence(&voice);CHECK(begin_sequence(&voice));
         seq_controller(&voice,0,64,127);seq_controller(&voice,0,112,127);seq_note_on(&voice,0,64,100,1000000);
-        bgm_retire(&voice,reason);CHECK(!driver.active_sequence && !find_note(driver,0,64) && !driver.pedals[0] && !driver.priorities[0]);}
+        flush_driver_messages(&driver);
+        bgm_retire(&voice,reason);CHECK(!driver.active_sequence && driver.queued_bytes==6);
+        mdi_timer_service(&driver);CHECK(!find_note(driver,0,64) && !driver.pedals[0] && !driver.priorities[0]);}
     return true;
 }
 
 struct PlayerFixture {
     fd2_audio *audio=nullptr;fd2_bgm_player *player=nullptr;
-    ~PlayerFixture(){fd2_audio_destroy(audio);fd2_bgm_destroy(player);}
-    bool open(){fd2_audio_config ac{};ac.sample_rate=48000;ac.allow_null=1;audio=fd2_audio_create(&ac);if(!audio)return false;
+    ~PlayerFixture(){(void)fd2_bios_clock_close();fd2_audio_destroy(audio);fd2_bgm_destroy(player);}
+    bool open(){fd2_audio_config ac{};ac.sample_rate=48000;ac.allow_null=1;audio=fd2_audio_create(&ac);if(fd2_test_audio_clock_prepare(audio)!=0)return false;
         fd2_bgm_config bc{};bc.fdmus_path="original_game/FDMUS.DAT";bc.ail_bank_path="original_game/SAMPLE.AD";bc.sample_rate=48000;
-        player=fd2_bgm_create(audio,&bc);return player!=nullptr;}
+        player=fd2_bgm_create(audio,&bc);return player && fd2_test_audio_clock_after_mdi(audio)==0;}
 };
 
-static bool audio_handoff_and_submission_failure() {
-    PlayerFixture f;CHECK(f.open());auto before=driver_bytes(f.player->driver);CHECK(fd2_bgm_play(f.player,18,0)==0);
-    CHECK(driver_bytes(f.player->driver)==before);float samples[1024];CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
-    BgmVoice *first=f.player->driver.active_sequence;CHECK(first && first->track==18 && first->started);
-    before=driver_bytes(f.player->driver);size_t position=first->sequence.cursor;uint32_t tick=first->timer_ticks;CHECK(fd2_bgm_play(f.player,18,0)==0);
+static bool audio_handoff_and_invalid_submission() {
+    PlayerFixture f;CHECK(f.open());CHECK(fd2_bgm_play(f.player,18,0)==0);
+    /* begin同步：sample0之前已有唯一sequence/0->127的原渐变，不等未来render。 */
+    BgmVoice *first=f.player->driver.active_sequence;
+    CHECK(first && fd2_bgm_current_track(f.player)==18 && first->sequence.status==4 && first->timer_ticks==0);
+    CHECK(first->sequence_volume==0 && first->target_volume==127);
+    float samples[1024];CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
+    auto before=driver_bytes(f.player->driver);size_t position=first->sequence.cursor;
+    uint32_t tick=first->timer_ticks;CHECK(fd2_bgm_play(f.player,18,0)==0);
     CHECK(driver_bytes(f.player->driver)==before && first->sequence.cursor==position && first->timer_ticks==tick);
-    /* A8 bus目标可合并；用仍经SPSC的master命令制造提交失败，不改变其增益。 */
-    size_t n=0;while(n<4096 && fd2_audio_set_master_gain(f.audio,1.0f)==0)n++;
-    CHECK(n>0 && n<4096);before=driver_bytes(f.player->driver);
-    CHECK(fd2_bgm_play(f.player,11,0)==-1);CHECK(driver_bytes(f.player->driver)==before && fd2_bgm_current_track(f.player)==18);
+    /* 已无64项命令队列；200个同刻合法控制直接成功，不借废队列造假故障。 */
+    for(unsigned n=0;n<200;n++)CHECK(fd2_audio_set_master_gain(f.audio,1.0f)==0);
+    CHECK(driver_bytes(f.player->driver)==before && first->timer_ticks==tick);
+    CHECK(fd2_bgm_play(f.player,999,0)==-1 && fd2_bgm_play(f.player,11,-1)==-1);
+    CHECK(driver_bytes(f.player->driver)==before && fd2_bgm_current_track(f.player)==18);
     CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
-    /* 仅损坏本测试 player 拥有的 RAM；文件和原数据均不写。FORM/XMID gate
-     * 可过但原 EVNT 预检必拒，保证失败解析不污染正播放的 shared runtime。 */
+    /* 仅损坏本测试player拥有的RAM；文件/原资源只读。独立EVNT gate拒绝。 */
     const uint8_t *entry=nullptr;size_t size=0;CHECK(fd2_archive_get(&f.player->fdmus,11,&entry,&size)==0 && size>=16);
     auto *writable=const_cast<uint8_t*>(entry);std::vector<uint8_t> original(entry,entry+size);
     std::memset(writable,0,size);std::memcpy(writable,"FORM",4);std::memcpy(writable+8,"XMID",4);
     before=driver_bytes(f.player->driver);int failed=fd2_bgm_play(f.player,11,0);std::copy(original.begin(),original.end(),writable);
     CHECK(failed==-1 && driver_bytes(f.player->driver)==before && fd2_bgm_current_track(f.player)==18);
-    /* 1024 个样本时原整数渐变为 1；原 CC7=77 缓存不变，送 driver 为 0。
-     * 新曲未缓存 channel14，不应把 driver 恢复为 raw77 或安装默认127。 */
+    /* 1024帧=21.333ms；本夹具MDI只在IRQ2/4服务两次，原fade得1。 */
     CHECK(first->timer_ticks==2 && first->sequence_volume==1);
+    const uint8_t before_volume14=f.player->driver.volumes[14];
+    CHECK(f.player->driver.queued_bytes==0);
     seq_controller(first,14,7,77);seq_controller(first,14,10,100);seq_controller(first,14,6,12);
-    CHECK(first->volume_cache[14]==77 && f.player->driver.volumes[14]==0);
+    const std::array<uint8_t,9> pending14={0xbe,7,0,0xbe,10,100,0xbe,6,12};
+    CHECK(first->volume_cache[14]==77 && f.player->driver.volumes[14]==before_volume14);
+    CHECK(f.player->driver.queued_bytes==pending14.size() &&
+          std::equal(pending14.begin(),pending14.end(),f.player->driver.message_bytes.begin()));
     seq_controller(first,14,64,127);seq_controller(first,14,112,64);seq_patch(first,14,0);seq_note_on(first,14,100,100,1000000);
-    before=driver_bytes(f.player->driver);CHECK(fd2_bgm_play(f.player,11,0)==0);CHECK(driver_bytes(f.player->driver)==before);
-    CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
-    BgmVoice *second=f.player->driver.active_sequence;CHECK(second && second!=first && second->track==11 && second->started);
-    CHECK(first->state.load()==2 && f.player->driver.pedals[14]==0 && f.player->driver.priorities[14]==0 && !find_note(f.player->driver,14,100));
+    CHECK(fd2_bgm_play(f.player,11,0)==0);
+    BgmVoice *second=f.player->driver.active_sequence;
+    CHECK(second && second==first && fd2_bgm_current_track(f.player)==11 && second->sequence.status==4 && second->timer_ticks==0);
+    CHECK(f.player->driver.pedals[14]==0 && f.player->driver.priorities[14]==0 && !find_note(f.player->driver,14,100));
     CHECK(f.player->driver.volumes[14]==0 && f.player->driver.pans[14]==100 && f.player->driver.pitch_ranges[14]==12);
+    CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
+    CHECK(fd2_bios_clock_close()==0);
     fd2_audio_destroy(f.audio);f.audio=nullptr;CHECK(!f.player->driver.active_sequence);
+    return true;
+}
+static bool closed_owner_rejects_without_driver_writes() {
+    PlayerFixture f;CHECK(f.open());CHECK(fd2_bgm_play(f.player,18,0)==0);
+    float samples[1024];CHECK(fd2_audio_render_offline(f.audio,samples,512)==512);
+    BgmVoice *voice=f.player->driver.active_sequence;CHECK(voice);
+    const auto before=driver_bytes(f.player->driver);
+    uint32_t tick=voice->timer_ticks;size_t cursor=voice->sequence.cursor;
+    int volume=voice->sequence_volume,target=voice->target_volume;
+    CHECK(fd2_bios_clock_close()==0);
+    /* 源同cache早返；合法不同请求先25997/cache，再遇host负错。 */
+    CHECK(fd2_bgm_play(f.player,18,0)==0 && fd2_bgm_current_track(f.player)==18);
+    CHECK(fd2_bgm_play(f.player,11,0)==-1 && fd2_bgm_current_track(f.player)==11);
+    CHECK(fd2_bgm_play(f.player,11,0)==0); /* 此次只到原cache早返。 */
+    CHECK(fd2_bgm_stop(f.player)==-1 && fd2_bgm_current_track(f.player)==-1);
+    CHECK(fd2_bgm_set_music_enabled(f.player,0,1)==-1);
+    CHECK(driver_bytes(f.player->driver)==before);
+    CHECK(voice==f.player->driver.active_sequence && voice->timer_ticks==tick && voice->sequence.cursor==cursor);
+    CHECK(voice->sequence_volume==volume && voice->target_volume==target && f.player->music_enabled);
+    return true;
+}
+
+/* 生命周期证据，不验证Nuked音色或原PIC：固定host的OPL channel独立
+ * 于AIL status；没有sequence和新曲start之前也不能被Audio误退役。 */
+static bool chip_outlives_sequence() {
+    PlayerFixture f;CHECK(f.open());
+    CHECK(f.player->driver.source_live && !f.player->driver.active_sequence);
+    float samples[192];
+    uint64_t before=f.player->driver.opl.writebuf_samplecnt;
+    CHECK(fd2_audio_render_offline(f.audio,samples,96)==96);
+    CHECK(f.player->driver.opl.writebuf_samplecnt>before && f.player->driver.source_live);
+    CHECK(fd2_bgm_play(f.player,18,0)==0);
+    BgmVoice *voice=f.player->driver.active_sequence;CHECK(voice);
+    end_sequence(voice);
+    CHECK(!f.player->driver.active_sequence && f.player->driver.source_live);
+    before=f.player->driver.opl.writebuf_samplecnt;
+    CHECK(fd2_audio_render_offline(f.audio,samples,96)==96);
+    CHECK(f.player->driver.opl.writebuf_samplecnt>before);
+    /* 明确给定pre-start窗口；同chip继续，不解释任何新event。 */
+    voice->sequence.status=2;
+    before=f.player->driver.opl.writebuf_samplecnt;
+    CHECK(bgm_render(&f.player->driver,samples,96)==96);
+    CHECK(f.player->driver.opl.writebuf_samplecnt>before);
+    /* 公开Audio接口移除chip后，BGM不得把无renderer的新请求报成功。 */
+    CHECK(fd2_audio_stop_music(f.audio)==0 && !f.player->driver.source_live);
+    CHECK(fd2_bgm_play(f.player,11,0)==-1 && fd2_bgm_current_track(f.player)==18);
+    CHECK(fd2_bios_clock_close()==0);
+    fd2_audio_destroy(f.audio);f.audio=nullptr;
+    CHECK(!f.player->driver.source_live && !f.player->driver.active_sequence);
+    CHECK(bgm_render(&f.player->driver,samples,96)==0);
+    return true;
+}
+
+static size_t occupied_sfx_render(void *,float *out,size_t frames) {
+    std::fill(out,out+frames*2u,0.0f);return frames;
+}
+static void occupied_sfx_retire(void *user,fd2_audio_retire_reason reason) {
+    if(reason==FD2_AUDIO_RETIRE_STOLEN)++*static_cast<unsigned *>(user);
+}
+static bool create_rejects_synchronously_dropped_chip() {
+    fd2_audio_config ac{};ac.sample_rate=48000;
+    fd2_audio *audio=fd2_audio_create(&ac);CHECK(audio);
+    CHECK(fd2_test_audio_clock_prepare(audio)==0);
+    /* generic诊断profile可以占满槽；不按private容量写expected。
+     * 同bus的旧SFX被轮替，最终无MUSIC可取代且没有空槽。 */
+    unsigned stolen=0;
+    for(unsigned i=0;i<64 && !stolen;i++)
+        CHECK(fd2_audio_play_source(audio,FD2_AUDIO_BUS_SFX,
+            fd2_audio_source{occupied_sfx_render,occupied_sfx_retire,&stolen},1.0f)==0);
+    CHECK(stolen>0);
+    fd2_bgm_config bc{};bc.fdmus_path="original_game/FDMUS.DAT";
+    bc.ail_bank_path="original_game/SAMPLE.AD";bc.sample_rate=48000;
+    fd2_bgm_player *player=fd2_bgm_create(audio,&bc);
+    CHECK(!player);
+    CHECK(fd2_bios_clock_close()==0);fd2_audio_destroy(audio);
     return true;
 }
 
 static bool default_capacity_playback() {
     fd2_audio_config ac{};ac.sample_rate=48000;ac.allow_null=1;
     fd2_audio *audio=fd2_audio_create(&ac);CHECK(audio);
+    CHECK(fd2_test_audio_clock_prepare(audio)==0);
     fd2_bgm_config bc{};bc.fdmus_path="original_game/FDMUS.DAT";bc.ail_bank_path="original_game/SAMPLE.AD";bc.sample_rate=48000;bc.voice_count=0;
     fd2_bgm_player *player=fd2_bgm_create(audio,&bc);CHECK(player);
+    CHECK(fd2_test_audio_clock_after_mdi(audio)==0);
     std::vector<float> samples(96000);
     auto render_second=[&](){double e=0;for(size_t left=48000;left;){size_t n=std::min<size_t>(left,512);if(fd2_audio_render_offline(audio,samples.data(),n)!=n)return -1.0;for(size_t i=0;i<n*2;i++)e+=std::abs(samples[i]);left-=n;}return e;};
     CHECK(fd2_bgm_play(player,18,0)==0);
@@ -300,13 +411,33 @@ static bool default_capacity_playback() {
     CHECK(fd2_bgm_play(player,11,0)==0);double energy=render_second();
     bool audible=energy>10.0;
     std::printf("default18 replacement first-second energy=%g\n",energy);
+    CHECK(fd2_bios_clock_close()==0);
     fd2_audio_destroy(audio);fd2_bgm_destroy(player);CHECK(audible);return true;
 }
 
-int main(){
+#include "bgm_instrument_cache_checks.h"
+#include "bgm_message_queue_checks.h"
+#include "bgm_single_sentinel_checks.h"
+#include "bgm_startup_owner_checks.h"
+
+int main(int argc,char **argv){
+    if(argc==2 && !std::strcmp(argv[1],"--startup-owner")) {
+        if(!startup_owner_checks())return 1;
+        std::puts("bgm startup source: pre-writer render, failed-install release, full-slot drop PASS");return 0;
+    }
+    if(argc==2 && !std::strcmp(argv[1],"--sentinel-prefix")) {
+        if(!source_single_sentinel_checks())return 1;
+        std::puts("bgm single-S: 5 source-prefix/qualification families PASS; no GUI/device");return 0;
+    }
+    if(argc!=1)return 2;
+    if(!instrument_cache_checks())return 1;
+    if(!startup_owner_checks())return 1;
+    if(!source_single_sentinel_checks())return 1;
+    if(!source_message_queue_checks())return 1;
     if(!pan_regression() || !pedal_regression() || !fair_regression())return 1;
     if(!allocator_vectors() || !sustain_reset_and_reuse() || !fixed_note_reentry() ||
        !selective_controls() || !ignored_controller120() || !pitch_static_vectors() || !actual_four_tracks() || !sequence_cache_and_retirement() ||
-       !audio_handoff_and_submission_failure() || !default_capacity_playback())return 1;
-    std::puts("bgm_sbpro2_test: 13 groups passed (no device/capture/runtime comparison)");return 0;
+       !audio_handoff_and_invalid_submission() || !closed_owner_rejects_without_driver_writes() || !chip_outlives_sequence() ||
+       !create_rejects_synchronously_dropped_chip() || !default_capacity_playback())return 1;
+    std::puts("bgm_sbpro2_test: 16 legacy + 7 source queue groups (no device/capture/runtime comparison)");return 0;
 }

@@ -2005,3 +2005,18 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 独立复审确认：原3次sampler／组合9＋真实Game C9整页／palette／DAC＋Battle完整60圈／共用upload可关闭给定有效before的有界软件显示机制；45个src／cold相同，局部只签source-class，不解释未证的37／59非Q点或冒全部物理present。停止同条件GUI赌采样。当前真实normal before、双端后缀、完整END→Save、输入RNG／PIC及fresh来源联合明确移交[F6必需门](f4-presentation.md#5-f6必须接回的完整域)，不把完整A14—A16写成通过。这些门不读取F5 AIL／PCM／设备机制，按已授权实际依赖连续推进F5。
 
 完整主体提交／本地快进、当前主线构建／定向集成、物理字节／换行继承及用户SAV字节mtime的实际结果，以两树`build/f4/subject-delivery-20261117/local-integration.json`为准。旧失败、候选／继承／未验不改签；不远程push／发布，不自动开新功能阶段。
+
+
+## F5音乐音效与生命周期交付（2026-11-18）
+
+用户终态改为复刻游戏表现；纯CPU／IRQ／PIT／PIC、驱动ABI／原栈／完整RAM等形式门退出必做。裁减前386文件完整封存，移出141个未调用研究C/H／冷定义、77个纯研究工具与四个未编source_memory文件；通用路径守卫因F6真实依赖而保留。旧失败／来源／媒体保历史身份，不改成通过。用户另增独立DOS-CLEAN，顺序固定F5提交／集成／汇报→DOS-CLEAN提交／集成／汇报→F6，前述未落地研究删除不代替后续已落地代码清理。
+
+共享音频交付保单sequence／常驻Nuked chip及同App epoch／Audio owner；修原PCM采样／相位／双P混合／共同DC和采集S16回译，保stop8／replace／尾音／volume／pan。离场text416完成后／200ms前及开场text9后／script98前补停曲。FDMUS20=15score＋5空条目，PCM26bank／111绑定／78payload分别核独立资源、源算式、真实C及正常代表，不由生成器／重复引用或测试数自证全游戏。
+
+原G1／G2七键运行取得两完整59904像素LEFT和30.261s连续WAV；SDL初次无skip Title45s超时、未进G，整体FAIL保留。源与原录音确认G2从旧score开头重播，修掉SDL内部资格门造成的后续无音符：同player／DAT重播已解码score，不模拟释放后的heap。7音乐直接检查通过；SDL-only实际PID18572完成七键和27.923s连续录音，原端不重跑。离线四段多声部乐句与粗节奏相符，不warp／拟gain／设相关率PASS，不签sample onset／完整loop或自然入口。LEAVE双端另完成415／YES／完整416／正常exit0；全部WGC／owned／来源／SAV／显示需求守卫及清理分账，未改电源计划／混音器。
+
+实质复审补有限上传后的首错传播：Scene／Play／Prepare／Battle／Effect／Game与Main，在读HOST／键、发新cue、下一画面／回合前负返；保已达绘制和free-only出口。首构建在Effect测试struct误写指针处停止；修测试后23项20过3失败。Main夹具多排早键、Scene cwd缺资源路径及Prepare合成时间／共享clock回拨仅修测试／登记，定向03为5／6，04 Prepare单项通过；旧失败原件不回签、不改相位／RNG／功能断言。生产语义在首构建后未再变化，提交时只规范SB缓冲provider末尾空行，App `f0d79404a8c09d12aec0c71ea146c2dbed397fd7c90de30fe35b47f839c63eca`。普通音频owner／混合未发现额外must-fix；独立Main peer及本轮完整收据见[F5报告](f5-audio-device.md#7-失败传播审查与阶段交付)。
+
+现有隔离IDA库同步21真实命名／22注释，1312函数／573登记；边界／类型／flags／chunks／字节不变，C tokens仅登记名映射，11SHA／14交叉检查／1001规范入口已核。原严格端口时刻RED仅研究；不重开硬件／原loader疑虑。Windows平台与EX-AUDIO-NUKED保持，物理扬声器／真实拔插仍未验。
+
+实际完整提交／本地快进、物理文件及换行资格、主线Debug构建／定向集成和用户SAV保护，以两树`build/f5/subject-delivery-20261118/local-integration.json`为准。阶段交付不是全部A01—A22已通过；正常输入／RNG／QK及FX／cue联合、无skip Title时长仍归F6表现门，纯形式不再要求。向主对话汇报后直接执行独立DOS-CLEAN，不远程push／发布。

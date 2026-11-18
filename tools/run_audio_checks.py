@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A7功能回归：真实原版→SDL，资源/Save/音频封包与有限SFX身份；不测BGM音色。"""
+"""A7功能回归：原版→SDL资源/Save/有限声音；leave验正常退出，不回标题。"""
 from __future__ import annotations
 
 import argparse
@@ -14,7 +14,7 @@ import fd2_audio_checks as checks
 def parser():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1])
-    for name in ('game','driver','dosbox','artifacts'):
+    for name in ('game','driver','dosbox','bootstrap','artifacts'):
         p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--scenarios',nargs='+',choices=checks.SCENARIOS,default=list(checks.SCENARIOS))
     p.add_argument('--execute',action='store_true',help='显式启动；省略时只做资源/路径前置，不调用显示/设备API或创建产物')
@@ -51,7 +51,7 @@ def main(argv=None):
             return 0
         if sys.platform!='win32':raise RuntimeError('实际入口只支持已验证的Windows HWND WGC/后台输入路径')
         with prepared['tools']['fd2_display_requirement'].windows_display_requirement(
-                report.setdefault('display_requirement',{})):
+                report.setdefault('display_requirement',{}),require_display_on=True):
             checks.execute(args,prepared,report)
     except BaseException as error:
         report.setdefault('error',dict(type=type(error).__name__,message=str(error)))

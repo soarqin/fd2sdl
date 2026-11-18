@@ -3,6 +3,7 @@
  * 22547共享尾返回frame0 LUT；22253先写raw.xy再mask与逐行wipe。 */
 #include "scene_teleport.h"
 #include "scene.h"
+#include "bios_clock.h"
 #include "portrait.h"
 
 #include <stdlib.h>
@@ -38,6 +39,7 @@ static int teleport_owner(const fd2_scene_teleport_scope *scope) {
             scope->vga->field_page!=scope->owner || scope->game->stage!=scope->stage ||
             scope->game->units.count>FD2_FIELD_MAX_UNITS ||
             scope->actor>=FD2_FIELD_MAX_UNITS) return FD2_SCENE_RESULT_ERROR;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return FD2_SCENE_RESULT_ERROR;
     return fd2_input_take_quit(&scope->vga->input) ? FD2_SCENE_RESULT_HOST_QUIT:0;
 }
 
@@ -59,6 +61,7 @@ int fd2_scene_teleport_begin(fd2_scene_teleport_scope **scope,
             game->units.count>FD2_FIELD_MAX_UNITS || actor>=FD2_FIELD_MAX_UNITS ||
             destination_x<0 || destination_x>255 || destination_y<0 || destination_y>255 ||
             draw_x<0 || draw_x>255 || draw_y<0 || draw_y>255) return -1;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
     int64_t center_x=((int64_t)game->cursor_cell_x-game->camera_cell_x)*24+12;
     int64_t center_y=((int64_t)game->cursor_cell_y-game->camera_cell_y)*24+15;
@@ -117,7 +120,9 @@ int fd2_scene_teleport_icon(fd2_scene_teleport_scope *scope) {
 int fd2_scene_teleport_sound(fd2_scene_teleport_scope *scope,fd2_field_audio *audio) {
     int result=teleport_owner(scope); if (result || !audio || !audio->player) return result;
     int sample=scope->destination_x==scope->draw_x && scope->destination_y==scope->draw_y;
-    return fd2_field_audio_play_borrowed_bank(audio,&scope->sound,sample,1);
+    result=fd2_field_audio_play_borrowed_bank(audio,&scope->sound,sample,1);
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return FD2_SCENE_RESULT_ERROR;
+    return result;
 }
 
 int fd2_scene_teleport_contract(fd2_scene_teleport_scope *scope,unsigned frame,unsigned multiplier) {

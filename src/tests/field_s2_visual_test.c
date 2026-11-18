@@ -24,7 +24,7 @@ static uint64_t test_ticks(void) {
     if(clock_at>=clock_count){exhausted=1;return (uint64_t)clocks[clock_count?clock_count-1:0]*55u;}
     return (uint64_t)clocks[clock_at++]*55u;
 }
-static void test_present_timed(fd2_vga *vga,uint32_t ms) {
+static int test_present_timed(fd2_vga *vga,uint32_t ms) {
     timed_presents++;
     if(ms_mode) {
         if(ms_request_count<16)ms_requests[ms_request_count++]=ms;
@@ -32,9 +32,10 @@ static void test_present_timed(fd2_vga *vga,uint32_t ms) {
     }
     frames++;
     if((quit_frame && frames==quit_frame) || frames>32)vga->input.quit_requested=1;
+return 0;
 }
 static void test_upload(fd2_vga *vga) {(void)vga;uploads++;}
-static void test_delay_ms(uint32_t ms) {
+static int test_delay_ms(uint32_t ms) {
     if(ms_mode) {
         if(ms_request_count<16)ms_requests[ms_request_count++]=ms;
         ms_now+=ms;frames++;
@@ -42,6 +43,7 @@ static void test_delay_ms(uint32_t ms) {
     if(waiting_vga && ((quit_frame && (ms_mode?frames:poll_sleeps)==quit_frame) ||
         (ms_mode?frames:poll_sleeps)>32))
         waiting_vga->input.quit_requested=1;
+return 0;
 }
 #define SDL_GetTicks test_ticks
 uint64_t test_ticks_ns(void);
@@ -50,12 +52,13 @@ uint64_t test_ticks_ns(void);
 #define fd2_vga_present_timed test_present_timed
 #define fd2_vga_upload_current_frame test_upload
 #define fd2_delay_ms test_delay_ms
+#define fd2_vga_delay_ms(vga,value) test_delay_ms(value)
 #include "field_play.c"
 #undef SDL_GetTicks
 #undef fd2_vga_present_timed
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
-
+#undef fd2_vga_delay_ms
 static void palette(fd2_vga *vga,unsigned seed) {
     memset(vga,0,sizeof(*vga));
     for(unsigned i=0;i<768;i++){vga->palette[i]=(uint8_t)((i*17u+seed)%64u);vga->dac[i]=0xa5;}

@@ -3,6 +3,7 @@
 
 #include "archive.h"
 #include "field_page.h"
+#include "vga.h"
 
 /* sub_10652 @0x10652：按唯一冷dispatch载入原53AFF/53B03背景资源。
  * 全资源预检成功才swap；不改page像素/539F8/539FC/51A10，不推进业务。
@@ -27,9 +28,9 @@ int fd2_field_background_draw_from(fd2_field_page *owner,fd2_field_page *target,
 /* live只在wave/scroll的advance门实际读取共享BIOS；行更新后重取last。
  * none/parallax、advance=0及前检拒绝不读钟；更新失败不重读/写锚。
  * 不另起背景clock owner。 */
-int fd2_field_background_draw_live(fd2_field_page *page,
+int fd2_field_background_draw_live(const fd2_vga *vga,fd2_field_page *page,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance);
-int fd2_field_background_draw_from_live(fd2_field_page *owner,fd2_field_page *target,
+int fd2_field_background_draw_from_live(const fd2_vga *vga,fd2_field_page *owner,fd2_field_page *target,
     int dest_x,int dest_y,int camera_x,int camera_y,int parallax_x,int parallax_y,int advance);
 
 /* sub_24D22 @0x24d22：非0只写BYTE速度，0按当前速度立即轮转背景；

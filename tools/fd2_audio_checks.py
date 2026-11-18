@@ -18,7 +18,7 @@ import time
 import wave
 from PIL import Image
 
-SCENARIOS = ('options', 'active-load', 'opening', 'end-turn', 'sfx-reenable')
+SCENARIOS = ('options', 'active-load', 'opening', 'end-turn', 'sfx-reenable', 'leave')
 META = 0x30C3
 FIXTURE_META = bytes((1,12,0,5,11,6,14,1,3,4,0,0,0,0,0,1,1,1))
 MAX_MS = 30000
@@ -140,7 +140,7 @@ def ordered_ack(reader,predicate,alive,record,*,clock=time,started=None):
         clock.sleep(.01)
     raise TimeoutError('resource ACK exceeded15s; no extra keys')
 
-def wait_resource_series(capture,prepared,record,name,predicate,open_key=None):
+def wait_resource_series(capture,prepared,record,name,predicate,open_key=None,on_match=None):
     """One owned session per bright ACK; ordinary deadline starts at call, Save after open_key."""
     began=time.monotonic()
     battle=prepared['tools']['run_original_battle_animation']
@@ -178,6 +178,8 @@ def wait_resource_series(capture,prepared,record,name,predicate,open_key=None):
         else:
             started=began  # Ready/session setup consumes the original post-key15s window.
         result=ordered_ack(reader,predicate,alive,state,started=started)
+        if on_match is not None:
+            on_match()  # 416后仅发布采集stop；先于关闭WGC，不发送后继游戏键。
         record['checkpoints'].append(dict(name=name,pid=capture.process.pid,time=time.monotonic(),
             source_frame=state['ACK'],**result))
         # Ordinary menus may match ready frame0 immediately. Preserve that ACK,
@@ -248,6 +250,34 @@ def prepare_short(prepared):
     return dict(opening=opening,prefix=prefix,first=first,title_counts=counts,banner=banner,
         prefix_description=[{k:p[k] for k in ('stage','fragment','token_offset','reason')} for p in prefix])
 
+
+def prepare_leave_messages(original, assets, tools):
+    """19df7：415完整prompt(99,127)，416无按键通知(99,146)。"""
+    common=tools['run_original_comparison']
+    tokens=tools['fd2_reward_oracle'].common_tokens
+    glyphs=tools['fd2_magic_list_oracle'].glyphs
+    text=common.archive_entry((original/'FDTXT.DAT').read_bytes(),0)
+    font=common.archive_entry((original/'FDOTHER.DAT').read_bytes(),4)
+    expected={}
+    for identity,y in ((415,127),(416,146)):
+        values=tokens(text,identity)
+        if len(values)!=8 or values[-1]!=-1 or any(v<0 for v in values[:-1]):
+            raise ValueError('leave只接受原七字形/END，无动态、换行或按键控制')
+        image=Image.new('P',(113,17),0);image.putpalette(assets['palette'])
+        glyphs(image,font,values[:-1],1,0,205)
+        expected[identity]=dict(image=image,position=(98,y),tokens=values,
+            fragment=identity,text_origin=[99,y],glyphs=7,
+            scope='all seven original glyph/shadow masks; not whole VGA or logical text-return timestamp')
+    return expected
+
+
+def leave_message_match(frame, prepared, identity):
+    expected=prepared['leave_messages'][identity]
+    hit=prepared['tools']['run_original_battle_menu'].match_indexed(
+        frame,expected['image'],expected['position'])
+    return dict(kind='leave_message',fragment=identity,text_origin=expected['text_origin'],
+        glyphs=expected['glyphs'],text_match=hit,scope=expected['scope']) if hit['ok'] else None
+
 def observe_audio(capture,record,label,seconds=2):
     """已ACK状态上的声明听取窗；仅存活/源guard，不作输入settle或FPS判据。"""
     started=time.monotonic();deadline=started+seconds
@@ -310,7 +340,8 @@ def load_tools(root):
     names = ('run_original_comparison', 'run_original_battle_menu', 'run_original_end_turn',
              'run_graphics_tests', 'run_original_load', 'run_original_battle_animation',
              'fd2_app_mix_capture', 'fd2_display_requirement', 'fd2_display_power', 'fd2_sfx_oracle',
-             'run_background_input_check', 'run_original_reward', 'run_g4_detail_check')
+             'run_background_input_check', 'run_original_reward', 'run_g4_detail_check',
+             'original_reference', 'analyze_fd2_audio', 'fd2_reward_oracle', 'fd2_magic_list_oracle')
     result={name: importlib.import_module(name) for name in names}
     if any(Path(module.__file__).resolve().parent!=(root/'tools').resolve() for module in result.values()):
         raise ValueError('cached helper belongs to a different source tree')
@@ -352,13 +383,16 @@ def prepare(args):
     args.scenarios = validate_scenarios(args.scenarios)
     args.root = args.root.resolve(strict=True)
     args.artifacts = validate_output(args.root, args.artifacts)
-    for key in ('game', 'driver', 'dosbox'):
+    for key in ('game', 'driver', 'dosbox', 'bootstrap'):
         value = getattr(args, key).resolve(strict=True)
         if not value.is_file(): raise ValueError(key+' must be a file')
         setattr(args, key, value)
     if args.dosbox.name.casefold() not in ('dosbox-x','dosbox-x.exe'):
         raise ValueError('this entry requires the verified DOSBox-X quiet/HOST_W path')
     tools = load_tools(args.root)
+    # 默认dry不建配置/收据；实际首窗口前由原reference.build完整核验。
+    if any(name.upper().startswith('DOSBOX_') for name in os.environ):
+        raise ValueError('未冻结的DOSBOX环境覆盖；未创建产物或启动程序')
     original = (args.root/'original_game').resolve(strict=True)
     validate_output(args.root,args.artifacts,original)
     original_facts = {p.name: fact(p) for p in original.iterdir() if p.is_file()}
@@ -374,10 +408,13 @@ def prepare(args):
         raise ValueError('unsupported START metadata; no fixture guessed')
     assets = tools['run_original_end_turn'].round_assets(original)
     prepared = dict(tools=tools, original=original, original_facts=original_facts,
-        source=source_facts(args.root), inputs={key: fact(getattr(args,key)) for key in ('game','driver','dosbox')},
+        source=source_facts(args.root), inputs={key: fact(getattr(args,key)) for key in ('game','driver','dosbox','bootstrap')},
         focus_plain=bytes(focus), assets=assets,
         titles=tools['run_original_comparison'].title_templates(original/'FDOTHER.DAT'))
+    prepared['inputs']['reference_rules']=fact(tools['original_reference'].REFERENCE)
     prepared['short'] = prepare_short(prepared)
+    if 'leave' in args.scenarios:
+        prepared['leave_messages']=prepare_leave_messages(original,assets,tools)
     if 'sfx-reenable' in args.scenarios:
         refs=tools['fd2_sfx_oracle'].references(original/'FDOTHER.DAT',[dict(bank=31,sample=i) for i in range(13)])
         if refs[8]['sha256']!=VOICE_SHA or refs[8]['source_frames']!=VOICE_FRAMES:
@@ -385,13 +422,20 @@ def prepare(args):
     return prepared
 
 
-def wait_confirmation(capture, prepared, record, oracle, key, label):
+def wait_confirmation(capture, prepared, record, oracle, key, label,message=None):
     def first(frame, detail):
         state = record['resource_series'][-1]
         record['checkpoints'].append(dict(name=label+'-first-any', pid=capture.process.pid,
             time=time.monotonic(), source_frame=state['current_frame'], **detail))
+    selected=first_selected_yes(oracle, first)
+    def predicate(frame):
+        yes=selected(frame)  # 首次明确NO仍立即失败，不用后到文字洗掉。
+        if yes is None:return None
+        if message is None:return yes
+        words=message(frame)
+        return dict(yes,complete_prompt=words) if words is not None else None
     return wait_resource_series(capture, prepared, record, label,
-        first_selected_yes(oracle, first), open_key=lambda: key('ENTER'))
+        predicate, open_key=lambda: key('ENTER'))
 
 
 def observe_audio_active_load(capture, prepared, saved, save, guard, record, key):
@@ -468,7 +512,7 @@ class NativeWave:
                 try:
                     current = fact(paths[0])
                     if current == prior:
-                        info = self.battle.wav_info(paths[0])
+                        info = self.battle.wav_info(paths[0],expected_rate=48000)
                         if info['frames'] <= 0: raise AssertionError('empty native WAV')
                         if info['frames']>120*info['sample_rate']:raise AssertionError('native audio exceeds declared120s cap')
                         return dict(backend='DOSBox-native-HOST_W', pid=process.pid,
@@ -644,6 +688,60 @@ def exercise_end(capture,kind,prepared,save,record,audio):
     record['business_sequence_completed']=True
 
 
+def exercise_leave(capture,kind,prepared,save,record,audio):
+    """正常SYSTEM/LEAVE；不保存、不回标题、YES后不发送游戏键。"""
+    tools=prepared['tools'];b=tools['run_original_battle_menu']
+    oracle=tools['run_original_end_turn'].RoundOracle(prepared['assets'],(28,76))
+    guard=(save.read_bytes(),save.stat().st_mtime_ns)
+    def unchanged():tools['run_original_load'].require_source_unchanged(save,*guard)
+    def key(name,**kwargs):
+        if record.get('audio_start_attempted'):audio.assert_running(capture.process)
+        capture.key(name,**kwargs);unchanged()
+    def cp(name,predicate,*,stable=False,**kwargs):
+        result=checkpoint(capture,prepared,record,name,predicate,stable=stable,**kwargs)
+        unchanged();return result
+    b.wait_title(capture,prepared['titles'][3][0]);key('UP')
+    capture.wait(prepared['titles'][3][2]);key('ENTER')
+    cp('leave-continued-browse',oracle.closed_browse,stable=True,timeout=45)
+    start_audio(audio,capture.process,record)
+    observe_audio(capture,record,'primary19-before-leave',3)
+    key('ENTER');cp('leave-parent',lambda f:oracle.menu(f,0))
+    key('UP');cp('leave-system-selected',lambda f:oracle.menu(f,0))
+    key('ENTER');cp('leave-secondary',lambda f:oracle.secondary(f,0))
+    key('DOWN');cp('leave-selected',lambda f:oracle.secondary(f,3))
+    wait_confirmation(capture,prepared,record,oracle,key,'leave-default-YES',
+        message=lambda f:leave_message_match(f,prepared,415))
+    # 原端由正常exit封WAV，不在无按键416通知/退出中插入HOST_W。
+    # SDL v3仍须显式stop；首完整416像素出现即发布文件，不等WGC close。
+    if kind=='original':record['audio_finalize_on_normal_close']=True
+    def accepted():
+        record['leave_416_observed']=True
+        record['events'].append(dict(name='leave-full416-visible',
+            clock=tools['run_original_battle_animation'].qpc_stamp(),
+            logical_text_return_or_stop_PC_observed=False))
+        if kind=='sdl':
+            audio.request_stop()
+            record['leave_capture_stop_requested_after_full416']=True
+    def yes():
+        record['events'].append(dict(name='leave-YES-before-delivery',
+            clock=tools['run_original_battle_animation'].qpc_stamp()))
+        key('ENTER',fast=True)  # 同一owned HWND真实down/up，无250ms后置等待。
+        record['leave_keys_after_yes']=len(record['inputs'])
+    wait_resource_series(capture,prepared,record,'leave-accepted416',
+        lambda f:leave_message_match(f,prepared,416),open_key=yes,on_match=accepted)
+    if kind=='sdl':finish_audio(audio,capture.process,record)
+    # 业务自行退出。超时/非零失败交已有owned finally清理，不用WM_CLOSE求绿。
+    exit_code=capture.process.wait(timeout=5)
+    if type(exit_code) is not int or exit_code!=0:raise AssertionError('LEAVE_GAME did not exit normally')
+    if len(record['inputs'])!=record['leave_keys_after_yes']:
+        raise AssertionError('unexpected game key after affirmative LEAVE')
+    unchanged()
+    record['normal_leave_exit']=dict(exit_code=0,no_game_key_after_yes=True,
+        source_save_unchanged=True,returned_to_title=False,timeout_seconds=5,
+        scope='normal game exit; no post-exit acoustic silence or complete4s fade claim')
+    record['business_sequence_completed']=True
+
+
 def exercise_reenable(capture, kind, prepared, save, record, audio):
     """16f55/1728c：Music保持0，SFX0→1；录音首尾不包含最终Save。"""
     tools=prepared['tools'];b=tools['run_original_battle_menu']
@@ -693,13 +791,18 @@ def exercise_reenable(capture, kind, prepared, save, record, audio):
     measured=tools['run_original_load'].wait_measured_save(save,*guard)
     guard[:]=[save.read_bytes(),save.stat().st_mtime_ns]
     cp('save-final-browse',oracle.closed_browse,stable=True)
-    expected=bytearray(prepared['plain']);expected[META+17]=1
-    expected[-4:]=sum(expected[:-4]).to_bytes(4,'little')
-    record['measurement']=tools['run_original_load'].check_load_measurement(bytes(expected),measured,[])
+    record['measurement']=check_reenable_save(prepared,measured)
     if measured[META+16:META+18]!=b'\0\1':raise AssertionError('final Save must be Music0/SFX1')
     snapshot=capture.artifacts/'reenabled-01.SAV';shutil.copy2(save,snapshot)
     record['saves'].append(dict(name='reenabled-01',snapshot=fact(snapshot),live_mtime_ns=guard[1]))
     record.update(final_options=[0,1],music_changed_during_episode=False,business_sequence_completed=True)
+
+
+def check_reenable_save(prepared,measured):
+    # 10010的+2按来源ID首次出现重建；不借measured class回填expected。
+    expected=bytearray(prepared['plain']);expected[META+17]=1
+    expected[-4:]=sum(expected[:-4]).to_bytes(4,'little')
+    return prepared['tools']['run_original_load'].check_active_load_measurement(bytes(expected),measured,[])
 
 
 def verify_reenable(prepared, record):
@@ -715,10 +818,19 @@ def verify_reenable(prepared, record):
     negative=dict(status='pending_native_first_PCM_clock',acceptance_gate=False,absolute_absence_proven=False)
     if record['kind']=='sdl':
         ready=record['audio_ready'];events={e['name']:e['clock'] for e in record['events'] if 'clock' in e}
-        lo=(events['off-observation-before']['qpc']-ready['first_callback_qpc'])*1000/ready['qpc_frequency']
-        hi=(events['off-observation-after']['qpc']-ready['first_callback_qpc'])*1000/ready['qpc_frequency']
+        origin=prepared['tools']['fd2_app_mix_capture'].first_qpc(ready)
+        for name in ('off-observation-before','off-observation-after'):
+            event=events[name]
+            if (type(event.get('qpc')) is not int or type(event.get('qpc_frequency')) is not int or
+                event['qpc_frequency']!=ready['qpc_frequency']):
+                raise AssertionError('OFF观察事件与声明capture不在同一QPC频率域')
+        if events['off-observation-before']['qpc']>events['off-observation-after']['qpc']:
+            raise AssertionError('OFF观察QPC顺序倒退')
+        lo=(events['off-observation-before']['qpc']-origin)*1000/ready['qpc_frequency']
+        hi=(events['off-observation-after']['qpc']-origin)*1000/ready['qpc_frequency']
         off=dict(request,queries=[dict(name='bounded-OFF-observation',start_ms=lo,end_ms=hi,expected=dict(bank=31,sample=8))])
-        negative.update(status='observed_same_callback_clock_window',
+        negative.update(status='observed_same_declared_capture_clock_window',
+            capture_schema=ready['schema'],clock_source=ready['clock_source'],
             observation=oracle.analyze(prepared['original']/'FDOTHER.DAT',off,Path(wave_info['path'])))
     return dict(ok=observation['queries'][0]['identity_status']=='supported_candidate',
         request=request,observation=observation,off_observation=negative,
@@ -730,8 +842,40 @@ def native_config_text(game,captures):
     # DX-CAPTURE全false仍隐式video；显式HOST_W只录本次声明窗。
     return ('[sdl]\nfullscreen=false\noutput=surface\nshowmenu=false\nautolock=false\nwaitonerror=false\n'
         '[dosbox]\nmachine=svga_s3\nmemsize=16\nquit warning=false\nshow recorded filename=false\ncaptures='+str(captures)+'\n'
-        '[render]\naspect=false\nscaler=normal2x\n[mixer]\nrate=44100\n'
+        '[render]\naspect=false\nscaler=normal2x\n[mixer]\nrate=48000\n'
         '[cpu]\ncore=normal\ncycles=fixed 20000\n[autoexec]\nmount c "'+str(game)+'"\nc:\nFD2.EXE\nexit\n')
+
+
+def qualify_native_reference(args,prepared,record,config,command,environment):
+    """实际新conf/CLI共用F1固定参照，不改变用户bootstrap或全局设置。"""
+    reference=prepared['tools']['original_reference']
+    actual,_,_=prepared['tools']['run_original_comparison'].quiet_game_command(command,environment)
+    expected=[str(args.dosbox),'-conf',str(config),'-noconsole','-set','mixer nosound=true']
+    if actual!=expected:raise ValueError('原版实际启动argv不是本次有界conf/quiet命令')
+    value=reference.build(prepared['original'],args.dosbox,[config],['mixer nosound=true'],args.bootstrap)
+    # 取build审查的config SHA，不用晚读版本覆盖原身份。
+    configured=fact(config)
+    if len(value['configs'])!=1 or any(configured[k]!=value['configs'][0][k] for k in ('path','size','sha256')):
+        raise AssertionError('本次配置在reference冻结后改变')
+    manifest=config.parent/'reference.json'
+    reference.write_new(manifest,value)
+    record.update(reference=value,reference_manifest=str(manifest),expected_actual_command=actual,
+                  reference_checks=dict(before=False,after=False))
+    key=record['scenario']+'.original.'
+    prepared['inputs'][key+'config']=configured
+    prepared['inputs'][key+'reference']=fact(manifest)
+    reference.verify(manifest);record['reference_checks']['before']=True
+
+
+def finish_native_reference(prepared,record,*,business_failed):
+    if 'reference_manifest' not in record:return
+    try:
+        prepared['tools']['original_reference'].verify(Path(record['reference_manifest']))
+        record['reference_checks']['after']=True
+    except BaseException as error:
+        record['reference_checks']['after']=False
+        record['reference_after_error']=dict(type=type(error).__name__,message=str(error))
+        if not business_failed:raise
 
 
 def finalize_guards(args,prepared,report):
@@ -739,6 +883,8 @@ def finalize_guards(args,prepared,report):
         'current_source_set_SHA_size_mtime':lambda:source_facts(args.root)==prepared['source'],
         'original_resource_set_SHA_size_mtime':lambda:{p.name:fact(p) for p in prepared['original'].iterdir() if p.is_file()}==prepared['original_facts'],
         'binary_and_derived_inputs':lambda:all(fact(row['path'])==row for row in prepared['inputs'].values()),
+        'original_reference_before_after':lambda:all(case.get('kind')!='original' or
+            case.get('reference_checks')==dict(before=True,after=True) for case in report.get('cases',[])),
         'closed_evidence_files':lambda:all(case.get('closed_evidence_sealed') is True and
             all(fact(row['path'])==row for row in case.get('closed_capture_facts',{}).values())
             for case in report.get('cases',[])),
@@ -765,16 +911,43 @@ def music_requests(log, scenario):
         if row['available']!=1 or row['result']!=0 or row['loop']!=0:
             raise AssertionError('SDL music backend missing or request failed')
         rows.append(row)
-    required={'options':(19,), 'active-load':(19,), 'end-turn':(19,12,19), 'sfx-reenable':(19,), 'opening':()}[scenario]
+    required={'options':(19,), 'active-load':(19,), 'end-turn':(19,12,19), 'sfx-reenable':(19,),
+        'opening':(), 'leave':(19,-1)}[scenario]
     position=0
     for row in rows:
         if position<len(required) and row['track']==required[position]:position+=1
     if position!=len(required):raise AssertionError('expected ordered SDL phase requests missing')
     if scenario=='active-load' and not any(r['reason']=='active-load-stop' and r['track']==-1 for r in rows):
         raise AssertionError('successful active Load stop/restart request absent')
+    if scenario=='leave':
+        stops=[i for i,r in enumerate(rows) if r['reason']=='leave']
+        if len(stops)!=1 or stops[0]!=len(rows)-1 or rows[stops[0]]['track']!=-1 or rows[stops[0]]['current']!=-1:
+            raise AssertionError('LEAVE must have one final successful stop request and no title restart')
     return dict(actual_requests=rows,required_ordered_subsequence=list(required),
         opening_18_to_11_source='scene resource ACKs and native-equivalent Scene call path; no separate request log' if scenario=='opening' else None,
         acoustic_track_identity_proven=False,waveform_or_timbre_in_scope=False)
+
+
+def audio_transport_observation(log):
+    """Main同一Audio终态的只读计数，不外推capture窗口/实际设备队列峰。"""
+    prefix='audio transport v1:'
+    lines=[line for line in log.splitlines() if line.startswith(prefix)]
+    if len(lines)!=1:raise AssertionError('exactly one whole-owner Audio transport receipt required')
+    pattern=(r'audio transport v1: first_error=([0-9]{1,20}) queue_samples=([0-9]{1,20}) '
+        r'queue_peak_bytes=([0-9]{1,20}) successful_puts=([0-9]{1,20}) backlog_drop_chunks=([0-9]{1,20})')
+    match=re.fullmatch(pattern,lines[0])
+    if not match:raise AssertionError('malformed Audio transport receipt')
+    row=dict(zip(('first_error','queue_samples','queue_peak_bytes','successful_puts','backlog_drop_chunks'),map(int,match.groups())))
+    if (any(v>0xffffffffffffffff for v in row.values()) or row['first_error']>6 or
+            row['queue_peak_bytes']>0x7fffffff or (not row['queue_samples'] and row['queue_peak_bytes']) or
+            row['successful_puts']+row['backlog_drop_chunks']>row['queue_samples']):
+        raise AssertionError('inconsistent Audio transport receipt')
+    row.update(ok=(row['first_error']==0 and row['backlog_drop_chunks']==0 and
+        row['queue_samples']>0 and row['successful_puts']>0),
+        scope='same_Audio_lifetime_through_post_quiesce_clock_close',
+        peak_kind='sampled_GetAudioStreamQueued_before_Put_bytes',
+        actual_OS_queue_peak_proven=False,device_output_validated=False)
+    return row
 
 
 def qualify_case(record,process_receipt,scenario):
@@ -785,7 +958,18 @@ def qualify_case(record,process_receipt,scenario):
         not record.get('capture_stop_error') and not record.get('capture_close_error') and not record.get('error'))
     collection=record.get('audio_collection_passed') is True
     finite=(scenario!='sfx-reenable' or record.get('finite_sfx_verification',{}).get('ok') is True)
-    return dict(ok=functional and collection and finite,
+    transport_required=(scenario in ('sfx-reenable','leave') and record.get('kind')!='original')
+    transport=(not transport_required or record.get('transport_observation',{}).get('ok') is True)
+    leave=(scenario!='leave' or (record.get('leave_416_observed') is True and
+        type(record.get('normal_leave_exit',{}).get('exit_code')) is int and
+        record.get('normal_leave_exit',{}).get('exit_code')==0 and
+        record.get('normal_leave_exit',{}).get('no_game_key_after_yes') is True and
+        record.get('normal_leave_exit',{}).get('source_save_unchanged') is True and
+        record.get('normal_leave_exit',{}).get('returned_to_title') is False and
+        (record.get('kind')=='original' or record.get('leave_capture_stop_requested_after_full416') is True)))
+    return dict(ok=functional and collection and finite and transport and leave,
+        transport_required=transport_required,transport_passed=transport if transport_required else None,
+        normal_leave_required=scenario=='leave',normal_leave_passed=leave if scenario=='leave' else None,
         functional_business_passed=functional,audio_collection_passed=collection,
         finite_SFX_required=scenario=='sfx-reenable',finite_SFX_passed=finite if scenario=='sfx-reenable' else None,
         BGM_timbre_waveform_absolute_timing='not_in_scope',device_output_validated=False,A7_fidelity_validated=False)
@@ -819,6 +1003,12 @@ def execute_case(args,prepared,scenario,report):
             command,cwd=[str(args.game)],args.root
         endpoint=dict(prepared,plain=tools['run_graphics_tests'].decode_save(source))
         try:
+            if source_facts(args.root)!=prepared['source'] or any(fact(row['path'])!=row for row in prepared['inputs'].values()):
+                raise AssertionError('首窗口前source/二进制/夹具/参照输入已变')
+            if {p.name:fact(p) for p in prepared['original'].iterdir() if p.is_file()}!=prepared['original_facts']:
+                raise AssertionError('首窗口前原资源或用户档已变')
+            if save.read_bytes()!=source.read_bytes():raise AssertionError('实际隔离SAV不等于本次来源')
+            if kind=='original':qualify_native_reference(args,prepared,record,config,command,env)
             with common.running(command,cwd,env,work/'game.log',args.driver,report['processes']) as process:
                 record['pid']=process.pid;capture=common.Capture(args.driver,process,work,record['inputs'])
                 audio=(NativeWave(capture,captures,battle) if kind=='original' else
@@ -828,6 +1018,7 @@ def execute_case(args,prepared,scenario,report):
                         exercise_options_load(capture,kind,endpoint,save,record,audio,scenario)
                     elif scenario=='opening':exercise_opening(capture,kind,endpoint,save,record,audio)
                     elif scenario=='end-turn':exercise_end(capture,kind,endpoint,save,record,audio)
+                    elif scenario=='leave':exercise_leave(capture,kind,endpoint,save,record,audio)
                     else:exercise_reenable(capture,kind,endpoint,save,record,audio)
                     record['completed_live_save_fact']=fact(save)
                 finally:
@@ -837,6 +1028,8 @@ def execute_case(args,prepared,scenario,report):
                 record['audio_capture']=audio.finish_after_exit(process)
             if fact(save)!=record['completed_live_save_fact']:raise AssertionError('normal close changed verified live Save')
             if kind=='original':
+                if report['processes'][-1]['command']!=record['expected_actual_command']:
+                    raise AssertionError('owned实际argv与已冻结参照不符')
                 if report['processes'][-1].get('native_quiet_requested') is not True:
                     raise AssertionError('owned DOSBox quiet request was not applied')
                 after={p.name:fact(p) for p in game.iterdir() if p.is_file()};before=record['isolated_game_before']
@@ -857,7 +1050,9 @@ def execute_case(args,prepared,scenario,report):
                 if info['frames']!=summary['frames'] or info['data_bytes']!=summary['data_bytes']:
                     raise AssertionError('app-mix WAV/summary differ')
                 record['audio_wave']=info
-                record['music_request_observation']=music_requests((work/'game.log').read_text(encoding='utf-8'),scenario)
+                sdl_log=(work/'game.log').read_text(encoding='utf-8')
+                record['music_request_observation']=music_requests(sdl_log,scenario)
+                if scenario in ('sfx-reenable','leave'):record['transport_observation']=audio_transport_observation(sdl_log)
             record['audio_collection_passed']=True
             if scenario=='sfx-reenable':record['finite_sfx_verification']=verify_reenable(prepared,record)
             record['qualification']=qualify_case(record,report['processes'][-1],scenario)
@@ -869,6 +1064,13 @@ def execute_case(args,prepared,scenario,report):
         finally:
             # live Save的mtime属于live；snapshot copy2拥有自己的fact，绝不交叉比较两者。
             pending=sys.exc_info()[0] is not None
+            late_reference_error=None
+            try:
+                if kind=='original':finish_native_reference(prepared,record,business_failed=pending)
+            except BaseException as error:
+                record.setdefault('error',dict(type=type(error).__name__,message=str(error)))
+                late_reference_error=error
+            pending=pending or late_reference_error is not None
             try:
                 record['closed_capture_facts']={p.relative_to(work).as_posix():fact(p) for p in work.rglob('*')
                     if p.is_file() and not ('game' in p.relative_to(work).parts)}
@@ -878,6 +1080,7 @@ def execute_case(args,prepared,scenario,report):
                 record.setdefault('evidence_seal_error',dict(type=type(error).__name__,message=str(error)))
                 if not pending:raise
             finalize_guards(args,prepared,report)
+            if late_reference_error is not None:raise late_reference_error
         if not all(v is True for v in report['guards'].values()):
             raise AssertionError('endpoint late guard failed; next endpoint not launched')
 
@@ -917,10 +1120,12 @@ def declaration(scenarios):
             'active-load':'baseline11; live00; ESC/NO preserve00; YES restores complete baseline11',
             'opening':'START29 resource ACKs; first stage32fragment2/track11 wait held',
             'end-turn':'one END; round002/player Save; phase requests19→12→19',
-            'sfx-reenable':'Music0 throughout; SFX00→01; full sample8/13 candidates/.8/.05'},
+            'sfx-reenable':'Music0 throughout; SFX00→01; full sample8/13 candidates/.8/.05',
+            'leave':'normal CONTINUE/SYSTEM/LEAVE415/YES→full416→normalexit0; source Save unchanged; no return to title'},
         bright_ACK=dict(interval_ms=INTERVAL_MS,max_ms=MAX_MS,timeout_seconds=ACK_SECONDS,frame_cap=600,
             all_complete_rows_in_order=True,first_explicit_NO_fails=True),
-        audio=dict(original='explicit HOST_W closed44100PCM16 stereo',
+        audio=dict(original='explicit HOST_W closed48000PCM16 stereo; fixed F1 reference/bootstrap verified',
             sdl='actual pre-OS application mix48000PCM16 stereo; device submission suppressed',max_ms=120000),
         BGM_timbre_waveform_absolute_timing='not_in_scope',negative_absolute_silence_proven=False,
+        leave_audio_scope='original HOST_W through normal exit; SDL explicit v3 stop at full416 pixel ACK; not full200ms/4s fade or post-exit acoustic silence',
         exact_cue_instance_or_latency_proven=False,device_output_validated=False,A7_fidelity_validated=False)

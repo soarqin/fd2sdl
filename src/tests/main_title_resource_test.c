@@ -13,6 +13,8 @@
 #include "title.h"
 #include "vga.h"
 #include "scene.h"
+#include "bios_clock.h"
+#include "bgm.h"
 
 #define CHECK(e) do { if (!(e)) { \
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #e); \
@@ -20,6 +22,34 @@
 
 /* C14有限stream仅观察真实boot caller；NULL/0时旧测试不变。 */
 static int title_comp_active,title_comp_bad,title_comp_last_resource;
+/* 本TU的同步SOURCE失败注入，非原版/设备/phase oracle。 */
+static int f5_source_error,f5_wait_fault_call,f5_wait_calls;
+static int f5_mutate_animation,f5_animation_source_fault,f5_bgm_fail,f5_bgm_calls;
+static int f5_output_error,f5_audio_at,f5_audio_calls,f5_audio_fault,f5_audio_status,f5_bgm_output;
+static int f5_upload_fault_at,f5_upload_host,f5_upload_queued;
+static int title_test_output_error(const fd2_vga *vga){(void)vga;return f5_output_error;}
+static int title_test_audio_return(void){
+    if(++f5_audio_calls==f5_audio_at){
+        if(f5_audio_fault&1)f5_output_error=-91;
+        if(f5_audio_fault&2)f5_source_error=-66;
+    }
+    return f5_audio_status;
+}
+static int title_test_pcm_replace(fd2_pcm_player *p,const fd2_pcm_bank *b,size_t i,int n,float g){
+    if(f5_audio_at)return title_test_audio_return();
+    return fd2_pcm_play_replace(p,b,i,n,g);
+}
+static int title_test_pcm_stop(fd2_pcm_player *p){
+    if(f5_audio_at)return title_test_audio_return();
+    return fd2_pcm_stop(p);
+}
+static int title_test_source_error(void) { return f5_source_error; }
+static int title_test_bgm_play(fd2_bgm_player *p,size_t track,int loops) {
+    f5_bgm_calls++;
+    if(f5_bgm_fail) { f5_source_error=-66;return -1; }
+    if(f5_bgm_output){f5_output_error=-91;return 0;}
+    return fd2_bgm_play(p,track,loops);
+}
 static int title_ani_active;
 static int title_ani_decode(fd2_vga *,const fd2_archive *,int,uint32_t,int,fd2_animation_frame_hook,void *);
 static int title_test_intro_animation(fd2_vga *,const fd2_archive *,int,uint32_t,int);
@@ -174,6 +204,12 @@ static void title_test_image_free(fd2_image *image) {
 static int title_test_animation(fd2_vga *vga, const fd2_archive *ani,
                                  int index, uint32_t delay, int check_input,
                                  fd2_animation_frame_hook hook, void *userdata) {
+    if(f5_mutate_animation) {
+        vga->palette[0]=7;vga->dac[0]=28;vga->framebuffer[0]=9;
+        f5_source_error=f5_animation_source_fault;
+        if(f5_audio_at)title_test_audio_return();
+        return test_animation_result;
+    }
     if(title_ani_active)return title_ani_decode(vga,ani,index,delay,check_input,hook,userdata);
     if(index!=1){int result=title_test_intro_animation(vga,ani,index,delay,check_input);if(result>=0&&hook)hook(userdata,0);return result;}
     if(title_comp_active){if(index!=1||delay!=15u||!check_input)title_comp_bad=1;title_comp_ani_boundary(vga,index);if(hook)hook(userdata,0);return 0;}
@@ -229,17 +265,24 @@ static void title_test_fade(fd2_vga *vga, int start, int steps,
     if(title_comp_active){title_comp_before_fade(vga,start,steps,r,g,b);fd2_vga_palette_fade_to(vga,start,steps,r,g,b);title_comp_after_fade(start,steps,r,g,b);return;}
     (void)vga; (void)start; (void)steps; (void)r; (void)g; (void)b;
 }
-static void title_test_present(fd2_vga *vga) {
-    if(title_comp_active){title_comp_bad=1;return;}
-    vga->frame_deadline_ns=vga->frame_interval_ns=0;presents++;
+static int title_test_present(fd2_vga *vga) {
+    if(title_comp_active){title_comp_bad=1;return 0;}
+    vga->frame_deadline_ns=vga->frame_interval_ns=0;presents++;return 0;
 }
-static void title_test_upload(fd2_vga *vga) { if(title_comp_active){title_comp_upload(vga);return;}(void)vga;presents++; }
-static void title_test_delay(uint32_t delay) {
-    if(title_comp_active){title_comp_delay(delay);return;}
-    if (!input_contract || !menu_frames) return;
-    if (delay==FD2_TITLE_CONFIRM_FLASH_DELAY_MS) { menu_flash_delays++;return; }
+static void title_test_upload(fd2_vga *vga) {
+    if(title_comp_active){title_comp_upload(vga);return;}
+    if(++presents==f5_upload_fault_at){
+        f5_output_error=-91;f5_upload_queued=(int)vga->input.queued_count;
+        if(f5_upload_host)vga->input.quit_requested=1;
+    }
+}
+static int title_test_delay(uint32_t delay) {
+    if(++f5_wait_calls==f5_wait_fault_call) { f5_source_error=-79;return -1; }
+    if(title_comp_active){title_comp_delay(delay);return 0;}
+    if (!input_contract || !menu_frames) return 0;
+    if (delay==FD2_TITLE_CONFIRM_FLASH_DELAY_MS) { menu_flash_delays++;return 0; }
     if (delay!=1u || !menu_deferred || menu_idle_polls || menu_frames!=1) {
-        menu_bad_delay++;return;
+        menu_bad_delay++;return 0;
     }
     menu_idle_polls++;
     if (menu_deferred==2) input_vga->input.quit_requested=1;
@@ -249,6 +292,7 @@ static void title_test_delay(uint32_t delay) {
         title_queue_key(input_vga,SDL_SCANCODE_DOWN);
         title_queue_key(input_vga,SDL_SCANCODE_RETURN);
     }
+    return 0;
 }
 /* 此TU只核真实caller的次序/返回传播；65/64级与DAC公式由Scene原码门验证。 */
 static int title_test_palette_fade(fd2_vga *vga,int fade_in,int fast) {
@@ -331,15 +375,20 @@ static fd2_field_prepare_result chain_prepare(fd2_vga *vga, const fd2_archive *f
     if(context!=chain_context)abort();chain_preparations++;return chain_prepare_result;
 }
 
-static void title_test_wait_ticks(uint32_t ticks) {
-    if(title_comp_active){title_comp_wait_ticks(ticks);return;}
-    title_test_delay(ticks);
+static int title_test_wait_ticks(uint32_t ticks) {
+    if(title_comp_active){title_comp_wait_ticks(ticks);return 0;}
+    return title_test_delay(ticks);
 }
 
 /* 只在此测试TU替换I/O；包含完整main，未增加生产hook或复制标题逻辑。 */
 #define fd2_field_play_run_context chain_battle
 #define fd2_field_prepare_run chain_prepare
 #define main fd2_program_main
+#define fd2_bios_clock_error title_test_source_error
+#define fd2_vga_output_error title_test_output_error
+#define fd2_pcm_play_replace title_test_pcm_replace
+#define fd2_pcm_stop title_test_pcm_stop
+#define fd2_bgm_play title_test_bgm_play
 #define fd2_archive_get title_test_archive_get
 #define fd2_archive_open_mem title_test_archive_open_mem
 #define fd2_archive_close title_test_archive_close
@@ -357,7 +406,9 @@ static void title_test_wait_ticks(uint32_t ticks) {
 #define fd2_vga_present title_test_present
 #define fd2_vga_upload_current_frame title_test_upload
 #define fd2_delay_ms title_test_delay
+#define fd2_vga_delay_ms(vga,value) title_test_delay(value)
 #define fd2_wait_ticks title_test_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) title_test_wait_ticks(value)
 #define fd2_input_take_quit title_test_quit
 #define fd2_input_take_action title_test_action
 #define fd2_input_has_any_key title_test_observe
@@ -368,12 +419,21 @@ static void title_test_wait_ticks(uint32_t ticks) {
 #endif
 #include FD2_TITLE_TEST_MAIN
 #undef main
+#undef fd2_bios_clock_error
+#undef fd2_vga_output_error
+#undef fd2_pcm_play_replace
+#undef fd2_pcm_stop
+#undef fd2_bgm_play
 #undef fd2_input_has_any_key
 #undef fd2_input_clear_keys
 #undef fd2_scene_palette_fade
 #undef fd2_vga_palette_add
 
 static void reset_test(void) {
+    f5_source_error=f5_wait_fault_call=f5_wait_calls=0;
+    f5_upload_fault_at=f5_upload_host=f5_upload_queued=0;
+    f5_output_error=f5_audio_at=f5_audio_calls=f5_audio_fault=f5_audio_status=f5_bgm_output=0;
+    f5_mutate_animation=f5_animation_source_fault=f5_bgm_fail=f5_bgm_calls=0;
     palette_fault = base_fault = test_animation_result = menu_quit = 0;
     palette_reads = title_reads = base_decodes = menu_decodes = 0;
     animation_calls = archive_opens = archive_closes = image_live = 0;
@@ -643,10 +703,107 @@ static int test_intro_fade_callers(void) {
     return 0;
 }
 
+/* 真实boot/palette caller的八个新故障场景；无窗口/资源写入。 */
+static int test_title_source_errors(void) {
+    reset_test();fd2_vga vga={0};
+    memset(vga.framebuffer,42,sizeof vga.framebuffer);fd2_vga before=vga;
+    f5_bgm_fail=1;
+    CHECK(boot_intro_title(&vga,(fd2_bgm_player *)(void *)&vga,NULL,1,0)==FD2_TITLE_ACTION_ERROR);
+    CHECK(f5_source_error==-66&&f5_bgm_calls==1&&!memcmp(&vga,&before,sizeof vga));
+    CHECK(!palette_reads&&!title_reads&&!base_decodes&&!action_reads&&!image_live);
+    /* 首tick、scroll首等待、title fade：失败立即停止且释放已借图像。 */
+    for(int mode=0;mode<3;mode++) {
+        reset_test();memset(&vga,0,sizeof vga);intro_enabled=mode!=2;
+        f5_wait_fault_call=mode==1?3:1;
+        CHECK(boot_intro_title(&vga,NULL,NULL,mode!=2,1)==FD2_TITLE_ACTION_ERROR);
+        CHECK(f5_source_error==-79&&f5_wait_calls==f5_wait_fault_call);
+        CHECK(!image_live&&archive_opens==archive_closes&&!action_reads&&!menu_frames&&!unexpected);
+        CHECK(!vga.input.quit_requested);
+        if(mode==0)CHECK(fade_calls==1&&!input_clears);
+    }
+    reset_test();memset(&vga,0,sizeof vga);fd2_input_init(&vga.input);
+    input_contract=menu_deferred=1;input_vga=&vga;f5_wait_fault_call=42;
+    CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==FD2_TITLE_ACTION_ERROR);
+    CHECK(f5_source_error==-79&&f5_wait_calls==42&&menu_frames==1&&read_count==0);
+    CHECK(!image_live&&archive_opens==archive_closes&&!menu_idle_polls&&!vga.input.quit_requested);
+    /* SOURCE首错不回滚已到色区；正常decode错/HOST仍沿原borrow合同。 */
+    for(int mode=0;mode<3;mode++) {
+        reset_test();memset(&vga,0,sizeof vga);
+        memset(vga.palette,31,sizeof vga.palette);memset(vga.dac,124,sizeof vga.dac);
+        f5_mutate_animation=1;f5_animation_source_fault=mode==0?-61:0;
+        test_animation_result=mode==2?-2:-1;
+        CHECK(title_animation_play(&vga,1,15,1,NULL,NULL)==test_animation_result);
+        CHECK(vga.framebuffer[0]==9);
+        for(size_t i=0;i<sizeof vga.palette;i++) {
+            CHECK(vga.palette[i]==(mode==0&&i==0?7:31));
+            CHECK(vga.dac[i]==(mode==0&&i==0?28:124));
+        }
+    }
+    reset_test();return 0;
+}
+
+
+/* 41级title渐变之后的完整palette提交、第一菜单页提交两个无wait边界。
+ * 已达绘制保留；失败不可clear/消费队列、误分HOST或追加确认/移动音效。 */
+static int test_title_upload_errors(void){
+ for(int menu=0;menu<2;menu++)for(int host=0;host<2;host++){
+  reset_test();fd2_vga vga={0};fd2_input_init(&vga.input);
+  fd2_pcm_player player={0};fd2_pcm_bank bank={0};fd2_title_audio audio={&player,&player,&bank,&bank};
+  input_contract=1;input_vga=&vga; /* ANI替身已排入一个早到RETURN。 */
+  f5_upload_fault_at=42+menu;f5_upload_host=host;f5_audio_at=999;
+  CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR);
+  CHECK(f5_output_error==-91&&!f5_source_error&&presents==42+menu);
+  CHECK(vga.input.quit_requested==host&&input_clears==menu);
+  CHECK(vga.input.queued_count==(unsigned)f5_upload_queued&&f5_upload_queued==(menu?2:1));
+  CHECK(!action_reads&&!read_count&&!menu_flash_delays&&menu_frames==menu);
+  CHECK(f5_audio_calls==3&&!image_live&&archive_opens==archive_closes&&!unexpected);
+ }
+ reset_test();return 0;
+}
+
+/* 只核同步Audio返回0而END已锁OS错的真实Main/title调用边界。 */
+static int test_title_audio_return_errors(void){
+ fd2_vga vga={0};fd2_pcm_player p={0};fd2_pcm_bank bank={0};
+ fd2_title_audio audio={&p,&p,&bank,&bank};
+ for(unsigned stop=0;stop<2;stop++)for(unsigned fault=1;fault<=3;fault++){
+  reset_test();memset(&vga,0,sizeof vga);vga.input.queued_count=1;vga.input.queued_keys[0].key=FD2_INPUT_KEY_ENTER;
+  fd2_vga before=vga;f5_audio_at=1;f5_audio_fault=(int)fault;
+  CHECK((stop?title_letter_fly_audio_stop(&vga,&audio):title_audio_play(&vga,&audio,FD2_TITLE_SFX_MOVE))<0);
+  CHECK(f5_audio_calls==1&&!!f5_source_error==!!(fault&2u)&&!!f5_output_error==!!(fault&1u));
+  vga.input.quit_requested=1;CHECK(title_audio_play(&vga,&audio,FD2_TITLE_SFX_MOVE)<0&&f5_audio_calls==1);
+  vga.input.quit_requested=0;CHECK(!memcmp(&vga,&before,sizeof vga));
+ }
+ reset_test();memset(&vga,0xa7,sizeof vga);fd2_vga before=vga;f5_bgm_output=1;
+ CHECK(boot_intro_title(&vga,(fd2_bgm_player *)&vga,NULL,1,0)==FD2_TITLE_ACTION_ERROR);
+ CHECK(f5_bgm_calls==1&&!f5_source_error&&f5_output_error==-91&&!memcmp(&vga,&before,sizeof vga));
+ CHECK(!palette_reads&&!title_reads&&!action_reads&&!image_live&&!presents);
+ /* 原ANI0 cue→stop→ENTER为三个已达调用；第四次MOVE返回点失败：保已读方向，不改selection、不读后继确认。 */
+ reset_test();memset(&vga,0,sizeof vga);fd2_input_init(&vga.input);
+ input_contract=1;input_vga=&vga;f5_audio_at=4;f5_audio_fault=1;
+ CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR);
+ CHECK(f5_audio_calls==4&&!f5_source_error&&f5_output_error==-91&&read_count==1&&menu_frames==1&&menu_selected==0&&!menu_flash_delays);
+ CHECK(vga.input.queued_count==1&&!image_live&&archive_opens==archive_closes&&!unexpected);
+ /* 真实CONFIRM失败也不能进入8次确认flash；普通可选SFX资源失败仍非Source/OS。 */
+ reset_test();memset(&vga,0,sizeof vga);f5_audio_at=4;f5_audio_fault=1;
+ CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR&&f5_audio_calls==4&&menu_frames==1&&action_reads==1);
+ CHECK(!image_live&&archive_opens==archive_closes);
+ reset_test();memset(&vga,0,sizeof vga);f5_audio_at=1;f5_audio_status=-55;
+ CHECK(title_audio_play(&vga,&audio,FD2_TITLE_SFX_MOVE)==-55&&!title_owner_failed(&vga));
+ /* ANI完成点发生OS错保已达色区，禁止后继stop/旧palette回写。 */
+ reset_test();memset(&vga,0,sizeof vga);memset(vga.palette,31,768);memset(vga.dac,124,768);
+ f5_mutate_animation=1;f5_audio_at=1;f5_audio_fault=1;
+ CHECK(title_animation_play(&vga,1,15,1,NULL,NULL)<0&&vga.palette[0]==7&&vga.dac[0]==28&&vga.framebuffer[0]==9);
+ CHECK(title_letter_fly_audio_stop(&vga,&audio)<0&&f5_audio_calls==1&&!f5_source_error);
+ reset_test();puts("audio-return Main: BGM/title/menu/ANI-stop prefixes and optional policy PASS");return 0;
+}
+
 #include "f4_title_composition_probe.h"
 #include "f4_title_animation_probe.h"
 
 int main(int argc, char **argv) {
+    if(argc==2&&!strcmp(argv[1],"--audio-return"))return test_title_audio_return_errors();
+    if(argc==2&&!strcmp(argv[1],"--f5-source-errors"))return test_title_source_errors();
+    if(argc==2&&!strcmp(argv[1],"--output-errors"))return test_title_upload_errors();
     if(argc>1&&!strcmp(argv[1],"--f4-title-ani"))return argc==3?f4_title_ani_cli(argv[2]):1;
     if(argc>1&&!strcmp(argv[1],"--f4-title"))return argc==3?f4_title_cli(argv[2]):1;
     if (argc == 2) {
@@ -666,6 +823,8 @@ int main(int argc, char **argv) {
     CHECK(test_title_clear_and_two_ordered_keys()==0);
     CHECK(test_title_blocked_read_one()==0);
     CHECK(test_intro_fade_callers()==0);
+    CHECK(test_title_source_errors()==0);
+    CHECK(test_title_upload_errors()==0);
     puts("main_title_resource: 30 resource cases + App chain/fade callers passed; no SDL initialization/window");
     return 0;
 }

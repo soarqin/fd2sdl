@@ -4,6 +4,7 @@
 #include "scene_transition.h"
 
 #include "scene.h"
+#include "bios_clock.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@ static int transition_owner(const fd2_scene_transition_scope *scope) {
     if (!scope || !scope->game || !scope->game->ready || !scope->vga ||
             !scope->base || scope->game->stage != scope->stage ||
             scope->vga->field_page != scope->page) return FD2_SCENE_RESULT_ERROR;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return FD2_SCENE_RESULT_ERROR;
     return fd2_input_take_quit(&scope->vga->input) ?
         FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_OK;
 }
@@ -53,6 +55,7 @@ int fd2_scene_transition_begin(fd2_scene_transition_scope **scope,
     int64_t y = (int64_t)relative_cell_y * 24 + 16;
     if (x < INT_MIN || x > INT_MAX || y < INT_MIN || y > INT_MAX)
         return FD2_SCENE_RESULT_ERROR;
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
     fd2_scene_transition_scope *created = calloc(1,sizeof(*created));
     if (!created) return FD2_SCENE_RESULT_ERROR;
@@ -76,8 +79,9 @@ int fd2_scene_transition_play_sfx(fd2_scene_transition_scope *scope,
     int result=transition_owner(scope);
     if (result) return result;
     if (!audio || !audio->player) return FD2_SCENE_RESULT_OK;
-    return fd2_field_audio_play(audio,FD2_FIELD_SFX_STAGE_TRANSITION) == 0 ?
-        FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
+    result=fd2_field_audio_play(audio,FD2_FIELD_SFX_STAGE_TRANSITION);
+    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(scope->vga)<0)return FD2_SCENE_RESULT_ERROR;
+    return result==0 ? FD2_SCENE_RESULT_OK : FD2_SCENE_RESULT_ERROR;
 }
 
 int fd2_scene_transition_frame(fd2_scene_transition_scope *scope,

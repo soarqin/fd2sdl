@@ -1,4 +1,5 @@
 #include "animation.h"
+#include "bios_clock.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -154,6 +155,7 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
                               int check_input,
                               fd2_animation_frame_hook hook,
                               void *hook_userdata) {
+    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return -1;
     const uint8_t *entry;
     size_t entry_len;
     if (anim_idx < 0 || fd2_archive_get(ani, (size_t)anim_idx, &entry, &entry_len) != 0) {
@@ -188,6 +190,7 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
         }
         pos += data_len;
         if (hook) hook(hook_userdata, frame);
+        if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return -1;
 
         /* animation_play @0x20421（原登记FUN_0001db69）：每帧字节码和可选音效处理完成后
          * 固定等待调用方给出的毫秒数。不能使用跨帧 absolute deadline
@@ -195,7 +198,7 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
         /* 原20421没有承接其它宿主动画的deadline；此处仅提交当前帧。
          * 事件泵仍在下面的原毫秒等待，不额外推进FIFO采样相位。 */
         fd2_vga_upload_current_frame(vga);
-        fd2_delay_ms(frame_delay_ms);
+        if(fd2_vga_delay_ms(vga,frame_delay_ms)<0)return -1;
         if (fd2_input_take_quit(&vga->input)) return -2;
         /* 原20421先10620 peek，skip直接返回且不消费；只有继续下一帧时
          * 才4e381。是否丢弃skip键由实际caller的后续原clear点决定。 */

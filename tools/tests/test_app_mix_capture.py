@@ -7,10 +7,18 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import fd2_app_mix_capture as a
 import run_original_battle_animation as r
 
-def ready(pid=42):
- return dict(schema=a.SCHEMA,ready=True,pid=pid,backend=a.BACKEND,clock_source=a.CLOCK,sample_rate=48000,channels=2,bits=16,source_format='F32-stereo',max_ms=45000,first_callback_qpc=100,qpc_frequency=10000000,suppress_device_output=True,device_output_validated=False,A8_validated=False)
-def summary(pid=42):
- d=ready(pid);d.update(ok=True,ready_published=True,frames=4,data_bytes=16,capacity_frames=2160000,stop_reason='stop',error_code=0,error='',callback_quiescent=True,wave_finalized=True,wav='app-mix.wav',last_callback_qpc=200);return d
+def ready(pid=42,schema=None):
+ schema=a.SCHEMA if schema is None else schema
+ row=dict(schema=schema,ready=True,pid=pid,backend=a.BACKEND,sample_rate=48000,channels=2,bits=16,source_format='F32-stereo',max_ms=45000,qpc_frequency=10000000,suppress_device_output=True,device_output_validated=False,A8_validated=False)
+ if schema==a.LEGACY_SCHEMA:row.update(clock_source=a.LEGACY_CLOCK,first_callback_qpc=100)
+ else:row.update(clock_source=a.CLOCK,first_submission_qpc=100,transport_owner='main-thread',capture_point_version=2,capture_point='after_successful_SDL_PutAudioStreamData')
+ if schema==a.SCHEMA:row.update(pcm_quantizer=a.PCM_QUANTIZER,pcm_quantizer_version=1)
+ return row
+def summary(pid=42,schema=None):
+ d=ready(pid,schema);d.update(ok=True,ready_published=True,frames=4,data_bytes=16,capacity_frames=2160000,stop_reason='stop',error_code=0,error='',wave_finalized=True,wav='app-mix.wav')
+ if d['schema']==a.LEGACY_SCHEMA:d.update(callback_quiescent=True,last_callback_qpc=200)
+ else:d.update(submission_quiescent=True,last_submission_qpc=200)
+ return d
 
 def make_wave(path,rate=48000):
  with wave.open(str(path),'wb') as f:f.setparams((2,2,rate,0,'NONE','none'));f.writeframes(struct.pack('<8h',100,-100,100,-100,100,-100,100,-100))
@@ -22,9 +30,52 @@ class AppMixTest(unittest.TestCase):
   for field,value in [('pid',43),('suppress_device_output',False),('device_output_validated',True),('A8_validated',True),('clock_source','WASAPI_packet'),('sample_rate',44100)]:
    d=ready();d[field]=value
    with self.subTest(field=field),self.assertRaises(AssertionError):a.validate_ready(d,42,45000)
-  for field,value in [('ok',False),('pid',43),('frames',0),('data_bytes',15),('callback_quiescent',False),('wave_finalized',False),('stop_reason','capacity'),('error_code',7),('first_callback_qpc',101),('last_callback_qpc',99),('wav','../old.wav')]:
+  for field,value in [('ok',False),('pid',43),('frames',0),('data_bytes',15),('submission_quiescent',False),('wave_finalized',False),('stop_reason','capacity'),('error_code',7),('first_submission_qpc',101),('last_submission_qpc',99),('wav','../old.wav')]:
    d=summary();d[field]=value
    with self.subTest(field=field),self.assertRaises(AssertionError):a.validate_summary(d,ready(),42,45000)
+ def test_historical_v1_and_current_v3_are_separate_exact_identities(self):
+  old=ready(schema=a.LEGACY_SCHEMA);old_summary=summary(schema=a.LEGACY_SCHEMA)
+  self.assertEqual(a.validate_ready(old,42,45000),old)
+  self.assertEqual(a.validate_summary(old_summary,old,42,45000),old_summary)
+  self.assertEqual(a.first_qpc(old),100);self.assertEqual(a.first_qpc(ready()),100)
+  for row,reference in [(old_summary,ready()),(summary(),old)]:
+   with self.assertRaises(AssertionError):a.validate_summary(row,reference,42,45000)
+  for schema in (a.LEGACY_SCHEMA,a.SCHEMA):
+   row=ready(schema=schema);row['clock_source']=a.CLOCK if schema==a.LEGACY_SCHEMA else a.LEGACY_CLOCK
+   with self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+ def test_v3_cannot_relabel_callback_or_forge_main_put_point(self):
+  for field,value in [('transport_owner','audio-device-thread'),('capture_point_version',True),('capture_point_version',1),('capture_point','before_Put'),('first_submission_qpc',True),('first_submission_qpc',0),('first_callback_qpc',100),('callback_quiescent',True),('schema','fd2-app-mix-capture-v4')]:
+   row=ready();row[field]=value
+   with self.subTest(field=field),self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+  for field in ('transport_owner','capture_point_version','capture_point'):
+   row=ready();del row[field]
+   with self.subTest(missing=field),self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+  old=ready(schema=a.LEGACY_SCHEMA);old['first_submission_qpc']=100
+  with self.assertRaises(AssertionError):a.first_qpc(old)
+ def test_v3_quantizer_is_explicit_and_not_relabelled_as_history(self):
+  for changes in ({'pcm_quantizer':'lround32767'},{'pcm_quantizer_version':True},{'pcm_quantizer_version':2}):
+   row=ready();row.update(changes)
+   with self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+  for field in ('pcm_quantizer','pcm_quantizer_version'):
+   row=ready();del row[field]
+   with self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+  for schema in (a.LEGACY_SCHEMA,a.PREVIOUS_SCHEMA):
+   row=ready(schema=schema);row['pcm_quantizer']=a.PCM_QUANTIZER
+   with self.assertRaises(AssertionError):a.validate_ready(row,42,45000)
+ def test_v2_remains_readable_but_cannot_mix_with_v3(self):
+  row=ready(schema=a.PREVIOUS_SCHEMA);done=summary(schema=a.PREVIOUS_SCHEMA)
+  self.assertEqual(a.validate_ready(row,42,45000),row)
+  self.assertEqual(a.validate_summary(done,row,42,45000),done)
+  for current,reference in ((done,ready()),(summary(),row)):
+   with self.assertRaises(AssertionError):a.validate_summary(current,reference,42,45000)
+ def test_current_runtime_rejects_legacy_ready_without_resigning_it(self):
+  with tempfile.TemporaryDirectory() as t:
+   c=a.AppMixCapture(Path(t),42,45000);proc=SimpleNamespace(poll=lambda:None)
+   with patch.object(c,'_wait',return_value=ready(schema=a.LEGACY_SCHEMA)):
+    with self.assertRaisesRegex(AssertionError,'v1'):c.start(proc)
+   self.assertEqual(c.ready['schema'],a.LEGACY_SCHEMA)
+   with patch.object(c,'_wait',return_value=summary(schema=a.LEGACY_SCHEMA)):
+    with self.assertRaisesRegex(AssertionError,'v1'):c.finish(proc)
  def test_start_publication_is_pid_exact_and_never_overwrites_existing_files(self):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t)/'start';a.publish_start(p,42);self.assertEqual(p.read_bytes(),b'42\n');self.assertFalse((Path(t)/'start.request-tmp').exists())

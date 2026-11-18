@@ -12,7 +12,7 @@
   "chkstk_body_offset": "0xa"
  },
  "source_rows": 210,
- "canonical_functions": 538,
+ "canonical_functions": 573,
  "confirmed_anchors": [
   {
    "va": "0x3702f",
@@ -8220,6 +8220,12 @@
      "was": "其他值从 FDMUS handle `DS:0x1a79` 加载 entry",
      "now": "object2 `DS:0x1a79`（VA `0x51a79`）是字符串 `\"FDMUS.DAT\"`，不是 handle；`music_track_play` 把该文件名传给 `res_load @0x111ba` 取曲目记录。",
      "why": "IDA 字符串识别 `aFdmusDat` + res_load 调用形态"
+    },
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "不同请求先25997写唯一cache，再停旧S、释放/读新资源、init/start/volume/loop；init返回值不构成caller门。固定完整20 0d 0a资源的格式失败前缀不等于旧EVNT后继已定义；同cache早返。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
     }
    ],
    "end_va": 154262,
@@ -14024,6 +14030,12 @@
      "was": "构造保留域、活动Load写集和fresh Save来源尚未按owner区分",
      "now": "memmove按地址选向：src>=dst或src+len<=dst走forward DWORD再余BYTE，否则backward WORD再余BYTE。19df7短metadata过长2211B范围可与另一合法目标owner相交；不能因两个实际分配不重叠就固定forward。forward首次跨源owner的DWORD起4*floor(A/4)，首非法源byte=B+A；backward首WORD=B+2209，短块上界2119之外。",
      "why": "F3完整Domain/strict来源：F1 source09 SHA256 18617904b37d73b066eea7a78889d6da64fc6dad895b9292ae279df4b8f47517；allocator/memmove六函数902B SHA256 6e19cc05e7301c953614f8753cf5166be946e452b9c62cfbf77acf79105a4e09；checksum/crypt两函数67B SHA256 94b36badc96ab57ef639619d286366926493265b771978bbbe83edf27039d8d0。原33条metadata目录和完整writer/首reader独立核；DB/严格镜像/原资源身份不变。未取得某次heap地址、slack值或全部retained读者，不以静态合同签自然全链/整F3。"
+    },
+    {
+     "target": "evidence",
+     "was": "固定512B TIMB拷贝的正常memmove调用条件未单列",
+     "now": "443d0@44711为不同owner之间完整512B；给定非重叠及DF0，src>=dst直接forward，src<dst还须src+512<=dst。forward先128DWORD REP再零BYTE REP，后者仍有opcode费用。不能从此调用推全部metadata或重叠memmove方向。",
+     "why": "metadata-owner-source01/source01.json完整3771c与严格原chunk；source主体按原字符串机制消费。输入地址次序/repmax明确提供，不以当前C指针猜原地址或默认相位；源码补证不等于新原CPU/设备实测。"
     }
    ],
    "end_va": 227182,
@@ -14157,7 +14169,7 @@
   {
    "va": 230102,
    "off": 164566,
-   "ida_name": "coro_yield",
+   "ida_name": "ail_cpu_flags_save_disable",
    "size": 5,
    "legacy": [
     "0x5d4ea"
@@ -14174,20 +14186,30 @@
      "source_line": 56
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "coro_yield",
+     "now": "ail_cpu_flags_save_disable",
+     "why": "唯一JMP至3f0a8完整return窗口：PUSHFD/POP EAX后CLI再RET；返回先前flags，不是协程让出。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。"
+    }
+   ],
    "end_va": 230107,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "coro_yield"
    ],
-   "aliases": [],
+   "aliases": [
+    "coro_yield"
+   ],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
   },
   {
    "va": 230107,
    "off": 164571,
-   "ida_name": "coro_switch",
+   "ida_name": "ail_cpu_flags_restore",
    "size": 14,
    "legacy": [
     "0x5d4ef"
@@ -14204,20 +14226,30 @@
      "source_line": 54
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "coro_switch",
+     "now": "ail_cpu_flags_restore",
+     "why": "完整14B wrapper调用3f0ac return窗口；先CLI，savedIF1才STI，再POP EBP/POPFD/LEAVE/RET，不是协程切换。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。"
+    }
+   ],
    "end_va": 230121,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "coro_switch"
    ],
-   "aliases": [],
+   "aliases": [
+    "coro_switch"
+   ],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
   },
   {
    "va": 230121,
    "off": 164585,
-   "ida_name": "event_pump",
+   "ida_name": "ail_call_driver",
    "size": 264,
    "legacy": [
     "0x5d4fd"
@@ -14234,12 +14266,189 @@
      "source_line": 55
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "event_pump",
+     "now": "ail_call_driver",
+     "why": "完整79-head主块382e9及3908b owner内3916a共享尾；原504f5字符串AIL_call_driver、300/502实参caller及唯一3f113调用确认。54178仅API日志depth；正常debug0跳过stdio，返回原3f1db MOVSX WORD的EAX，不是事件泵。不新增ABI原型或把source completion当原AX。"
+    },
+    {
+     "target": "purpose",
+     "was": "事件泵",
+     "now": "AIL通用驱动调用包装；共享日志深度、可选诊断与DPMI0300桥",
+     "why": "driver-service-word-review01/driver-source03完整caller/xref、pcm-contract-source03/source01的共享3916a owner及rng-system-indirect-source01/source04原bridge。仅修改命名输入，发布由统一Domain流程另行执行。"
+    }
+   ],
    "end_va": 230385,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "event_pump"
    ],
+   "aliases": [
+    "event_pump"
+   ],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 231356,
+   "off": 165820,
+   "ida_name": "ail_register_timer",
+   "size": 235,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_387BC",
+     "now": "ail_register_timer",
+     "why": "完整owner/chunk/xref、原AIL_register_timer字符串@505a0及唯一core 3f236；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 231591,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 231591,
+   "off": 166055,
+   "ida_name": "ail_set_timer_user",
+   "size": 243,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_388A7",
+     "now": "ail_set_timer_user",
+     "why": "完整owner/chunk/xref、原AIL_set_timer_user字符串@505ba及唯一core 3f27d；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 231834,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 231834,
+   "off": 166298,
+   "ida_name": "ail_set_timer_period",
+   "size": 118,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3899A",
+     "now": "ail_set_timer_period",
+     "why": "完整owner/chunk/xref、原AIL_set_timer_period字符串@505d5及唯一core 3f398；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 231952,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 231952,
+   "off": 166416,
+   "ida_name": "ail_set_timer_frequency",
+   "size": 118,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_38A10",
+     "now": "ail_set_timer_frequency",
+     "why": "完整owner/chunk/xref、原AIL_set_timer_frequency字符串@505f2及唯一core 3f3c8；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 232070,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 232409,
+   "off": 166873,
+   "ida_name": "ail_start_timer",
+   "size": 109,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_38BD9",
+     "now": "ail_start_timer",
+     "why": "完整owner/chunk/xref、原AIL_start_timer字符串@50649及唯一core 3f2f0；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 232518,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 232616,
+   "off": 167080,
+   "ida_name": "ail_stop_timer",
+   "size": 109,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_38CA8",
+     "now": "ail_stop_timer",
+     "why": "完整owner/chunk/xref、原AIL_stop_timer字符串@50676及唯一core 3f344；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 232725,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 232823,
+   "off": 167287,
+   "ida_name": "ail_release_timer_handle",
+   "size": 109,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_38D77",
+     "now": "ail_release_timer_handle",
+     "why": "完整owner/chunk/xref、原AIL_release_timer_handle字符串@506a1及唯一core 3f2a5；debug0共享54178前缀/正常尾，原结果与source completion分开；不新增猜测ABI。"
+    }
+   ],
+   "end_va": 232932,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -14337,7 +14546,7 @@
   {
    "va": 235525,
    "off": 169989,
-   "ida_name": "ail_end_sample",
+   "ida_name": "ail_stop_sample",
    "size": 109,
    "legacy": [
     "0x5ea19"
@@ -14354,12 +14563,57 @@
      "source_line": 68
     }
    ],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "ail_end_sample",
+     "now": "ail_stop_sample",
+     "why": "Wrapper literal AIL_stop_sample; 25a96/25b45 stop sentinel and replace both call this, then41770. Current end name overstates status2/end callbacks. Own write set: Indirect body status4→8 only, preserves pos/loop/source; no DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Wrapper literal AIL_stop_sample; 25a96/25b45 stop sentinel and replace both call this, then41770. Current end name overstates status2/end callbacks. Own write set: Indirect body status4→8 only, preserves pos/loop/source; no DMA write",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
    "end_va": 235634,
    "is_lib": false,
    "prototype": "",
    "historical_names": [
     "ail_end_sample"
    ],
+   "aliases": [
+    "ail_end_sample"
+   ],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 235743,
+   "off": 170207,
+   "ida_name": "ail_end_sample",
+   "size": 109,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_398DF",
+     "now": "ail_end_sample",
+     "why": "Wrapper literal AIL_end_sample; only canonical caller45a20, body417b0. Not the formal FD2 SFX sentinel wrapper. Own write set: Calls417b0; no direct DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Wrapper literal AIL_end_sample; only canonical caller45a20, body417b0. Not the formal FD2 SFX sentinel wrapper. Own write set: Calls417b0; no direct DMA write",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 235852,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
    "aliases": [],
    "merged_from_multiple_rows": false,
    "chkstk_body_rows": []
@@ -14382,6 +14636,14 @@
      "resolution": "exact",
      "legacy_body_va": null,
      "source_line": 70
+    }
+   ],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Wrapper literal AIL_set_sample_loop_count and full published call to416e0, used25a96/25b45. Own write set: Calls416e0; not416a0",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
     }
    ],
    "end_va": 236324,
@@ -14632,6 +14894,151 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 257148,
+   "off": 191612,
+   "ida_name": "ail_timer_irq_initialize",
+   "size": 238,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3EC7C",
+     "now": "ail_timer_irq_initialize",
+     "why": "完整CLI/flags、region lock、四数组清零与callback/user保留、旧RM/PM向量保存、INT21安装3ea8e、BIOS60/54925 setter；真实startup main->37d3e->3fca9 tail 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整CLI/flags、region lock、四数组清零与callback/user保留、旧RM/PM向量保存、INT21安装3ea8e、BIOS60/54925 setter；真实startup main->37d3e->3fca9 tail",
+     "why": "timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 257386,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 257386,
+   "off": 191850,
+   "ida_name": "ail_timer_irq_restore",
+   "size": 59,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3ED6A",
+     "now": "ail_timer_irq_restore",
+     "why": "完整PUSHF/CLI->program PIT0->INT21 AH25 DS:EDX=52bd8:52bd4->恢复flags；3fdaf实际shutdown caller；不清timer表/base 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整PUSHF/CLI->program PIT0->INT21 AH25 DS:EDX=52bd8:52bd4->恢复flags；3fdaf实际shutdown caller；不清timer表/base",
+     "why": "timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 257445,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 258725,
+   "off": 193189,
+   "ida_name": "ail_timer_handle_release",
+   "size": 39,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3F2A5",
+     "now": "ail_timer_handle_release",
+     "why": "完整cdecl参数读取及3f2b8唯一status0写；38d77全部四正式callers与共享382ca tail已核；period/acc/pending/callback/user/base不写 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整cdecl参数读取及3f2b8唯一status0写；38d77全部四正式callers与共享382ca tail已核；period/acc/pending/callback/user/base不写",
+     "why": "timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 258764,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 258764,
+   "off": 193228,
+   "ida_name": "ail_timer_handles_release_all",
+   "size": 36,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3F2CC",
+     "now": "ail_timer_handles_release_all",
+     "why": "完整56..0步长4的逆序15次loop及外层defer；38de4->3fdaf实际shutdown consumer；BIOS60保留 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整56..0步长4的逆序15次loop及外层defer；38de4->3fdaf实际shutdown consumer；BIOS60保留",
+     "why": "timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 258800,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 259142,
+   "off": 193606,
+   "ida_name": "ail_timer_regions_lock",
+   "size": 37,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_3F446",
+     "now": "ail_timer_regions_lock",
+     "why": "两个明确data/code范围传365da；后者完整构造DPMI AX0600锁内存参数；初始化3ec7c为唯一direct caller；不猜持久函数类型 依据：timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "两个明确data/code范围传365da；后者完整构造DPMI AX0600锁内存参数；初始化3ec7c为唯一direct caller；不猜持久函数类型",
+     "why": "timer-lifecycle-source03/source01.json SHA256 b22f7d7dd9951e5586e2a84fb893a0f38399d5a7da22237f7b293471c850aea9；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 259179,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 262720,
    "off": 197184,
    "ida_name": "ail_sample_volume_pan_tables_rebuild",
@@ -14655,6 +15062,261 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 263360,
+   "off": 197824,
+   "ida_name": "ail_dig_service",
+   "size": 452,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "DIG正常共享服务的source费用/可见写点未单列",
+     "now": "busy先置1，保存flags/CLI；原half有符号−1/同half早返；新half先last再清build，扫描全部16P并在405c3提交entered，写inactive DMA后按oldempty==2请求402，最后恢复flags/busy0。",
+     "why": "pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。"
+    },
+    {
+     "target": "semantic_name",
+     "was": "sub_404C0",
+     "now": "ail_dig_service",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 263812,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 265024,
+   "off": 199488,
+   "ida_name": "ail_dig_probe_io_config",
+   "size": 249,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_40B40",
+     "now": "ail_dig_probe_io_config",
+     "why": "完整249B/80heads strict-chunk SHA a488a8515b3b13be77a984d8aa28d85e1c7ccdc1b51db02d5395b75866fcb705；唯一40cf0 caller三类config尝试和382e9 command304：两次6DWORD配置copy、可选signed负值merge、header+16写、54330选reg WORD1/3；保382e9 signed WORD EAX返回，伪C void不是ABI证明。SB16 raw016a→082c普通探测、真实3DA/IRQ/ACK费用另域，不把80heads当整个安装耗时；不保存猜测类型。"
+    }
+   ],
+   "end_va": 265273,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 267936,
+   "off": 202400,
+   "ida_name": "ail_sample_current_buffer_position_set",
+   "size": 28,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_416A0",
+     "now": "ail_sample_current_buffer_position_set",
+     "why": "Complete instruction source pcm-contract-source03; P+4*P.current_buffer+24=argument, no loop-count write. Own write set: Current source-buffer position DWORD only 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete instruction source pcm-contract-source03; P+4*P.current_buffer+24=argument, no loop-count write. Own write set: Current source-buffer position DWORD only",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 267964,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 268000,
+   "off": 202464,
+   "ida_name": "ail_sample_loop_count_set",
+   "size": 16,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_416E0",
+     "now": "ail_sample_loop_count_set",
+     "why": "Complete published body P+48=argument; normal wrapper39aae; 49690 directly consumes/decrements this field. Own write set: P+48 loop_count DWORD only 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete published body P+48=argument; normal wrapper39aae; 49690 directly consumes/decrements this field. Own write set: P+48 loop_count DWORD only",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 268016,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 268016,
+   "off": 202480,
+   "ida_name": "ail_sample_playback_start",
+   "size": 121,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "DIG正常共享服务的source费用/可见写点未单列",
+     "now": "prepared合法P先position0/status4；D.playing0才真实401，完整返回后4175b设playing1。未含39805/39521/init/address/loop上游费用，不能用此签Main完整cue。",
+     "why": "pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。"
+    },
+    {
+     "target": "semantic_name",
+     "was": "sub_416F0",
+     "now": "ail_sample_playback_start",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 268137,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 268144,
+   "off": 202608,
+   "ida_name": "ail_sample_playback_pause",
+   "size": 22,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_41770",
+     "now": "ail_sample_playback_pause",
+     "why": "Complete published body iff P and status4 sets8; wrapper39805, source consumer404c0 only status4. Own write set: P+4:4→8; no position/loop/buffer or DMA write 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete published body iff P and status4 sets8; wrapper39805, source consumer404c0 only status4. Own write set: P+4:4→8; no position/loop/buffer or DMA write",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 268166,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 268208,
+   "off": 202672,
+   "ida_name": "ail_sample_playback_end",
+   "size": 70,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_417B0",
+     "now": "ail_sample_playback_end",
+     "why": "Complete instruction source pcm-contract-source01; status not1/2→2 then callbacks+84c/+850, each ifnonnull. Own write set: P+4→2; callback effects conditional; source position/data preserved by own body 依据：dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete instruction source pcm-contract-source01; status not1/2→2 then callbacks+84c/+850, each ifnonnull. Own write set: P+4→2; callback effects conditional; source position/data preserved by own body",
+     "why": "dig-buffer-contract01/naming-input-pending.json SHA256 7a5b57ea9730bc60d1f14548f110a4afca5988737b699d8e0d7ca7f2ccabf14a；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 268278,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 270960,
+   "off": 205424,
+   "ida_name": "ail_mdi_message_queue_flush",
+   "size": 77,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_42270",
+     "now": "ail_mdi_message_queue_flush",
+     "why": "Complete77B/20instructions; signed D+1a8>0 sends502 with count lowWORD, then clears count and byte cursor in source order; callers43270/452f0. Not physical port completion/time. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete77B/20instructions; signed D+1a8>0 sends502 with count lowWORD, then clears count and byte cursor in source order; callers43270/452f0. Not physical port completion/time.",
+     "why": "mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 271037,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 271040,
+   "off": 205504,
+   "ida_name": "ail_mdi_message_queue_push",
+   "size": 280,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_422C0",
+     "now": "ail_mdi_message_queue_push",
+     "why": "Complete280B/75instructions; channel status width classification, unsigned used+size>512 and signed count>0 preflush, then ordered buffer append and message-count increment; caller/transport included. Unknown classified0 domain separate. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete280B/75instructions; channel status width classification, unsigned used+size>512 and signed count>0 preflush, then ordered buffer append and message-count increment; caller/transport included. Unknown classified0 domain separate.",
+     "why": "mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 271320,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 271536,
    "off": 206000,
    "ida_name": "ail_xmidi_vlq_read",
@@ -14670,6 +15332,58 @@
     }
    ],
    "end_va": 271581,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 271648,
+   "off": 206112,
+   "ida_name": "ail_xmidi_form_find",
+   "size": 282,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_42520",
+     "now": "ail_xmidi_form_find",
+     "why": "完整282B/105heads、唯一443d0资源reader与4997e逐BYTE比较来源：FORM/CAT XMID的索引选择和原size+8步长。正常15资源与5个三BYTE sentinel首BYTE失败前缀实际核对；不套现代IFF偶数padding、不据伪C参数推ABI或未知资源边界。"
+    }
+   ],
+   "end_va": 271930,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 272320,
+   "off": 206784,
+   "ida_name": "ail_sequence_midi_cache_store",
+   "size": 435,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_427C0",
+     "now": "ail_sequence_midi_cache_store",
+     "why": "Complete435B/173instructions, no callees, only caller42980; updates sequence MIDI program/controller/bend raw caches by status/channel before volume scaling and transport; not driver hardware register state. 依据：mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "Complete435B/173instructions, no callees, only caller42980; updates sequence MIDI program/controller/bend raw caches by status/channel before volume scaling and transport; not driver hardware register state.",
+     "why": "mdi-message-source01/source02.json SHA256 80ad2e7c1cf380bf48f7065b5b3ea92574f8dad1dbefedc70eb7a5326baa12bf；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 272755,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -14713,6 +15427,12 @@
      "was": "sub_42DD0",
      "now": "ail_sequence_pending_notes_release",
      "why": "完整198B，原bytes==validated relocated。升序遍历32个非−1槽，通过42980发送各channel/note的noteoff，清槽和pending count并flush；再按3845e条件请求383f1(3)。重复note不折bitmap，32满时第33个noteon已发后由43270调stop释放旧32；宿主delay/OPL IO未作运行保真声明。 raw SHA 9449c603edf4c4787545ea7b242ad52a47debd06d2252ef32b8fa7a6ada9af8f。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "固定扫描32pending槽，note-off先入同512B packet并按真实count flush；有释放且AIL busy0才383f1(3)等三次retrace。其后447d0 cached控制尾不立即二次flush，不能等价每条逻辑MIDI即时硬件OUT。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
     }
    ],
    "end_va": 274070,
@@ -14736,6 +15456,12 @@
      "was": "sub_43160",
      "now": "ail_sequence_event_state_reset",
      "why": "完整171B，原bytes==validated relocated。初始化16个channel恒等映射、1088B控制缓存为−1、loop stack与32duration channel槽为−1；重置pending count/delay/beat/+30callback计数。443d0和44790调用，不重装MDI driver默认值/RR/OPL。 raw SHA f0e658360d604620060397164bc27f427e796a57a7cb914ca39045d2789a97fc。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "只重置map/cache/FOR/pending.channel/count/delay、beat/measure/phase/increment/numerator/denominator、callback计数与loop；不写S+10 EVNT字段，也不把inactive note/duration或volume/tempo整S清零。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
     }
    ],
    "end_va": 274955,
@@ -14782,9 +15508,131 @@
      "was": "sub_43270",
      "now": "ail_mdi_sequences_timer_service",
      "why": "完整1830B，原bytes==validated relocated。完整MDI timer遍历playing sequences；每callback +30计数后按tempo累计subtick，先32duration槽升序到期，再delay/EVNT；EOT保无限loop槽并跳本callback beat/volume/tempo fade；每8callback按缓存CC7刷新。43ad0把本函数注册到120Hz timer。全部15曲单次原kernel的事件和active-slot状态与私有执行器匹配；只声明当前资源默认100%tempo分支，不声称其余hook/宿主IO已恢复。 raw SHA c9ea914870d760db4bc8b1f86a55ac6c9c7d6d4d7126b227b63312fe589355a4。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "完整pool扫描与唯一S分开；callback计数每外层加一次，tempo accumulator每满100才推进duration/delay/EVNT/beat，非EOT尾先volume再tempo fade。meta51先写global543f4原BE24，再改denominator=raw<<4，不改120Hz或tempo-factor；meta58按实际MDI频率/有符号shift重置meter相位。共同packet尾与未知event barrier不能混同。普通block账不替代CPU/IF/PIC/bridge/retrace或初相位。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
     }
    ],
    "end_va": 276886,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 276896,
+   "off": 211360,
+   "ida_name": "ail_mdi_io_probe",
+   "size": 206,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_439A0",
+     "now": "ail_mdi_io_probe",
+     "why": "complete65instructions/206strict bytes; 24B IOdefaults/copy to driver+16 then command304, real43ad0 caller; no guessed type saved 依据：mdi-port-time-source-review01/source01.json SHA256 2e0e704913ec9a6bec3297bb7886b7f36fb54d4af644c1b3e7fa9de6fd3537af；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "complete65instructions/206strict bytes; 24B IOdefaults/copy to driver+16 then command304, real43ad0 caller; no guessed type saved",
+     "why": "mdi-port-time-source-review01/source01.json SHA256 2e0e704913ec9a6bec3297bb7886b7f36fb54d4af644c1b3e7fa9de6fd3537af；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 277102,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 279344,
+   "off": 213808,
+   "ida_name": "ail_sequence_handle_allocate",
+   "size": 113,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_44330",
+     "now": "ail_sequence_handle_allocate",
+     "why": "完整40指令/113B及pool扫描：首status1置2后43160；无S+10 producer，不推malloc初值、指针合法性或持久ABI。 依据：mdi-service-cost-source01/source01.json SHA256 082a0740df941c10655630e28535931c39937939122a9c197deb18c3a2dfbad5；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整40指令/113B及pool扫描：首status1置2后43160；无S+10 producer，不推malloc初值、指针合法性或持久ABI。",
+     "why": "mdi-service-cost-source01/source01.json SHA256 082a0740df941c10655630e28535931c39937939122a9c197deb18c3a2dfbad5；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 279457,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 279504,
+   "off": 213968,
+   "ida_name": "ail_sequence_resource_initialize",
+   "size": 946,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_443D0",
+     "now": "ail_sequence_resource_initialize",
+     "why": "完整946B/290heads、3adf5/25977调用闭包与42520/4997e/43160/3771c来源：FORM/XMID查找、chunk遍历、S字段重建、真实54400与D两次512B写、TIMB加载及SDK结果。固定15资源/hookNULL实际24callee与3cold FILE组合，当前Root新27一致；不扩签外层Main构造、初相位或SDK自定义resolver/formatter，不保存猜测ABI。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "成功init建立EVNT与100%tempo/音量初态，真实非空TIMB安装前flush旧包；格式失败先写status2而保旧EVNT字段。旧借用资源已被替换时，字段保留不证明referent有效。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
+    },
+    {
+     "target": "evidence",
+     "was": "TIMB子路径的defer/预flush/固定复制/503顺序未单列来源费用",
+     "now": "正常hookNULL且TIMB非空：44678先busy门，446b7增D+14，446bc按signed count预flush并只在返回后清count/cursor；44711调用memmove复制完整512B到同D+100，然后4472e发503，4473c减D+14，最后消费真实输出status。非完整443d0初态/失败格式化及DOS费用资格。",
+     "why": "完整443d0 290heads/946B来自sentinel-preview-source-review01/source01.json SHA311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b；15原TIMB绑定全部可读512。F5 mdi-timbre-source独立source/resource模型与实际给定provider组合；真实PM/DOS、Main phase/PIC仍分账。"
+    }
+   ],
+   "end_va": 280450,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 280464,
+   "off": 214928,
+   "ida_name": "sub_44790",
+   "size": 51,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "stop→43160 reset→447ae读取S+10字段→status4/cursor+8。字段producer未知与433b0实际event BYTE读分账；C空指针、资源size或一次UI返回不裁定原有效域。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
+    }
+   ],
+   "end_va": 280515,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],
@@ -14816,6 +15664,35 @@
    "chkstk_body_rows": []
   },
   {
+   "va": 280928,
+   "off": 215392,
+   "ida_name": "ail_sequence_loop_count_set",
+   "size": 16,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_44960",
+     "now": "ail_sequence_loop_count_set",
+     "why": "完整6指令；nonnull S才写S+28总循环次数。完整44960及25977真实caller；不从伪C类型推ABI。 依据：mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3；仅命名，不推ABI/原生时刻。"
+    },
+    {
+     "target": "evidence",
+     "was": "F5正常音频字段或写集尚未按完整来源更正",
+     "now": "完整6指令；nonnull S才写S+28总循环次数。完整44960及25977真实caller；不从伪C类型推ABI。",
+     "why": "mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3；源码与strict原字节/xref已核，运行与PIC资格另记。"
+    }
+   ],
+   "end_va": 280944,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
    "va": 281056,
    "off": 215520,
    "ida_name": "ail_sequence_volume_fade_set",
@@ -14831,6 +15708,162 @@
     }
    ],
    "end_va": 281184,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 294280,
+   "off": 228744,
+   "ida_name": "ail_build_s32_to_u8_unclipped",
+   "size": 17,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_47D88",
+     "now": "ail_build_s32_to_u8_unclipped",
+     "why": "完整8heads：每DWORD XOR8000后写AH，无S16夹幅。49891正常entered0选择该叶；active选择4809b。 f5-native-lock-dig-source source01 SHA b28b9ec98d73d86849e3b19aeab44837963783d6982bb6efb0bcd45bcb150d07；完整chunks/strictbytes/xrefs，窗口不冒function metadata，不保存猜测ABI。"
+    }
+   ],
+   "end_va": 294297,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 295067,
+   "off": 229531,
+   "ida_name": "ail_build_s32_to_u8_clipped",
+   "size": 45,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_4809B",
+     "now": "ail_build_s32_to_u8_clipped",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 3f6416ed05ddbf3c7c43c24653674bf594d24876b24acf89b68d26f90fe92dd2；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 295112,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 300080,
+   "off": 234544,
+   "ida_name": "ail_sample_u8_resample_accumulate",
+   "size": 39,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_49430",
+     "now": "ail_sample_u8_resample_accumulate",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 3f6416ed05ddbf3c7c43c24653674bf594d24876b24acf89b68d26f90fe92dd2；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 300119,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 300688,
+   "off": 235152,
+   "ida_name": "ail_sample_build_mix",
+   "size": 513,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "F5共享driver/S/PCM与实际消费前缀尚未独立登记",
+     "now": "正常11025 U8→22050使用16.16商、655容差与每服务片段80000000h半相位；完整且未被目标容量截断的R源点段产生2R-1点。404c0逐P进入共享int32 build，后续driver才做S16夹幅/U8高字节。共享DMA/原IRQ交付时刻与host SRC/DC另有资格，不由有限half向量签自然波形。",
+     "why": "F5既有完整Domain函数/chunk/xref与strict relocated原字节交叉资格；sentinel-preview-source-review01/source01.json SHA256 311ad0c542a8b9d5f93a59d4ccf83579cc55e47ffb0dfb6b22ed6fa8e6839d2b; pcm-contract-source01/source01.json SHA256 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379; mdi-service-ledger01/contracts06.json SHA256 e45e749e1d1cd0e536dc07e4f4917d4e17ef0b6884ea4d36064d53f4b44e1ff3。只登记功能与来源，不保存猜测ABI/类型；实际C/原版/设备和PIC完整门分别记账。"
+    },
+    {
+     "target": "evidence",
+     "was": "DIG正常共享服务的source费用/可见写点未单列",
+     "now": "49430每点读取/局部分数位置/build写分点；P.position仅497e0整片后提交，错误不能提前写P.position。固定normal ratio8000，source11025/output22050/type0/volume100/pan64。",
+     "why": "pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。"
+    },
+    {
+     "target": "semantic_name",
+     "was": "sub_49690",
+     "now": "ail_sample_build_mix",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 301201,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 301201,
+   "off": 235665,
+   "ida_name": "ail_dig_build_convert",
+   "size": 146,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "semantic_name",
+     "was": "sub_49891",
+     "now": "ail_dig_build_convert",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 301347,
+   "is_lib": false,
+   "prototype": "",
+   "historical_names": [],
+   "aliases": [],
+   "merged_from_multiple_rows": false,
+   "chkstk_body_rows": []
+  },
+  {
+   "va": 301347,
+   "off": 235811,
+   "ida_name": "ail_dig_build_clear",
+   "size": 44,
+   "legacy": [],
+   "records": [],
+   "corrections": [
+    {
+     "target": "evidence",
+     "was": "DIG正常共享服务的source费用/可见写点未单列",
+     "now": "完整build8192B正常对齐：零count REP STOSB仍取opcode，2048DWORD REP逐element写；rep_max借唯一normal CPU配置，0不限。",
+     "why": "pcm-contract-source01 SHA46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379完整源与strictimage；新finite同owner source PC/whole build/DMA及失败前缀回归。只签明确given域，不签Main phase/外部日历/完整PIC。"
+    },
+    {
+     "target": "semantic_name",
+     "was": "sub_49923",
+     "now": "ail_dig_build_clear",
+     "why": "完整Domain/chunks/strict bytes及caller/函数表结合确认有限正常DIG共享语义，名称不暗示任意格式或ABI。来源SHA 46a47799f33de2d9e62caacfaf39cd4c73bf467d7923165d7a6065ab4a084379；新given SourceClock whole-owner及source-PC性质不签Main/PIC/phase。"
+    }
+   ],
+   "end_va": 301391,
    "is_lib": false,
    "prototype": "",
    "historical_names": [],

@@ -644,9 +644,10 @@ static int test_resource_error_before_wait(void){
     fd2_field_game_close(g);fd2_archive_close(&ar);free(g);return 0;
 }
 typedef struct { fd2_field_game *game; int tracks[8]; uint8_t sides[8]; size_t count; } music_log;
-static void music_request(size_t stage,int track,fd2_field_music_reason reason,void*userdata){
+static int music_request(size_t stage,int track,fd2_field_music_reason reason,void*userdata){
     music_log*log=userdata;(void)reason;if(stage!=0 || log->count>=8)abort();
     log->tracks[log->count]=track;log->sides[log->count++]=log->game->active_side;
+    return 0;
 }
 static int test_music_and_message_owner(void){
     fd2_field_game*g=calloc(1,sizeof(*g));fd2_archive ar;unsigned calls=0;CHECK(fixture(g,&ar,&calls)==0);
@@ -1055,7 +1056,7 @@ static int test_initial_units_follow_shared_cold_choices(void) {
     CHECK(fd2_field_game_open_resources(g, &ar, 0) == 0);
     g->metadata.unit_templates[0].bytes[0x15] = 77;
     unsigned calls = 0; g->attack_rng = rng; g->attack_rng_userdata = &calls;
-    CHECK(load_initial_units(g, source) == 0 && calls == 0);
+    CHECK(load_initial_units(g, source, NULL) == 0 && calls == 0);
     CHECK(g->units.count == 12 && g->units.source_template_indices[4] == 0);
     uint8_t corrected[12][80]; corrected_startup_records(corrected);
     CHECK(!memcmp(g->units.items, corrected, sizeof(corrected)));
@@ -1292,13 +1293,32 @@ static int test_core_event_preflight_without_visual_callback_and_full_log(void) 
     fd2_field_game *g=calloc(1,sizeof(*g)),*before=malloc(sizeof(*before));fd2_archive ar;unsigned rolls=0;
     CHECK(g && before && fixture(g,&ar,&rolls)==0 && !g->event_preflight);
     static const fd2_static_flow_node nodes[]={
-        {.id="move",.op="move",.args={7,0},.edges={1,-1,-1,-1,-1,-1,-1,2}},
+        {.id="move",.op="move",.args={106,0},.edges={1,-1,-1,-1,-1,-1,-1,2}},
         {.id="done",.op="end",.edges={-1,-1,-1,-1,-1,-1,-1,-1}},
         {.id="bad",.op="fail",.edges={-1,-1,-1,-1,-1,-1,-1,-1}}};
     static const fd2_static_flow bad_raw={"test.core.future.raw",nodes,3,0};
     *before=*g;
     CHECK(common_event_preflight_flow(g,&bad_raw,0)==-1 && !memcmp(g,before,sizeof(*g)) && !rolls);
     CHECK(common_event_bound_begin(g,&bad_raw,0)==-1 && !memcmp(g,before,sizeof(*g)) && !rolls);
+    /* 106在原106项脚本表之外。旧夹具用7，混淆了坏格式和原身份读前缀：
+     * script7 @0x62a1b首组为mode2/raw12；当前count2，1366a会先读raw12身份。
+     * F1已保留该读前的零组前缀，核心预检应准许交给实际move叶逐点停止，
+     * 不能恢复整段预拒绝。这里不把未知raw12构造成合法人物。 */
+    const uint8_t *script;size_t script_size,defined_groups=99;
+    CHECK(fd2_field_movement_script_get(7,&script,&script_size)==0 && script_size==21 &&
+        script[0]==5 && script[1]==2 && script[2]==1 && script[3]==12 && script[4]==0);
+    fd2_field_units projected=g->units;
+    CHECK(fd2_field_movement_script_project_source(&projected,script,script_size,&defined_groups)==1 &&
+        !defined_groups && !memcmp(&projected,&g->units,sizeof(projected)));
+    fd2_static_flow_node prefix_nodes[3];memcpy(prefix_nodes,nodes,sizeof(nodes));prefix_nodes[0].args[0]=7;
+    const fd2_static_flow source_prefix={"test.core.source.prefix",prefix_nodes,3,0};
+    CHECK(common_event_preflight_flow(g,&source_prefix,0)==0 && !memcmp(g,before,sizeof(*g)) && !rolls);
+    CHECK(common_event_bound_begin(g,&source_prefix,0)==0 && !g->failure && !rolls);
+    fd2_static_flow_node current;size_t actor=99;
+    CHECK(fd2_field_game_common_event_peek(g,&current,&actor)==1 && actor==0 &&
+        !strcmp(current.op,"move") && current.args[0]==7);
+    memset(&g->event_resume,0,sizeof(g->event_resume));
+    CHECK(!memcmp(g,before,sizeof(*g)));
     /* 合法callback4无大人数猜门；日志已满仍能只用父PC执行，无新notice。
      * 对照前面真实脚本raw坏例，不以撤销容量门冒充未知数据合法。 */
     for(size_t i=2;i<14;i++) {

@@ -25,6 +25,7 @@ static struct {
     int equipment_keys, magic_keys, controllers, closed, bad_route;
     int bad_rng_portrait_order;
     unsigned copy_frames,copy_pumps,copy_cost_ms,tail_waits;
+    unsigned copy_error_at;int copy_error_host;
     int wait_test, wait_frames, wait_key_at, wait_quit_at, wait_error, water_calls, rng_calls;
     int blink_seen, restore_seen, bad_wait_pixels, decode_blink_failure;
     int wait_step,wait_blink_at,wait_restore_at,route_wait_quit,route_wait_error;
@@ -105,8 +106,8 @@ static void expected_bottom(uint8_t *dst, const uint8_t *page, int phase) {
     for (int y = top; y < 200 && y < top + 102; y++)
         memcpy(dst + y * 320 + 5, page + (94 + y - top) * 320 + 5, 310);
 }
-static void detail_present(fd2_vga *vga);
-static void detail_timed(fd2_vga *vga, uint32_t interval) {
+static int detail_present(fd2_vga *vga);
+static int detail_timed(fd2_vga *vga, uint32_t interval) {
     control.timed_frames++;
     if(!control.animation) {
         control.wait_frames++;
@@ -133,7 +134,7 @@ static void detail_timed(fd2_vga *vga, uint32_t interval) {
         } else detail_present(vga);
         vga->frame_deadline_ns=(control.clock+interval)*UINT64_C(1000000);
         vga->frame_interval_ns=(uint64_t)interval*UINT64_C(1000000);
-        return;
+        return 0;
     }
     control.animation_frames++;
     if (control.check_geometry) {
@@ -160,8 +161,9 @@ static void detail_timed(fd2_vga *vga, uint32_t interval) {
     if (control.quit_at && control.animation_frames == control.quit_at)
         vga->input.quit_requested = 1;
     vga->frame_deadline_ns = 1;
+return 0;
 }
-static void detail_present(fd2_vga *vga) {
+static int detail_present(fd2_vga *vga) {
     if (control.animation) {
         /* 原18409/1839b每次memmove即提交，无额外16ms；保全部几何、
          * 中途HOST及早键检测。关闭另有第13次完整snapshot恢复。 */
@@ -176,10 +178,10 @@ static void detail_present(fd2_vga *vga) {
             test_input(vga,control.route?0:SDL_SCANCODE_F1,!control.route);
             if(control.quit_final)vga->input.quit_requested=1;
         }
-        return;
+        return 0;
     }
     control.clock += 16;
-    if (!control.route) { test_input(vga, 0, 0); return; }
+    if (!control.route) { test_input(vga, 0, 0); return 0; }
     if (control.route_stage == 0) {
         test_input(vga, control.route == 2 ? SDL_SCANCODE_RETURN : SDL_SCANCODE_F2, 0);
         control.route_stage = 1;
@@ -198,13 +200,16 @@ static void detail_present(fd2_vga *vga) {
         vga->input.quit_requested = 1;
     }
     if (control.clock > 5000) { control.bad_route = 1; vga->input.quit_requested = 1; }
+return 0;
 }
-static void detail_wait(fd2_vga *vga) {
+static int detail_wait(fd2_vga *vga) {
     control.tail_waits++;
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+return 0;
 }
 static uint64_t detail_ticks(void) { return control.clock; }
-static void detail_delay(uint32_t ms) { control.clock += ms; }
+static int detail_delay(uint32_t ms) { control.clock += ms; return 0;
+}
 static int detail_water(fd2_vga *vga, uint64_t ms) {
     (void)vga;(void)ms;control.water_calls++;return 0;
 }
@@ -224,6 +229,10 @@ static void detail_copy_upload(fd2_vga *vga) {
     vga->frame_deadline_ns=vga->frame_interval_ns=0;
     detail_present(vga);control.copy_frames++;control.clock+=control.copy_cost_ms;
     vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+    if(control.copy_frames==control.copy_error_at){
+        vga->output_error=FD2_VGA_OUTPUT_LOCK;
+        if(control.copy_error_host)vga->input.quit_requested=1;
+    }
 }
 static void detail_copy_pump(fd2_input *input) {
     control.copy_pumps++;fd2_input_begin_frame(input);
@@ -305,6 +314,7 @@ int fd2_field_game_animate_detail_magic_page(fd2_field_game *game, fd2_vga *vga,
 uint64_t detail_ticks_ns(void);
 #define SDL_GetTicksNS detail_ticks_ns
 #define fd2_delay_ms detail_delay
+#define fd2_vga_delay_ms(vga,value) detail_delay(value)
 #define fd2_field_water_tick detail_water
 #define fd2_field_water_tick_live(vga_) detail_water((vga_),SDL_GetTicksNS())
 #include "field_play.c"
@@ -318,6 +328,7 @@ uint64_t detail_ticks_ns(void);
 #undef fd2_vga_wait_frame_deadline
 #undef SDL_GetTicks
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_field_water_tick_live
 #undef fd2_field_water_tick
 
@@ -661,9 +672,34 @@ static int test_preflight_and_load_cleanup(void) {
     CHECK(!control.buffers);
     return 0;
 }
-int main(void) {
+/* 真实march最终上传失败：保已绘页，不进入turncycle/音乐/单位重置。 */
+static int test_march_output_error_prefix(void){
+ for(unsigned host=0;host<2;host++){
+  reset();fd2_bios_clock_reset(0,0);fd2_field_game game={0};fd2_vga vga={0};
+  CHECK(open_game(&game,&vga)==0);
+  if(!vga.field_page)vga.field_page=detail_app_page;
+  game.phase_unit_cursor=9;game.phase_ai_pass=1;game.turn_post_caller=FD2_FIELD_TURN_POST_NONE;
+  uint32_t turn=game.turn_number;uint8_t side=game.active_side;
+  fd2_field_units units=game.units;
+  control.copy_frames=control.copy_pumps=control.rng_calls=0;control.copy_error_at=1;control.copy_error_host=(int)host;
+  CHECK(march_continue(&game,&vga,0,game.cursor_cell_x,game.cursor_cell_y,game.units.count)<0);
+  CHECK(control.copy_frames==1&&control.copy_pumps==1&&!control.rng_calls);
+  CHECK(vga.output_error==FD2_VGA_OUTPUT_LOCK&&vga.input.quit_requested==(int)host);
+  CHECK(game.active_side==side&&game.turn_number==turn&&game.phase_unit_cursor==9&&game.phase_ai_pass==1);
+  CHECK(game.turn_post_caller==FD2_FIELD_TURN_POST_NONE&&!memcmp(&units,&game.units,sizeof units));
+  fd2_field_game_close(&game);CHECK(!control.buffers);
+ }
+ return 0;
+}
+
+int main(int argc,char **argv) {
     CHECK(fd2_archive_open(&detail_other_archive, "original_game/FDOTHER.DAT") == 0);
     detail_app_page=fd2_field_page_create();CHECK(detail_app_page);
+    if(argc==2 && !strcmp(argv[1],"--output-errors")){
+        int result=test_march_output_error_prefix();
+        fd2_archive_close(&detail_other_archive);fd2_field_page_destroy(detail_app_page);
+        if(!result)puts("field detail output errors: ok");return result;
+    }
     CHECK(test_any_key_routes_and_controller() == 0);
     CHECK(test_flip_early_key_survives_to_second_wait()==0);
     CHECK(test_formal_detail_wait_quit_and_error_priority()==0);

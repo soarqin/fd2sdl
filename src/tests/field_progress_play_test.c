@@ -95,6 +95,9 @@ static fd2_pcm_player *cell_secondary;
 static const fd2_pcm_bank *cell_ui_bank;
 static int test_pcm_replace(fd2_pcm_player *player,const fd2_pcm_bank *bank,
         size_t sample,int loops,float gain) {
+#ifdef FD2_CLOCK_FAILURE_TEST
+    if(clock_audio_at)return clock_audio_return(0);
+#endif
     CHECK(player==cell_secondary && bank==cell_ui_bank && sample==12 && loops==1 &&
         gain==FD2_GAME_SFX_DEFAULT_GAIN);
     cell_pcm_calls++;return cell_pcm_failure?-1:0;
@@ -174,7 +177,7 @@ static uint64_t test_ticks(void) {
     wait_phase++;
     return (uint64_t)tick*55u;
 }
-static void test_delay(uint32_t delay) {
+static int test_delay(uint32_t delay) {
     unsigned frames=test_frames,rng=rng_calls,water=water_calls;
     int early=early_cell_probe && loot_wait_game &&
         loot_wait_game->loot.notice.kind==FD2_FIELD_LOOT_DELAY && loot_wait_game->loot.notice.wait_ms==300u;
@@ -193,6 +196,7 @@ static void test_delay(uint32_t delay) {
     CHECK(test_frames==frames && rng_calls==rng && water_calls==water);
     if(early)early_cell_delay_elapsed=delay;
     if(fixed_delay_vga && fixed_delay_quit)fixed_delay_vga->input.quit_requested=1;
+return 0;
 }
 static int test_audio(fd2_field_audio *audio, fd2_field_sfx cue) {
     if(f4_dynamic.active){CHECK(cue==FD2_FIELD_SFX_DIALOG_GLYPH);f4_dynamic.pcm++;}
@@ -321,7 +325,7 @@ static void test_frame(fd2_vga *vga, unsigned interval) {
         vga->input.quit_requested=1;
     CHECK(test_frames < 2000);
 }
-static void test_present(fd2_vga *vga) {
+static int test_present(fd2_vga *vga) {
     if(finite_probe) {
         finite_plain++;
         if(vga->frame_deadline_ns>(now_ms*UINT64_C(1000000)))
@@ -336,9 +340,10 @@ static void test_present(fd2_vga *vga) {
             CHECK(!memcmp(vga->framebuffer,expected,sizeof(expected)));
         }
         if(finite_quit && finite_plain==(unsigned)finite_quit)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     test_frame(vga, 16);
+return 0;
 }
 static void progress_copy_upload(fd2_vga *vga) {
     if(f4_dynamic.active){f4_dynamic_upload(vga);return;}
@@ -346,16 +351,20 @@ static void progress_copy_upload(fd2_vga *vga) {
     vga->frame_deadline_ns=vga->frame_interval_ns=0;
     test_present(vga);now_ms+=finite_upload_cost;
     vga->frame_deadline_ns=deadline;vga->frame_interval_ns=interval;
+#ifdef FD2_CLOCK_FAILURE_TEST
+    clock_fault_upload(vga);
+#endif
 }
-static void test_present_timed(fd2_vga *vga, uint32_t interval) {
+static int test_present_timed(fd2_vga *vga, uint32_t interval) {
     if(finite_probe) {
         finite_timed++;now_ms+=interval;
         vga->frame_deadline_ns=(now_ms+interval)*UINT64_C(1000000);
         vga->frame_interval_ns=(uint64_t)interval*UINT64_C(1000000);
         if(finite_timed_quit)vga->input.quit_requested=1;
-        return;
+        return 0;
     }
     test_frame(vga, interval);
+return 0;
 }
 static uint32_t test_rng(void *context) { (void)context; rng_calls++;if(f4_dynamic.active)f4_dynamic.rng++;return 0; }
 static int test_peek(const fd2_field_game *source, fd2_field_progress_notice *notice) {
@@ -399,6 +408,7 @@ static int test_ack(fd2_field_game *source) {
 uint64_t test_ticks_ns(void);
 #define SDL_GetTicksNS test_ticks_ns
 #define fd2_delay_ms test_delay
+#define fd2_vga_delay_ms(vga,value) test_delay(value)
 #define fd2_field_audio_play test_audio
 #define fd2_pcm_play_replace test_pcm_replace
 #define fd2_field_water_tick test_water
@@ -418,13 +428,14 @@ uint64_t test_ticks_ns(void);
 #define fd2_field_game_loot_reply test_loot_reply_dispatch
 #define fd2_field_game_loot_text_ready test_loot_text_ready_dispatch
 #define fd2_wait_ticks f4_dynamic_wait_ticks
+#define fd2_vga_wait_ticks(vga,value) f4_dynamic_wait_ticks(value)
 #define fd2_font_draw_glyph_linear f4_dynamic_font_linear
 #define fd2_vga_upload_current_frame progress_copy_upload
 #include "field_play.c"
 #undef fd2_vga_upload_current_frame
 #undef fd2_font_draw_glyph_linear
 #undef fd2_wait_ticks
-
+#undef fd2_vga_wait_ticks
 /* 原once攻击回放只属于本测试夹具：保留真实提交后progress的quit／数据错误门，
  * 不再让正式单帧入口演练战斗。此处仍沿用本TU的present／clock／资源替身。 */
 static void init_validation_replay(fd2_field_game *replay,
@@ -576,6 +587,7 @@ done:
 #undef fd2_image_free
 #undef SDL_GetTicks
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_field_audio_play
 #undef fd2_pcm_play_replace
 #undef fd2_field_water_tick_live

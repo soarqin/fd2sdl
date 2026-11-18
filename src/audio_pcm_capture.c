@@ -1,4 +1,4 @@
-/* 应用侧测试PCM：观察audio.c真实设备callback的最终float stereo。
+/* 应用侧测试PCM：观察audio.c主线程成功Put之后的最终float stereo。
  * 在Windows进程session静音之前，不复播source、不改变设备/mute/gain。
  * 原版依据仍为music_track_play @0x25977 / sfx_play @0x25a96；此模块只取证。
  */
@@ -27,8 +27,8 @@
 #define START_TIMEOUT_MS 120000u
 #define QUIET_TIMEOUT_MS 1000u
 
-enum { E_NONE, E_OWNER, E_STOP_EARLY, E_NO_CALLBACK, E_CAPACITY,
-       E_NONFINITE, E_FRAMES, E_IO, E_NOT_QUIET, E_HOST, E_TIME, E_START, E_AUDIO_PUT };
+enum { E_NONE, E_OWNER, E_STOP_EARLY, E_NO_SUBMISSION, E_CAPACITY,
+       E_NONFINITE, E_FRAMES, E_IO, E_NOT_QUIET, E_HOST, E_TIME, E_START, E_AUDIO_PUT, E_AUDIO_BACKLOG };
 struct fd2_audio_pcm_capture {
     SDL_Thread *thread;
     float *buffer;
@@ -44,9 +44,9 @@ static void fail(fd2_audio_pcm_capture *c,unsigned error) {
     (void)atomic_compare_exchange_strong(&c->error,&expected,error);
 }
 static const char *error_name(unsigned e) {
-    static const char *const names[]={"","wrong_start_pid","stop_before_ready","no_real_callback",
-        "buffer_capacity","nonfinite_mix","invalid_chunk","io_error","callback_not_quiet",
-        "host_shutdown","time_limit","start_timeout","audio_put_failed"};
+    static const char *const names[]={"","wrong_start_pid","stop_before_ready","no_successful_submission",
+        "buffer_capacity","nonfinite_mix","invalid_chunk","io_error","submission_not_quiet",
+        "host_shutdown","time_limit","start_timeout","audio_put_failed","audio_backlog_dropped"};
     return e<sizeof(names)/sizeof(*names)?names[e]:"unknown_error";
 }
 static char *joined(const char *dir,const char *name) {
@@ -124,6 +124,15 @@ static int publish(const char *path,const char *text) {
     if(!ok)SDL_RemovePath(tmp);free(tmp);return ok?0:-1;
 }
 static void le(unsigned char *p,uint32_t v,unsigned n){for(unsigned i=0;i<n;i++)p[i]=(unsigned char)(v>>(8*i));}
+/* v3：S16/32768可由F32精确承载，逐个原S16均可无损回译。
+ * 任意非整数输入采用half-away并饱和；不冒任意F32的SDL转换器等值。
+ * push已验证finite并夹到[-1,1]；历史v1/v2的32767量化身份不改签。 */
+static int16_t pcm_quantize_s16_unit(float value) {
+    long quantized=lroundf(value*32768.0f);
+    if(quantized>INT16_MAX)quantized=INT16_MAX;
+    else if(quantized<INT16_MIN)quantized=INT16_MIN;
+    return (int16_t)quantized;
+}
 static int write_wave(fd2_audio_pcm_capture *c,unsigned frames) {
     FILE *file=new_file(c->wav);if(!file)return -1;
     unsigned char h[44]={0};memcpy(h,"RIFF",4);le(h+4,36+frames*4,4);
@@ -135,7 +144,7 @@ static int write_wave(fd2_audio_pcm_capture *c,unsigned frames) {
         unsigned n=frames-at;if(n>512)n=512;unsigned char pcm[512*4];
         for(unsigned i=0;i<n*2;i++) {
             float v=c->buffer[(size_t)at*2+i];
-            long q=lroundf(v*32767.0f);le(pcm+2*i,(uint16_t)(int16_t)q,2);
+            le(pcm+2*i,(uint16_t)pcm_quantize_s16_unit(v),2);
         }
         ok=fwrite(pcm,1,n*4,file)==n*4;at+=n;
     }
@@ -152,7 +161,7 @@ static int read_start_pid(fd2_audio_pcm_capture *c) {
     return n&&v==c->pid&&*end==0?0:-1;
 }
 static int quiet(fd2_audio_pcm_capture *c) {
-    /* seq_cst busy/enabled约束：关门前进入的callback必须完成，关门后进入的只读false。 */
+    /* seq_cst busy/enabled约束：关门前进入的submission必须完成，关门后进入的只读false。 */
     atomic_store(&c->enabled,0);
     uint64_t until=SDL_GetTicks()+QUIET_TIMEOUT_MS;
     while(atomic_load(&c->busy)) {if(SDL_GetTicks()>=until){fail(c,E_NOT_QUIET);return 0;}SDL_Delay(1);}
@@ -181,11 +190,11 @@ static int SDLCALL capture_worker(void *userdata) {
         if(atomic_load(&c->error)){reason="capture_error";goto done;}
         if(atomic_load(&c->closing)){fail(c,E_HOST);goto done;}
         if(exists(c->stop)){fail(c,E_STOP_EARLY);reason="stop_before_ready";goto done;}
-        if(SDL_GetTicks()>=deadline){fail(c,E_NO_CALLBACK);reason="no_callback";goto done;}
+        if(SDL_GetTicks()>=deadline){fail(c,E_NO_SUBMISSION);reason="no_submission";goto done;}
         SDL_Delay(2);
     }
     char text[1600];
-    snprintf(text,sizeof(text),"{\"schema\":\"fd2-app-mix-capture-v1\",\"ready\":true,\"pid\":%u,\"backend\":\"fd2-audio-pre-os-session\",\"sample_rate\":48000,\"channels\":2,\"bits\":16,\"source_format\":\"F32-stereo\",\"clock_source\":\"SDL_performance_counter_at_real_mix_callback\",\"suppress_device_output\":%s,\"max_ms\":%u,\"first_callback_qpc\":%llu,\"qpc_frequency\":%llu,\"device_output_validated\":false,\"A8_validated\":false}\n",c->pid,c->suppress_device_output?"true":"false",c->max_ms,(unsigned long long)c->first_qpc,(unsigned long long)SDL_GetPerformanceFrequency());
+    snprintf(text,sizeof(text),"{\"schema\":\"fd2-app-mix-capture-v3\",\"ready\":true,\"pid\":%u,\"backend\":\"fd2-audio-pre-os-session\",\"transport_owner\":\"main-thread\",\"capture_point_version\":2,\"capture_point\":\"after_successful_SDL_PutAudioStreamData\",\"sample_rate\":48000,\"channels\":2,\"bits\":16,\"source_format\":\"F32-stereo\",\"pcm_quantizer\":\"s16-unit32768-round-half-away-saturate\",\"pcm_quantizer_version\":1,\"clock_source\":\"SDL_performance_counter_after_main_thread_successful_Put\",\"suppress_device_output\":%s,\"max_ms\":%u,\"first_submission_qpc\":%llu,\"qpc_frequency\":%llu,\"device_output_validated\":false,\"A8_validated\":false}\n",c->pid,c->suppress_device_output?"true":"false",c->max_ms,(unsigned long long)c->first_qpc,(unsigned long long)SDL_GetPerformanceFrequency());
     if(publish(c->ready,text)){fail(c,E_IO);reason="ready_io_error";goto done;}
     c->ready_published=1;deadline=SDL_GetTicks()+c->max_ms;
     for(;;) {
@@ -203,7 +212,7 @@ done:;
     int ok=!error&&c->ready_published&&wave_ok&&!strcmp(reason,"stop");
     uint64_t first=quiescent?c->first_qpc:0,last=quiescent?c->last_qpc:0;
     char summary[1800];
-    snprintf(summary,sizeof(summary),"{\"schema\":\"fd2-app-mix-capture-v1\",\"ok\":%s,\"pid\":%u,\"backend\":\"fd2-audio-pre-os-session\",\"ready_published\":%s,\"source_format\":\"F32-stereo\",\"clock_source\":\"SDL_performance_counter_at_real_mix_callback\",\"suppress_device_output\":%s,\"sample_rate\":48000,\"channels\":2,\"bits\":16,\"frames\":%u,\"data_bytes\":%u,\"capacity_frames\":%u,\"max_ms\":%u,\"first_callback_qpc\":%llu,\"last_callback_qpc\":%llu,\"qpc_frequency\":%llu,\"stop_reason\":\"%s\",\"error_code\":%u,\"error\":\"%s\",\"callback_quiescent\":%s,\"wave_finalized\":%s,\"wav\":\"app-mix.wav\",\"device_output_validated\":false,\"A8_validated\":false}\n",ok?"true":"false",c->pid,c->ready_published?"true":"false",c->suppress_device_output?"true":"false",frames,frames*4,c->capacity,c->max_ms,(unsigned long long)first,(unsigned long long)last,(unsigned long long)SDL_GetPerformanceFrequency(),reason,error,error_name(error),quiescent?"true":"false",wave_ok?"true":"false");
+    snprintf(summary,sizeof(summary),"{\"schema\":\"fd2-app-mix-capture-v3\",\"ok\":%s,\"pid\":%u,\"backend\":\"fd2-audio-pre-os-session\",\"transport_owner\":\"main-thread\",\"capture_point_version\":2,\"capture_point\":\"after_successful_SDL_PutAudioStreamData\",\"ready_published\":%s,\"source_format\":\"F32-stereo\",\"pcm_quantizer\":\"s16-unit32768-round-half-away-saturate\",\"pcm_quantizer_version\":1,\"clock_source\":\"SDL_performance_counter_after_main_thread_successful_Put\",\"suppress_device_output\":%s,\"sample_rate\":48000,\"channels\":2,\"bits\":16,\"frames\":%u,\"data_bytes\":%u,\"capacity_frames\":%u,\"max_ms\":%u,\"first_submission_qpc\":%llu,\"last_submission_qpc\":%llu,\"qpc_frequency\":%llu,\"stop_reason\":\"%s\",\"error_code\":%u,\"error\":\"%s\",\"submission_quiescent\":%s,\"wave_finalized\":%s,\"wav\":\"app-mix.wav\",\"device_output_validated\":false,\"A8_validated\":false}\n",ok?"true":"false",c->pid,c->ready_published?"true":"false",c->suppress_device_output?"true":"false",frames,frames*4,c->capacity,c->max_ms,(unsigned long long)first,(unsigned long long)last,(unsigned long long)SDL_GetPerformanceFrequency(),reason,error,error_name(error),quiescent?"true":"false",wave_ok?"true":"false");
     if(publish(c->summary,summary))SDL_Log("app PCM summary publish failed: %s",SDL_GetError());
     return ok?0:1;
 }
@@ -264,6 +273,12 @@ void fd2_audio_pcm_capture_put_failed(fd2_audio_pcm_capture *c) {
     /* 与成功push使用同一接收窗口；quiet关闭门并等已进入的通知结束。 */
     atomic_fetch_add(&c->busy,1);
     if(atomic_load(&c->enabled))fail(c,E_AUDIO_PUT);
+    atomic_fetch_sub(&c->busy,1);
+}
+void fd2_audio_pcm_capture_output_dropped(fd2_audio_pcm_capture *c) {
+    if(!c)return;
+    atomic_fetch_add(&c->busy,1);
+    if(atomic_load(&c->enabled))fail(c,E_AUDIO_BACKLOG);
     atomic_fetch_sub(&c->busy,1);
 }
 void fd2_audio_pcm_capture_close(fd2_audio_pcm_capture *c) {

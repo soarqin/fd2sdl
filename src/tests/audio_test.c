@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "audio.h"
+#include "bios_clock.h"
 #include <SDL3/SDL.h>
 
 #define CHECK(expr) do { \
@@ -70,7 +71,7 @@ static int test_mix_and_bus_controls(void) {
 
     CHECK(fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_SFX) == 0);
     CHECK(fd2_audio_set_master_gain(audio, 0.5f) == 0);
-    CHECK(atomic_load(&sfx.retire_count) == 0);
+    CHECK(atomic_load(&sfx.retire_count) == 1); /* STOP在关闭旧前缀后同步retire。 */
     memset(output, 0, sizeof(output));
     CHECK(fd2_audio_render_offline(audio, output, 8) == 8);
     for (size_t i = 0; i < 16; i++) CHECK(near(output[i], 0.125f));
@@ -171,6 +172,8 @@ static int test_pending_source_retired_on_destroy(void) {
 
 static int test_dummy_device(void) {
     CHECK(SDL_InitSubSystem(SDL_INIT_AUDIO));
+    CHECK(SDL_GetCurrentAudioDriver() && !strcmp(SDL_GetCurrentAudioDriver(), "dummy"));
+    fd2_bios_clock_reset(0, SDL_GetTicksNS()); /* 独立host向量，不是原IRQ phase。 */
     fd2_audio_config config = {
         .sample_rate = 48000,
         .open_device = 1,
@@ -184,13 +187,13 @@ static int test_dummy_device(void) {
     for (int i = 0; i < 100 &&
          atomic_load_explicit(&source.render_count, memory_order_acquire) == 0;
          i++)
-        SDL_Delay(10);
+    { SDL_Delay(10); CHECK(fd2_audio_sync(audio) == 0); }
     CHECK(atomic_load_explicit(&source.render_count, memory_order_acquire) > 0);
     CHECK(fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_SFX) == 0);
     for (int i = 0; i < 100 &&
          atomic_load_explicit(&source.retire_count, memory_order_acquire) == 0;
          i++)
-        SDL_Delay(10);
+    { SDL_Delay(10); CHECK(fd2_audio_sync(audio) == 0); }
     CHECK(atomic_load_explicit(&source.retire_count, memory_order_acquire) == 1);
     fd2_audio_destroy(audio);
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
@@ -198,6 +201,8 @@ static int test_dummy_device(void) {
 }
 
 static int test_device_failure_null_fallback(void) {
+    CHECK(SDL_WasInit(SDL_INIT_AUDIO) == 0);
+    fd2_bios_clock_reset(0, SDL_GetTicksNS());
     fd2_audio_config config = {
         .sample_rate = 48000,
         .open_device = 1,
@@ -208,14 +213,16 @@ static int test_device_failure_null_fallback(void) {
     constant_source source = {.value = 0.1f, .frames_left = 10};
     CHECK(fd2_audio_play_source(audio, FD2_AUDIO_BUS_SFX,
                                 constant(&source), 1.0f) == 0);
-    CHECK(atomic_load(&source.retire_count) == 1);
-    CHECK(atomic_load(&source.last_reason) == FD2_AUDIO_RETIRE_DROPPED);
+    CHECK(atomic_load(&source.retire_count) == 0); /* null不丢source业务。 */
+    SDL_Delay(2); CHECK(fd2_audio_sync(audio) == 0);
+    CHECK(atomic_load(&source.render_count) > 0 && atomic_load(&source.retire_count) == 1);
+    CHECK(atomic_load(&source.last_reason) == FD2_AUDIO_RETIRE_FINISHED);
     CHECK(fd2_audio_stop_bus(audio, FD2_AUDIO_BUS_SFX) == 0);
     fd2_audio_destroy(audio);
     return 0;
 }
 
-static int test_validation_and_bounded_queue(void) {
+static int test_validation_and_synchronous_controls(void) {
     fd2_audio_config config = {.open_device = 0};
     fd2_audio *audio = fd2_audio_create(&config);
     CHECK(audio);
@@ -228,7 +235,7 @@ static int test_validation_and_bounded_queue(void) {
 
     for (size_t i = 0; i < 64; i++)
         CHECK(fd2_audio_set_master_gain(audio, 1.0f) == 0);
-    CHECK(fd2_audio_set_master_gain(audio, 1.0f) != 0);
+    CHECK(fd2_audio_set_master_gain(audio, 1.0f) == 0); /* 不再有64条无时间戳队列。 */
     float sample[2];
     CHECK(fd2_audio_render_offline(audio, sample, 1) == 1);
     CHECK(fd2_audio_set_master_gain(audio, 1.0f) == 0);
@@ -243,7 +250,7 @@ int main(void) {
     CHECK(test_pending_source_retired_on_destroy() == 0);
     CHECK(test_dummy_device() == 0);
     CHECK(test_device_failure_null_fallback() == 0);
-    CHECK(test_validation_and_bounded_queue() == 0);
+    CHECK(test_validation_and_synchronous_controls() == 0);
     puts("audio tests: ok");
     return 0;
 }

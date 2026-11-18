@@ -80,9 +80,11 @@ static void overview_free(void *memory) {
 }
 
 static uint64_t overview_ticks(void) { return test_clock; }
-static void overview_delay(uint32_t ms) { test_clock += ms; }
-static void overview_wait_deadline(fd2_vga *vga) {
+static int overview_delay(uint32_t ms) { test_clock += ms; return 0;
+}
+static int overview_wait_deadline(fd2_vga *vga) {
     vga->frame_deadline_ns = vga->frame_interval_ns = 0;
+return 0;
 }
 
 static int owner_unchanged(const fd2_field_game *game,
@@ -136,18 +138,19 @@ static void overview_submit(fd2_vga *vga,uint32_t ms) {
     set_physical_frame(vga, timed_frames);
 }
 
-static void overview_present_timed(fd2_vga *vga,uint32_t ms) {
+static int overview_present_timed(fd2_vga *vga,uint32_t ms) {
     source_timed_frames++;
     if(modal_started && (timed_frames<12 || actual_close_frame))bad_free=1;
     overview_submit(vga,ms);
+return 0;
 }
-static void overview_present(fd2_vga *vga) {
+static int overview_present(fd2_vga *vga) {
     /* 每次CPU提交仍选择16ms外部耗时保原向量；finite无source timed。 */
     if(modal_started && !modal_done && (timed_frames<12 ||
             (actual_close_frame && timed_frames<actual_close_frame+12))) {
         finite_frames++;overview_submit(vga,16);
         vga->frame_deadline_ns=vga->frame_interval_ns=0;
-        return;
+        return 0;
     }
     if (route_mode && !modal_started) {
         /* 正式loop的打开帧：Enter先被action消费，Right仍待modal清除。 */
@@ -172,6 +175,7 @@ static void overview_present(fd2_vga *vga) {
         vga->input.quit_requested = 1; /* 只在下一正常呈现帧结束测试。 */
     }
     overview_wait_deadline(vga);
+return 0;
 }
 static void overview_copy_upload(fd2_vga *vga) {
     uint64_t deadline=vga->frame_deadline_ns,interval=vga->frame_interval_ns;
@@ -255,6 +259,7 @@ static int overview_take_action(fd2_input *input, fd2_input_context context,
 uint64_t overview_ticks_ns(void);
 #define SDL_GetTicksNS overview_ticks_ns
 #define fd2_delay_ms overview_delay
+#define fd2_vga_delay_ms(vga,value) overview_delay(value)
 #define fd2_vga_present overview_present
 #define fd2_vga_upload_current_frame overview_copy_upload
 #define fd2_vga_present_timed overview_present_timed
@@ -279,6 +284,7 @@ uint64_t overview_ticks_ns(void);
 #undef free
 #undef SDL_GetTicks
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_vga_upload_current_frame
 #undef fd2_vga_present
 #undef fd2_vga_present_timed

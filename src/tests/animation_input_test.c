@@ -15,15 +15,16 @@ static void animation_clear(fd2_input *input) {
     if (++clears==quit_on_clear) input->quit_requested=1;
 }
 
-static void animation_present(fd2_vga *vga) {
+static int animation_present(fd2_vga *vga) {
     foreign_presents++;
     vga->frame_deadline_ns=vga->frame_interval_ns=0;
+return 0;
 }
 static void animation_upload(fd2_vga *vga) {
     (void)vga;
     frames++;
 }
-static void animation_delay(uint32_t ms) {
+static int animation_delay(uint32_t ms) {
     now_ms += ms;
     if (frames == 1 && inject) {
         fd2_input_set_test_key_state(&screen->input,SDL_SCANCODE_RIGHT,1);
@@ -35,11 +36,13 @@ static void animation_delay(uint32_t ms) {
         fd2_input_begin_test_frame(&screen->input,++now_ms);
         if (inject_quit) screen->input.quit_requested = 1;
     }
+return 0;
 }
 
 #define fd2_vga_present animation_present
 #define fd2_vga_upload_current_frame animation_upload
 #define fd2_delay_ms animation_delay
+#define fd2_vga_delay_ms(vga,value) animation_delay(value)
 #define fd2_input_clear_keys animation_clear
 #define fd2_animation_play_hooked input_test_animation_play_hooked
 #define fd2_animation_play input_test_animation_play
@@ -47,6 +50,7 @@ static void animation_delay(uint32_t ms) {
 #undef fd2_vga_present
 #undef fd2_vga_upload_current_frame
 #undef fd2_delay_ms
+#undef fd2_vga_delay_ms
 #undef fd2_input_clear_keys
 #undef fd2_animation_play_hooked
 #undef fd2_animation_play

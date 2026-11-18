@@ -7,6 +7,7 @@
  */
 
 #include "field_effect.h"
+#include "bios_clock.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -157,6 +158,7 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
                           fd2_vga *vga,
                           fd2_field_audio *audio,
                           int timed,fd2_field_effect_frame_fn apply,void *userdata) {
+    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return -1;
     size_t required = frames ? required_snapshots(frames->effect) : 0;
     if (!frames || !frames->storage || !vga || required == 0 ||
         frames->snapshot_count != required ||
@@ -168,6 +170,7 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
         fd2_field_sfx cue;
         if (audio && fd2_field_effect_sfx(frames->effect, frame, &cue) == 0)
             (void)fd2_field_audio_play(audio, cue);
+        if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return -1;
         if (fd2_field_effect_copy_frame(vga->framebuffer, frames->snapshots,
                 frames->snapshot_count, frames->bytes_per_snapshot,
                 frames->effect, frame) != 0)
@@ -176,6 +179,7 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
         if(apply) {
             int result=apply(frames->effect,frame,
                 (size_t)fd2_field_effect_source_index(frames->effect,frame),vga,userdata);
+            if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
             if(result)return result>0?1:-1;
         }
         if(fd2_input_take_quit(&vga->input))return 1;
@@ -184,11 +188,12 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
          * upload不借上一动画的累计deadline；普通present也会等该deadline。
          * apply hook只补当前帧像素，不代本调度的原tick/ms等待。 */
         fd2_vga_upload_current_frame(vga);
+        if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
         if(fd2_input_take_quit(&vga->input))return 1;
         if (frames->effect == FD2_FIELD_EFFECT_ACTOR_GROUP_FLASH) {
             /* 1c449/1c47f：十次绝对BIOS tick门，末尾原页不再等待。 */
-            if (frame < 10) fd2_wait_ticks(1);
-        } else fd2_delay_ms(frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE ? 10u:5u);
+            if(frame<10 && fd2_vga_wait_ticks(vga,1)<0)return -1;
+        } else if(fd2_vga_delay_ms(vga,frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE ? 10u:5u)<0)return -1;
         if(fd2_input_take_quit(&vga->input))return 1;
     }
     return fd2_input_take_quit(&vga->input)?1:0;

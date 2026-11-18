@@ -116,7 +116,11 @@ typedef struct {
     const fd2_pcm_bank *letter_fly_bank;
 } fd2_title_audio;
 
-static int title_audio_play(fd2_title_audio *audio, fd2_title_sfx cue) {
+static int title_owner_failed(const fd2_vga *vga) {
+    return fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0;
+}
+static int title_audio_play(fd2_vga *vga,fd2_title_audio *audio, fd2_title_sfx cue) {
+    if(title_owner_failed(vga))return -1;
     if (!audio || !audio->bank) return -1;
     fd2_title_sfx_handle handle;
     size_t sample_index;
@@ -127,7 +131,8 @@ static int title_audio_play(fd2_title_audio *audio, fd2_title_sfx cue) {
     if (!player) return -1;
     /* 原版 primary／secondary sample handle 可同时存在；同一 handle 的
      * sfx_play 则先停止上一声再播放。 */
-    return fd2_pcm_play_replace(player, audio->bank, sample_index, 1, FD2_GAME_SFX_DEFAULT_GAIN);
+    int result=fd2_pcm_play_replace(player, audio->bank, sample_index, 1, FD2_GAME_SFX_DEFAULT_GAIN);
+    return title_owner_failed(vga)?-1:result;
 }
 
 static void title_letter_fly_audio_on_frame(void *userdata,
@@ -145,11 +150,13 @@ static void title_letter_fly_audio_on_frame(void *userdata,
                                1, FD2_GAME_SFX_DEFAULT_GAIN);
 }
 
-static void title_letter_fly_audio_stop(fd2_title_audio *audio) {
-    if (!audio || !audio->primary_player) return;
+static int title_letter_fly_audio_stop(fd2_vga *vga,fd2_title_audio *audio) {
+    if(title_owner_failed(vga))return -1;
+    if (!audio || !audio->primary_player) return 0;
     /* animation_play @code0 0x10586..0x1059a：ANI[1] 正常结束或被按键
      * 跳过后，使用同一 primary handle 的 index -1 停止飞入声。 */
-    (void)fd2_pcm_stop(audio->primary_player);
+    int result=fd2_pcm_stop(audio->primary_player);
+    return title_owner_failed(vga)?-1:result;
 }
 
 /* res_load @0x111ba：从 FDOTHER[idx] 加载 768 字节 6-bit RGB 调色板。 */
@@ -249,12 +256,14 @@ static void title_animation_palette_frame(void *userdata,uint16_t frame) {
 }
 static int title_animation_play(fd2_vga *vga,int index,uint32_t delay,int check_input,
         fd2_animation_frame_hook hook,void *userdata) {
-    if(!vga)return -1;
+    if(!vga || title_owner_failed(vga))return -1;
     title_animation_palette_owner owner={0};owner.vga=vga;
     memcpy(owner.palette,vga->palette,768);memcpy(owner.dac,vga->dac,768);
     owner.caller_hook=hook;owner.caller_userdata=userdata;
     int result=fd2_animation_play_hooked(vga,&g_ani,index,delay,check_input,
         title_animation_palette_frame,&owner);
+    /* 输出失败保实际已达色区/像素，不把宿主停止冒成正常原调用返回。 */
+    if(title_owner_failed(vga))return -1;
     /* decode失败可以已有像素/FIFO前缀；只归还本caller借出的两份色区。 */
     memcpy(vga->palette,owner.palette,768);memcpy(vga->dac,owner.dac,768);
     return result;
@@ -295,8 +304,12 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     /* main @0x25bf4 体内 0x25db1: music_track_play(18, 0) 紧接着调用
      * title_action_dispatch @0x25ebb，后者第一步进入 boot_intro_title_menu。
      * 片头和标题共用循环 track 18，标题入口不切曲。 */
-    if (bgm && fd2_bgm_play(bgm, 18, 0) != 0)
-        fprintf(stderr, "cannot play startup BGM track 18\n");
+    if(title_owner_failed(vga))goto resource_error;
+    if (bgm) {
+        int music_result=fd2_bgm_play(bgm,18,0);
+        if(title_owner_failed(vga))goto resource_error;
+        if(music_result!=0)fprintf(stderr,"cannot play startup BGM track 18\n");
+    }
     if (!play_intro) goto title_screen;
     /* === 阶段1: 片头初始画面 === */
     /* 反编译精确顺序:
@@ -334,8 +347,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
 
     /* FUN_000151f1(1) + FUN_000151f1(0x1e): 等 1+30 ticks (~1.7s) */
-    fd2_wait_ticks(1);
-    fd2_wait_ticks(0x1e);
+    if(fd2_vga_wait_ticks(vga,1)<0)goto resource_error;
+    if(fd2_vga_wait_ticks(vga,0x1e)<0)goto resource_error;
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40, 亮->暗, 64步x2ms) */
     faded = fd2_scene_palette_fade(vga, 0, 0);
@@ -522,8 +535,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                     goto resource_error;
                 }
                 /* 等 1+6 tick (FUN_000151f1) */
-                fd2_wait_ticks(1);
-                fd2_wait_ticks(6);
+                if(fd2_vga_wait_ticks(vga,1)<0 || fd2_vga_wait_ticks(vga,6)<0) { free(offscreen);goto resource_error; }
                 faded = fd2_scene_palette_fade(vga, 0, 0);
                 if (faded != FD2_SCENE_RESULT_OK) {
                     free(offscreen);
@@ -553,8 +565,10 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
              * 阈值并以 primary handle 重启 FDOTHER[77] SFX 0。该顺序在
              * scroll_y==110 时尤其重要：原版先播放 ANI[8]，恢复滚动画面
              * 后才重新开始飞行声。 */
-            if (fd2_title_flight_sfx_for_scroll_y(scroll_y))
-                (void)title_audio_play(title_audio, FD2_TITLE_SFX_FLIGHT);
+            if(fd2_title_flight_sfx_for_scroll_y(scroll_y) &&
+               title_audio_play(vga,title_audio,FD2_TITLE_SFX_FLIGHT)<0 && title_owner_failed(vga)) {
+                free(offscreen);goto resource_error;
+            }
 
             /* code0 0xfbd9..0xfc37：全部 14 个有效滚动音效阈值开始闪电
              * 状态，local_4c 从 0 逐帧递增至 11 才恢复 FDOTHER[101]。
@@ -571,10 +585,10 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             }
 
             fd2_vga_upload_current_frame(vga);
-            fd2_delay_ms(FD2_TITLE_SCROLL_DELAY_MS); /* 原版 delay_ms(30) */
+            if(fd2_vga_delay_ms(vga,FD2_TITLE_SCROLL_DELAY_MS)<0) { free(offscreen);goto resource_error; } /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
-            if (scroll_y == 0) fd2_delay_ms(1000);
+            if(scroll_y==0 && fd2_vga_delay_ms(vga,1000)<0) { free(offscreen);goto resource_error; }
 
             /* 原10620仅peek；跳过仍进入LABEL_32淡出／100ms／clear。 */
             if (fd2_input_take_quit(&vga->input)) {
@@ -591,9 +605,9 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     for (int step = 0x28; step >= 0; step--) {
         fd2_vga_palette_fade_to(vga, 0, step, 0x3f, 0, 0);
         fd2_vga_upload_current_frame(vga);
-        fd2_delay_ms(8);
+        if(fd2_vga_delay_ms(vga,8)<0)goto resource_error;
     }
-    fd2_delay_ms(100);
+    if(fd2_vga_delay_ms(vga,100)<0)goto resource_error;
     fd2_input_clear_keys(&vga->input);
     if (fd2_input_take_quit(&vga->input)) goto host_quit;
 
@@ -625,12 +639,13 @@ title_screen:
         animation_result = title_animation_play(
             vga, 1, FD2_TITLE_ANIM_DELAY_FAST_MS, 1,
             title_letter_fly_audio_on_frame, title_audio);
-        title_letter_fly_audio_stop(title_audio);
+        if(title_owner_failed(vga))goto resource_error;
+        if(title_letter_fly_audio_stop(vga,title_audio)<0 && title_owner_failed(vga))goto resource_error;
         if (animation_result == -2) goto host_quit;
         if (animation_result < 0) goto resource_error;
         /* boot_intro_title_menu @0x1f894：标题 ANI 结束后，以 secondary
          * sample handle 播放同一 FDOTHER[77] 的 SFX 3，再开始渐变。 */
-        (void)title_audio_play(title_audio, FD2_TITLE_SFX_ENTER);
+        if(title_audio_play(vga,title_audio,FD2_TITLE_SFX_ENTER)<0 && title_owner_failed(vga))goto resource_error;
         fd2_vga_set_palette(vga, pal);
 
         /* boot_intro_title_menu @0x1f894：此处为11df2(0,255,64)全白，
@@ -649,12 +664,13 @@ title_screen:
             for (int step = 0; step < 0x29; step++) {
                 fd2_vga_palette_fade_to(vga, 0, step, 0x38, 0x3c, 0x3f);
                 fd2_vga_upload_current_frame(vga);
-                fd2_delay_ms(8);
+                if(fd2_vga_delay_ms(vga,8)<0) { fd2_image_free(&img_title);goto resource_error; }
             }
             /* 确保完整调色板 */
             fd2_vga_set_palette(vga, pal);
             fd2_vga_upload_current_frame(vga);
             fd2_image_free(&img_title);
+            if(title_owner_failed(vga))goto resource_error;
         } else {
             goto resource_error;
         }
@@ -706,6 +722,7 @@ title_screen:
         (void)fd2_title_draw_menu_frame(menu_count, selection, 1,
                                         draw_title_menu_item, &title_draw);
         fd2_vga_upload_current_frame(vga);
+        if(title_owner_failed(vga))goto resource_error;
 
         if (fd2_input_take_quit(&vga->input)) {
             selection = FD2_TITLE_ACTION_HOST_QUIT;
@@ -722,20 +739,20 @@ title_screen:
             }
             if (fd2_input_take_action(&vga->input, FD2_INPUT_CONTEXT_TITLE,
                                       &action)) break;
-            fd2_delay_ms(1);
+            if(fd2_vga_delay_ms(vga,1)<0)goto resource_error;
         }
         if (selection == FD2_TITLE_ACTION_HOST_QUIT) break;
         switch (action) {
             case FD2_INPUT_ACTION_UP:
-                (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
+                if(title_audio_play(vga,title_audio,FD2_TITLE_SFX_MOVE)<0 && title_owner_failed(vga))goto resource_error;
                 selection = selection > 0 ? selection - 1 : menu_count - 1;
                 break;
             case FD2_INPUT_ACTION_DOWN:
-                (void)title_audio_play(title_audio, FD2_TITLE_SFX_MOVE);
+                if(title_audio_play(vga,title_audio,FD2_TITLE_SFX_MOVE)<0 && title_owner_failed(vga))goto resource_error;
                 selection = selection + 1 < menu_count ? selection + 1 : 0;
                 break;
             case FD2_INPUT_ACTION_CONFIRM:
-                (void)title_audio_play(title_audio, FD2_TITLE_SFX_CONFIRM);
+                if(title_audio_play(vga,title_audio,FD2_TITLE_SFX_CONFIRM)<0 && title_owner_failed(vga))goto resource_error;
                 menu_done = 1;
                 break;
             default:
@@ -752,7 +769,7 @@ title_screen:
             (void)fd2_title_draw_menu_frame(menu_count, selection, highlight,
                                             draw_title_menu_item, &title_draw);
             fd2_vga_upload_current_frame(vga);
-            fd2_delay_ms(FD2_TITLE_CONFIRM_FLASH_DELAY_MS);
+            if(fd2_vga_delay_ms(vga,FD2_TITLE_CONFIRM_FLASH_DELAY_MS)<0)goto resource_error;
             if (fd2_input_take_quit(&vga->input)) {
                 selection = FD2_TITLE_ACTION_HOST_QUIT;
                 break;
@@ -770,7 +787,8 @@ title_screen:
     goto done;
 
 resource_error:
-    fprintf(stderr, "cannot load title resources\n");
+    if(fd2_bios_clock_error())fprintf(stderr,"标题时钟推进失败：%d\n",fd2_bios_clock_error());
+    else fprintf(stderr,"标题流程失败\n");
     goto done;
 host_quit:
     result = FD2_TITLE_ACTION_HOST_QUIT;
@@ -824,7 +842,7 @@ static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
     while (running) {
         fd2_terrain_render_field_preview(vga, &terrain, &map,
                                          camera_x, camera_y, anim_phase);
-        fd2_vga_present(vga);
+        if(fd2_vga_present(vga)<0)goto done;
         if (once) break;
 
         if (fd2_input_take_quit(&vga->input)) running = 0;
@@ -852,7 +870,7 @@ static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
                     break;
             }
         }
-        fd2_delay_ms(33);
+        if(fd2_vga_delay_ms(vga,33)<0)goto done;
     }
     result = 0;
 
@@ -1026,11 +1044,13 @@ int main(int argc, char **argv) {
 
     fd2_audio *audio = NULL;
     fd2_bgm_player *bgm = NULL;
+    int rc = 0;
     fd2_pcm_bank ui_sfx_bank = {0};
     fd2_pcm_bank title_sfx_bank = {0};
     fd2_pcm_bank title_letter_fly_sfx_bank = {0};
     fd2_pcm_bank battle_sfx_bank = {0};
     fd2_pcm_bank arrival_sfx_bank = {0};
+    fd2_pcm_driver pcm_driver = {0};
     fd2_pcm_player pcm_player = {0};
     fd2_pcm_player secondary_pcm_player = {0};
     fd2_field_audio field_audio = {0};
@@ -1044,8 +1064,17 @@ int main(int argc, char **argv) {
          * 降级为 discard null backend，而不是无人消费的 offline backend。 */
         .open_device = 1,
         .allow_null = 1,
+        .original_mixer = 1,
     };
+    /* AIL建立一次，早于MDI→DIG；H完成调用边界把program0后的完整PIT
+     * 计数显式设为65536，真实安装CPU耗时/首IRQ相位仍须原版资格。 */
+    if (fd2_bios_clock_ail_attach(SDL_GetTicksNS(), 65536u) != 0) {
+        fprintf(stderr, "AIL时钟初始化失败\n");
+        rc = -1;
+        goto cleanup;
+    }
     audio = fd2_audio_create(&audio_config);
+    if(title_owner_failed(&vga)){rc=-1;goto cleanup;}
     if (audio) {
         fd2_bgm_config bgm_config = {
             .fdmus_path = "original_game/FDMUS.DAT",
@@ -1053,6 +1082,7 @@ int main(int argc, char **argv) {
             .sample_rate = 48000,
         };
         bgm = fd2_bgm_create(audio, &bgm_config);
+        if(title_owner_failed(&vga)){rc=-1;goto cleanup;}
         if (!bgm)
             fprintf(stderr, "BGM: cannot open FDMUS.DAT/SAMPLE.AD\n");
     }
@@ -1064,8 +1094,10 @@ int main(int argc, char **argv) {
         fd2_pcm_bank_open(&battle_sfx_bank, &g_fdother, 80) == 0 &&
         fd2_pcm_bank_open(&arrival_sfx_bank, &g_fdother,
                           FD2_FIELD_SFX_BANK_ARRIVAL) == 0 &&
-        fd2_pcm_player_init(&pcm_player, audio, 11025) == 0 &&
-        fd2_pcm_player_init(&secondary_pcm_player, audio, 11025) == 0) {
+        fd2_pcm_driver_init(&pcm_driver, audio) == 0 &&
+        !title_owner_failed(&vga) &&
+        fd2_pcm_player_init_shared(&pcm_player, &pcm_driver, 0, 11025) == 0 &&
+        fd2_pcm_player_init_shared(&secondary_pcm_player, &pcm_driver, 1, 11025) == 0) {
         fd2_field_audio_init(&field_audio, &pcm_player,
                              &ui_sfx_bank, &battle_sfx_bank,
                              &arrival_sfx_bank);
@@ -1093,10 +1125,11 @@ int main(int argc, char **argv) {
     }
 
     /* main @0x25bf4 的0x25d83：标题前读BIOS，随后才建立共享随机流。 */
-    vga.field_visual.actor_idle_tick=(uint32_t)fd2_bios_tick_signed_ns(SDL_GetTicksNS());
+    uint64_t actor_clock_ns;
+    if(fd2_vga_observe_checked(&vga,SDL_GetTicksNS(),&actor_clock_ns)<0) { rc=-1;goto cleanup; }
+    vga.field_visual.actor_idle_tick=(uint32_t)fd2_bios_tick_signed_ns(actor_clock_ns);
     fd2_field_play_context app_context;
     fd2_field_play_context_init(&app_context, bgm);
-    int rc = 0;
     if (map_preview || map_preview_once) {
         rc = run_map_preview(&vga, map_preview_once, preview_stage);
     } else if (field_preview || field_preview_once) {
@@ -1208,10 +1241,35 @@ application_title:
     }
 
 cleanup:
+    /* 原DIG306有源Reset/虚拟owner恢复，先于终结IRQ与释放借用。 */
+    if(fd2_pcm_driver_quiesce(&pcm_driver)!=0)rc=-1;
+    /* bank/安装前失败仍有Audio/BGM owner，也先关闭其当前源前缀。 */
+    if(audio && !pcm_driver.audio && fd2_audio_quiesce_dig(audio)!=0)rc=-1;
+    if(title_owner_failed(&vga))rc=-1;
+    /* App终态先禁止下一IRQ/输出前缀借用，再释放原driver userdata。
+     * release保pending的原写集；不把设备错误/Load/START当clock关闭。 */
+    if(fd2_bios_clock_close()!=0) {
+        /* 未归还的源栈借用不能继续释放其userdata。先停止SDL设备/窗口，
+         * 保所有被借对象至进程退出；仅灾难性宿主错误，不伪签清理成功。 */
+        fprintf(stderr,"App时钟关闭失败，停止宿主且保留被借对象\n");
+        SDL_Quit();return 1;
+    }
+    /* 仅测试capture环境记录同一Audio全生命周期；不是WAV窗口/可听推算。
+     * quiesce/clock_close之后不再提交，getter自身不查询设备或推进时间。 */
+    const char *transport_capture=SDL_GetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR");
+    if(audio && transport_capture && *transport_capture) {
+        fd2_audio_transport_stats stats;
+        if(fd2_audio_get_transport_stats(audio,&stats)==0)
+            printf("audio transport v1: first_error=%d queue_samples=%llu queue_peak_bytes=%llu successful_puts=%llu backlog_drop_chunks=%llu\n",
+                (int)stats.first_error,(unsigned long long)stats.queue_samples,
+                (unsigned long long)stats.queue_peak_bytes,(unsigned long long)stats.successful_puts,
+                (unsigned long long)stats.backlog_drop_chunks);
+    }
     /* BGM/audio source 借用 FDMUS/FDOTHER 数据。先停止 device 并 retire，
      * 再释放 sequence、bank 和 archive。 */
     fd2_audio_destroy(audio);
     fd2_bgm_destroy(bgm);
+    fd2_pcm_driver_close(&pcm_driver);
     fd2_pcm_player_close(&secondary_pcm_player);
     fd2_pcm_player_close(&pcm_player);
     fd2_pcm_bank_close(&arrival_sfx_bank);

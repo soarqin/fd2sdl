@@ -9,6 +9,7 @@
 #include "field_page_private.h"
 
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"field_visual_live:%d: %s\n",__LINE__,#x);exit(1);}}while(0)
+static fd2_vga live_output_owner; /* 独立无设备的输出owner，不改变原数值golden。 */
 static uint64_t clock_samples[8];
 static size_t clock_count,clock_at;
 static void (*observe_read)(size_t);
@@ -80,20 +81,20 @@ static void actor_before_wrap_anchor(size_t read) {
 }
 static void test_actor_reads(void) {
     memset(&visual,0,sizeof(visual));CLOCK(5,6);observe_read=actor_before_anchor;
-    CHECK(fd2_field_visual_actor_step_live(&visual)==1 && clock_at==2);
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==1 && clock_at==2);
     CHECK(visual.actor_idle_phase==1 && visual.actor_idle_tick==6 && visual.cursor_phase==1);
-    CLOCK(10,10);CHECK(fd2_field_visual_actor_step_live(&visual)==1 && clock_at==2);
+    CLOCK(10,10);CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==1 && clock_at==2);
     CHECK(visual.actor_idle_phase==1 && visual.actor_idle_tick==6 && visual.cursor_phase==2);
     /* 首>4不成立时第二读只检查<0；不能改成第二读也检查>4。 */
     memset(&visual,0,sizeof(visual));CLOCK(0,5);
-    CHECK(fd2_field_visual_actor_step_live(&visual)==1 && clock_at==2);
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==1 && clock_at==2);
     CHECK(!visual.actor_idle_phase && !visual.actor_idle_tick && visual.cursor_phase==1);
     visual.actor_idle_tick=32767;visual.cursor_phase=0;CLOCK(32767,32768,32769);
     observe_read=actor_before_wrap_anchor;
-    CHECK(fd2_field_visual_actor_step_live(&visual)==1 && clock_at==3);
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==1 && clock_at==3);
     CHECK(visual.actor_idle_tick==0xffff8001u && visual.actor_idle_phase==1 && visual.cursor_phase==1);
     memset(&visual,0,sizeof(visual));CLOCK(500,501);
-    CHECK(fd2_field_visual_actor_step_live(&visual)==1 && visual.actor_idle_phase==1 && visual.actor_idle_tick==501);
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==1 && visual.actor_idle_phase==1 && visual.actor_idle_tick==501);
 }
 
 static void terrain_before_anchor(size_t read) {
@@ -105,23 +106,23 @@ static void range_before_anchor(size_t read) {
 static void test_tiles_reads(void) {
     memset(&visual,0,sizeof(visual));visual.terrain_tick=9;visual.range_phase=19;
     CLOCK(10,11);observe_read=terrain_before_anchor;
-    CHECK(fd2_field_visual_tiles_step_live(&visual,7)==1 && clock_at==2);
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,7)==1 && clock_at==2);
     CHECK(visual.terrain_tick==11 && visual.terrain_phase==1 && visual.range_phase==7 && !visual.range_tick);
     memset(&visual,0,sizeof(visual));visual.terrain_tick=10;CLOCK(10,3,4);observe_read=range_before_anchor;
-    CHECK(fd2_field_visual_tiles_step_live(&visual,-1)==1 && clock_at==3);
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==1 && clock_at==3);
     CHECK(visual.range_phase==1 && visual.range_tick==4);
-    CLOCK(10,6,6);CHECK(fd2_field_visual_tiles_step_live(&visual,-1)==0 && clock_at==3);
+    CLOCK(10,6,6);CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==0 && clock_at==3);
     CHECK(visual.range_phase==1 && visual.range_tick==4);
     visual.range_tick=32767;visual.range_phase=19;CLOCK(10,32767,32768,32769);
-    CHECK(fd2_field_visual_tiles_step_live(&visual,-1)==1 && clock_at==4);
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==1 && clock_at==4);
     CHECK(!visual.range_phase && visual.range_tick==0xffff8001u);
     /* 分离叶供真实11eee夹入背景，不读写另一门或actor/cursor owner。 */
     memset(&visual,0,sizeof(visual));visual.terrain_tick=9;visual.range_tick=30;
-    CLOCK(10,11);CHECK(fd2_field_visual_terrain_step_live(&visual)==1 && clock_at==2);
+    CLOCK(10,11);CHECK(fd2_field_visual_terrain_step_live(&live_output_owner,&visual)==1 && clock_at==2);
     CHECK(visual.terrain_tick==11 && !visual.range_phase && visual.range_tick==30 && !visual.cursor_phase);
-    CLOCK(33,34);CHECK(fd2_field_visual_range_step_live(&visual,-1)==1 && clock_at==2);
+    CLOCK(33,34);CHECK(fd2_field_visual_range_step_live(&live_output_owner,&visual,-1)==1 && clock_at==2);
     CHECK(visual.range_tick==34 && visual.terrain_tick==11 && visual.terrain_phase==1 && !visual.cursor_phase);
-    set_clock(NULL,0);CHECK(fd2_field_visual_range_step_live(&visual,7)==1 && !clock_at);
+    set_clock(NULL,0);CHECK(fd2_field_visual_range_step_live(&live_output_owner,&visual,7)==1 && !clock_at);
     CHECK(visual.range_phase==7 && visual.range_tick==34);
 }
 
@@ -171,13 +172,13 @@ static void test_fixed_and_rejected_paths(void) {
     CHECK(fd2_field_water_tick(&vga,tick_ns(5))==1 && vga.field_water_last_tick==5);
     CHECK(!clock_at); /* 固定now向量不从真实时钟偷取第二个值。 */
     visual.actor_idle_phase=4;fd2_field_visual_state old=visual;
-    CHECK(fd2_field_visual_actor_step_live(&visual)==-1 && !memcmp(&old,&visual,sizeof(old)));
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,&visual)==-1 && !memcmp(&old,&visual,sizeof(old)));
     visual.actor_idle_phase=0;visual.range_phase=20;old=visual;
-    CHECK(fd2_field_visual_tiles_step_live(&visual,-1)==-1 && !memcmp(&old,&visual,sizeof(old)));
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==-1 && !memcmp(&old,&visual,sizeof(old)));
     visual.range_phase=0;old=visual;
-    CHECK(fd2_field_visual_tiles_step_live(&visual,20)==-1 && !memcmp(&old,&visual,sizeof(old)));
-    CHECK(fd2_field_visual_actor_step_live(NULL)==-1 && fd2_field_visual_tiles_step_live(NULL,-1)==-1);
-    CHECK(fd2_field_visual_terrain_step_live(NULL)==-1 && fd2_field_visual_range_step_live(NULL,-1)==-1);
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,20)==-1 && !memcmp(&old,&visual,sizeof(old)));
+    CHECK(fd2_field_visual_actor_step_live(&live_output_owner,NULL)==-1 && fd2_field_visual_tiles_step_live(&live_output_owner,NULL,-1)==-1);
+    CHECK(fd2_field_visual_terrain_step_live(&live_output_owner,NULL)==-1 && fd2_field_visual_range_step_live(&live_output_owner,NULL,-1)==-1);
     vga.actor_jitter_phase=2;vga_before=vga;
     CHECK(fd2_field_actor_visual_tick_live(&vga)==-1 && !memcmp(&vga,&vga_before,sizeof(vga)));
     vga.field_water_phase=16;vga_before=vga;
@@ -215,38 +216,38 @@ static void scroll_before_anchor(size_t read) {
 }
 static void test_background_reads(void) {
     setup_background(BACKGROUND_WAVE);CLOCK(10,11);observe_read=wave_before_anchor;
-    CHECK(fd2_field_background_draw_from_live(&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
+    CHECK(fd2_field_background_draw_from_live(&live_output_owner,&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
     CHECK(owner.background.last_tick==11 && owner.background.phase==1 && !target.background.kind);
     CHECK(target.pixels[72u*456u+72u]==background_source[2]);
-    CLOCK(11);CHECK(fd2_field_background_draw_from_live(&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==1);
+    CLOCK(11);CHECK(fd2_field_background_draw_from_live(&live_output_owner,&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==1);
     CHECK(owner.background.last_tick==11 && owner.background.phase==1);
     setup_background(BACKGROUND_WAVE);owner.background.last_tick=32767;
     CLOCK(32768,32769);
-    CHECK(fd2_field_background_draw_from_live(&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
+    CHECK(fd2_field_background_draw_from_live(&live_output_owner,&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
     CHECK(owner.background.last_tick==0xffff8001u && owner.background.phase==1);
     setup_background(BACKGROUND_WAVE);CLOCK(18181,18182);
-    CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==0 && owner.background.phase==1 && clock_at==2);
+    CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==0 && owner.background.phase==1 && clock_at==2);
     setup_background(BACKGROUND_SCROLL);
     for(size_t row=0;row<192;row++)memset(background_source+row*312,(int)row,312);
     CLOCK(10,11);observe_read=scroll_before_anchor;
-    CHECK(fd2_field_background_draw_from_live(&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
+    CHECK(fd2_field_background_draw_from_live(&live_output_owner,&owner,&target,72,72,0,0,0,0,1)==0 && clock_at==2);
     CHECK(owner.background.last_tick==11 && target.pixels[72u*456u+72u]==191);
-    CLOCK(11);CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==0 && clock_at==1);
+    CLOCK(11);CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==0 && clock_at==1);
     CHECK(owner.background.last_tick==11 && background_source[0]==191);
 }
 static void test_background_no_read_and_failure(void) {
     setup_background(BACKGROUND_WAVE);set_clock(NULL,0);
-    CHECK(fd2_field_background_draw_from_live(&owner,&target,72,72,0,0,0,0,0)==0 && !clock_at);
+    CHECK(fd2_field_background_draw_from_live(&live_output_owner,&owner,&target,72,72,0,0,0,0,0)==0 && !clock_at);
     CHECK(fd2_field_background_draw(&owner,72,72,0,0,0,0,tick_ns(10),1)==0 && !clock_at);
     CHECK(owner.background.last_tick==10 && owner.background.phase==1);
     owner.background.work=NULL;fd2_field_background_state old=owner.background;
-    CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==-1 && !memcmp(&old,&owner.background,sizeof(old)));
-    CHECK(fd2_field_background_draw_from_live(NULL,&target,72,72,0,0,0,0,1)==-1);
-    setup_background(BACKGROUND_NONE);CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==0 && !clock_at);
-    setup_background(BACKGROUND_PARALLAX);CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==0 && !clock_at);
-    CHECK(fd2_field_background_draw_live(&owner,-1,72,0,0,0,0,1)==-1 && !clock_at);
+    CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==-1 && !memcmp(&old,&owner.background,sizeof(old)));
+    CHECK(fd2_field_background_draw_from_live(&live_output_owner,NULL,&target,72,72,0,0,0,0,1)==-1);
+    setup_background(BACKGROUND_NONE);CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==0 && !clock_at);
+    setup_background(BACKGROUND_PARALLAX);CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==0 && !clock_at);
+    CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,-1,72,0,0,0,0,1)==-1 && !clock_at);
     setup_background(BACKGROUND_SCROLL);owner.background.scroll_speed=193;old=owner.background;CLOCK(10);
-    CHECK(fd2_field_background_draw_live(&owner,72,72,0,0,0,0,1)==-1 && clock_at==1);
+    CHECK(fd2_field_background_draw_live(&live_output_owner,&owner,72,72,0,0,0,0,1)==-1 && clock_at==1);
     CHECK(!memcmp(&old,&owner.background,sizeof(old)));
 }
 

@@ -76,18 +76,25 @@ static int sheet_checks(fd2_archive *archive) {
     CHECK(fd2_scene_cinematic_sheet_info(scope,1,&count,&intro)==0 && count>=109);
     CHECK(fd2_scene_cinematic_sheet_open(scope,2,58)==0);
     CHECK(fd2_scene_cinematic_sheet_info(scope,2,&count,&intro)==0 && count>=20);
-    fd2_pcm_player player={0};player.audio=(fd2_audio *)(uintptr_t)1;player.enabled=0;
+    /* 仅shared disabled早门的合成binding；不借legacy enabled假称正式门。
+     * Audio sentinel不得被sync／资源／stop解引用，无设备／真实IRQ。 */
+    fd2_pcm_driver driver={0};fd2_audio_dig_init(&driver.dig);
+    driver.audio=(fd2_audio *)(uintptr_t)1;driver.dig.attached=1;driver.dig.enabled=0;
+    fd2_pcm_player player={0};CHECK(fd2_pcm_player_init_shared(&player,&driver,0,11025)==0);
     fd2_field_audio audio={0};audio.player=&player;
-    fd2_field_audio saved_audio=audio;fd2_pcm_player saved_player=player;
+    fd2_field_audio saved_audio=audio;fd2_pcm_player saved_player=player;fd2_pcm_driver saved_driver=driver;
     CHECK(fd2_scene_cinematic_audio_open(scope,81)==-1);
     CHECK(fd2_scene_cinematic_audio_open(scope,88)==0);
     CHECK(fd2_scene_cinematic_audio_play(scope,&audio,0)==-1);
     CHECK(fd2_scene_cinematic_audio_play(scope,&audio,1)==0);
     CHECK(fd2_scene_cinematic_audio_close(scope,&audio)==0);
-    CHECK(!memcmp(&audio,&saved_audio,sizeof(audio)) && !memcmp(&player,&saved_player,sizeof(player)));
+    CHECK(!memcmp(&audio,&saved_audio,sizeof(audio)) && !memcmp(&player,&saved_player,sizeof(player)) &&
+          !memcmp(&driver,&saved_driver,sizeof(driver)));
     CHECK(fd2_field_audio_play_borrowed_bank(&audio,NULL,1,1)==0);
     CHECK(fd2_field_audio_play_borrowed_bank(&audio,NULL,-1,1)==0);
     CHECK(fd2_field_audio_play_borrowed_bank(&audio,NULL,-2,1)==-1);
+    CHECK(!memcmp(&audio,&saved_audio,sizeof(audio)) && !memcmp(&player,&saved_player,sizeof(player)) &&
+          !memcmp(&driver,&saved_driver,sizeof(driver)));
     fd2_scene_cinematic_close(&scope);free(vga);return 0;
 }
 

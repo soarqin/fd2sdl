@@ -11,6 +11,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "audio_probe_output.h"
+#include "audio_clock_fixture.h"
 
 static int word(FILE *out, unsigned value) {
     unsigned char bytes[2]={(unsigned char)value,(unsigned char)(value>>8)};
@@ -38,10 +39,11 @@ int main(int argc,char **argv) {
     fd2_audio_config ac={44100,0,1};
     fd2_bgm_config bc={"original_game/FDMUS.DAT","original_game/SAMPLE.AD",44100,0};
     fd2_audio *audio=fd2_audio_create(&ac);
-    fd2_bgm_player *bgm=audio ? fd2_bgm_create(audio,&bc) : NULL;
+    fd2_bgm_player *bgm=audio && fd2_test_audio_clock_prepare(audio)==0 ? fd2_bgm_create(audio,&bc) : NULL;
     FILE *out=NULL;
     int result=1;
-    if(!bgm || !fd2_bgm_track_valid(bgm,track) || fd2_bgm_play(bgm,track,0)!=0) goto done;
+    if(!bgm || fd2_test_audio_clock_after_mdi(audio)!=0 ||
+       !fd2_bgm_track_valid(bgm,track) || fd2_bgm_play(bgm,track,0)!=0) goto done;
     out=fd2_probe_output_open(destination,0);
     unsigned frames=(unsigned)seconds*44100;
     if(!out || header(out,frames)!=0) goto done;
@@ -59,10 +61,11 @@ int main(int argc,char **argv) {
         rendered+=count;
     }
     if(fflush(out)!=0 || ferror(out)) goto done;
-    printf("{\"track\":%lu,\"seconds\":%lu,\"rate\":44100,\"channels\":2,\"bits\":16,\"logical_voices\":20,\"opl_channels\":18,\"loop\":0,\"offline\":true}\n",track,seconds);
+    printf("{\"schema\":\"fd2-offline-bgm-wav-v2\",\"logic_owner\":\"main-thread\",\"clock_source\":\"shared-bios-ail-pit\",\"timer_profile_us\":[8333,5000,54925],\"initial_phase_qualified\":false,\"callback_timing_model\":\"instantaneous-no-cpu\",\"track\":%lu,\"seconds\":%lu,\"rate\":44100,\"channels\":2,\"bits\":16,\"logical_voices\":20,\"opl_channels\":18,\"loop\":0,\"offline\":true}\n",track,seconds);
     result=0;
 done:
     if(out && fclose(out)!=0) result=1;
+    (void)fd2_bios_clock_close();
     fd2_audio_destroy(audio);
     fd2_bgm_destroy(bgm);
     fd2_probe_outputs_close(destination);

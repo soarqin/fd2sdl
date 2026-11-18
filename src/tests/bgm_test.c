@@ -1,4 +1,5 @@
 #include "bgm.h"
+#include "audio_clock_fixture.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -31,6 +32,7 @@ int main(void) {
     };
     fd2_audio *audio = fd2_audio_create(&audio_config);
     CHECK(audio != NULL);
+    CHECK(fd2_test_audio_clock_prepare(audio)==0);
 
     fd2_bgm_config config = {
         .fdmus_path = "original_game/FDMUS.DAT",
@@ -41,6 +43,7 @@ int main(void) {
     };
     fd2_bgm_player *bgm = fd2_bgm_create(audio, &config);
     CHECK(bgm != NULL);
+    CHECK(fd2_test_audio_clock_after_mdi(audio)==0);
     CHECK(fd2_bgm_track_count(bgm) == 20);
     CHECK(!fd2_bgm_track_valid(bgm, 0));
     CHECK(fd2_bgm_track_valid(bgm, 1));
@@ -79,6 +82,7 @@ int main(void) {
     CHECK(fd2_bgm_current_track(bgm) == -1);
 
     /* destroy 顺序与 main 相同：audio retire 后才能释放 BGM source。 */
+    CHECK(fd2_bios_clock_close()==0);
     fd2_audio_destroy(audio);
     fd2_bgm_destroy(bgm);
     puts("bgm_test: ok");

@@ -30,12 +30,15 @@
 #define VGA_STRIDE 320       /* 0x140, 反编译中每行字节数 */
 #define VGA_PALETTE_SIZE 768 /* 256 * 3 */
 
+enum {FD2_VGA_OUTPUT_CREATE=-1,FD2_VGA_OUTPUT_LOCK=-2,FD2_VGA_OUTPUT_PITCH=-3,
+      FD2_VGA_OUTPUT_RENDER=-4,FD2_VGA_OUTPUT_PRESENT=-5};
 typedef struct {
     uint8_t  framebuffer[VGA_W * VGA_H]; /* 索引像素，对应 0xa0000 */
     uint8_t  palette[VGA_PALETTE_SIZE];  /* 当前调色板(6-bit)，对应 DAT_00003a65 */
     uint8_t  dac[VGA_PALETTE_SIZE];      /* 当前 DAC 输出(8-bit)，palette_expand 后 */
     SDL_Renderer *renderer;
     SDL_Texture   *texture;              /* ARGB8888 流式纹理 */
+    int output_error; /* 此真实SDL输出owner的首错；离屏对象不借终端。 */
     fd2_input input;                     /* 唯一 SDL 键缓存/held/repeat owner */
     uint64_t frame_deadline_ns;          /* 宿主端绝对帧截止时间 */
     uint64_t frame_interval_ns;
@@ -100,17 +103,19 @@ int32_t fd2_vga_bios_tick_elapsed(uint16_t start, uint16_t now);
 void fd2_vga_palette_fade_to(fd2_vga *vga, int start, int steps,
                                uint8_t r, uint8_t g, uint8_t b);
 
+/* 下列有时钟/等待的int接口0保旧行为，负数为失败；HOST仍由input owner读，
+ * 不把时钟/输出错误翻译为HOST。movement的既有HOST=1合同单列。 */
 /* 呈现当前 framebuffer，由同input owner归档到达键并采样repeat；
  * 不清除跨帧未读项。 */
-void fd2_vga_present(fd2_vga *vga);
+int fd2_vga_present(fd2_vga *vga);
 /* 同一游戏帧内刷新已改的glyph/mouth像素；不采键、推进时钟或新增等待。 */
 void fd2_vga_upload_current_frame(fd2_vga *vga);
 
 /* 按绝对 deadline 呈现并等待下一帧，避免把本帧渲染耗时叠加到间隔。 */
-void fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
+int fd2_vga_present_timed(fd2_vga *vga, uint32_t frame_ms);
 /* 等待 timed present 已登记的最后一个 deadline，并结束该时间序列；
  * 不重复上传或呈现 framebuffer。 */
-void fd2_vga_wait_frame_deadline(fd2_vga *vga);
+int fd2_vga_wait_frame_deadline(fd2_vga *vga);
 /* field_movement_tick_edge_wait @0x13460（原sub_13460）：
  * 只等当前signed低WORD不同于App旧锚，再重新读取并写锚。
  * render期间已跨tick时立即返回；不清普通FIFO，HOST返回1，坏owner为-1。 */
@@ -118,12 +123,19 @@ int fd2_vga_wait_movement_tick(fd2_vga *vga);
 
 /* 延时 (对应 thunk_FUN_0003b765 @0x3e01d, 毫秒)。宿主实现分片等待并
  * 检查退出事件并向同input owner归档普通键。 */
-void fd2_delay_ms(uint32_t ms);
+int fd2_delay_ms(uint32_t ms);
+/* 正式App等待借同VGA输出owner，OS首错不改变游戏时钟、不消费后继输入。 */
+int fd2_vga_delay_ms(fd2_vga *vga,uint32_t ms);
+int fd2_vga_wait_ticks(fd2_vga *vga,uint32_t ticks);
+/* 原一次checked观察前后查询同输出首错；失败不改actual。 */
+int fd2_vga_observe_checked(const fd2_vga *vga,uint64_t now,uint64_t *actual);
+/* 只读既有输出首错；NULL表示纯离屏对象没有输出owner。 */
+int fd2_vga_output_error(const fd2_vga *vga);
 
 /* 等待 BIOS tick (对应 FUN_000151f1 @0x17aa9)
  * BIOS tick 频率 18.2Hz，1 tick ≈ 54.9ms
  * 用于帧同步等待 */
-void fd2_wait_ticks(uint32_t ticks);
+int fd2_wait_ticks(uint32_t ticks);
 
 /* 非消费式查询同input owner的待取键，不重新泵送或采样。 */
 int fd2_input_check(fd2_vga *vga);

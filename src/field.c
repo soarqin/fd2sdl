@@ -10,7 +10,7 @@
 #include <string.h>
 #include "static_flow.h"
 
-/* 原表字节与来源由 data/static/tables/stage.json 维护。 */
+/* 准备及音乐参数由 data/static/tables/stage.json 维护。 */
 #include "static_data/stage.inc"
 #include "static_data.h"
 

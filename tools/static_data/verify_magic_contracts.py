@@ -22,6 +22,8 @@ NAMES = ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS", "MAGIC_MAP_TARGET_LIMITS"
 
 
 def check(document, executable):
+    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
+        raise ValueError("magic table schema differs")
     data = executable.read_bytes()
     source_range(data, 0x51d01, 28 * 4)  # strict identity/page validation before fixups
     fixups = collect_internal_offset_fixups(executable)
@@ -60,11 +62,6 @@ def check(document, executable):
         table = by_name[name]
         if (table.get("c_type"), table.get("dimensions"), table.get("values")) != ("uint8_t", [28], values):
             raise ValueError(f"{name}: reviewed original map projection differs")
-        source = table.get("source", {})
-        if (source.get("kind") != "decoded_dispatch_projection" or source.get("file") != "FD2.EXE" or
-                source.get("file_sha256") != EXE_SHA256 or source.get("canonical_dispatch_va") != "0x51d01" or
-                not source.get("evidence")):
-            raise ValueError("map projection source identity/basis differs")
     return {"ok": True, "tables": 4, "dispatch_fixups": 28, "executable_sha256": EXE_SHA256,
             "scope": "map aliases, scalar/call/jump anchors and independently reviewed wrapper-order projections",
             "original_runtime_executed": False, "all_wrapper_control_flow_automatically_proven": False}

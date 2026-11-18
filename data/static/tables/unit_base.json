@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_player_base_records",
@@ -38,17 +38,7 @@
         [5, 13, 20, 150, 0, 60, 0, 6, 0, 28, 2, 12, 59, 170, 255, 255, 255, 255, 100, 0, 70, 0, 0, 0],
         [6, 25, 1, 50, 0, 0, 0, 4, 0, 0, 0, 0, 72, 178, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0],
         [6, 25, 25, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 129, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x61da1",
-        "length": 768,
-        "sha256": "fd9ab5e220c33168f950dc2f6edbe9b4bc8dcc5e28bb89a98a1ed0d731953c31",
-        "evidence": "sub_4E838 @0x4e838; field_unit_stage_template_append @0x10c50; sub_112A5 @0x112a5; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     },
     {
       "name": "k_enemy_records",
@@ -123,17 +113,7 @@
         [1, 27, 12, 0, 0, 1, 3, 1, 4, 1],
         [1, 27, 14, 0, 0, 1, 2, 1, 4, 1],
         [1, 27, 33, 0, 0, 1, 2, 2, 4, 1]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x61af9",
-        "length": 680,
-        "sha256": "bc304be826fe3ff0ff129155da846126350852c9b67c6b08a2d7c2d103cc99df",
-        "evidence": "field_enemy_base_record_get @0x4e84f; field_unit_stage_template_append @0x10c50; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     },
     {
       "name": "k_growth_records",
@@ -208,17 +188,7 @@
         [10, 15, 7, 9, 2, 5, 14, 18, 0, 0, 255],
         [10, 12, 10, 12, 2, 2, 12, 18, 0, 0, 255],
         [8, 12, 8, 10, 3, 3, 10, 15, 0, 0, 255]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x620a1",
-        "length": 748,
-        "sha256": "75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5",
-        "evidence": "field_growth_record_get @0x4e821; field_growth_stat_present_apply @0x1e529; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     },
     {
       "name": "k_learning_records",
@@ -245,17 +215,7 @@
         [15, 11, 20, 18, 23, 11, 255, 255, 255, 255, 255, 255],
         [4, 15, 10, 22, 18, 16, 24, 18, 255, 255, 255, 255],
         [2, 34, 6, 35, 11, 23, 15, 3, 19, 33, 23, 32]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x626b3",
-        "length": 240,
-        "sha256": "839200667f837136d3426ab952e455b1a63b3bbba8b9175eb895d4408ddd6fb9",
-        "evidence": "field_magic_learning_record_get @0x4e7f2; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     },
     {
       "name": "k_player_base_alias_views",
@@ -275,14 +235,7 @@
           1,
           68
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "kind": "confirmed_source_views",
-        "evidence": "field_unit_stage_template_append @0x10c50 -> field_player_base_record_get @0x4e838: 0x61da1+24*ID. Only actual stage32 group0 ID48/66 constructors are admitted. Columns: ID, source (0 growth/1 stage_prepare), byte offset. ID48 window0x62221/24B SHA256=bfef19b0338364ddd43878b5fb056b1bdd97e7cd3ad4993dfbd417bc942295d4; ID66 window0x623d1/24B SHA256=60c3c148b1b763c26e5fad19c143174857ec7d1148ebc4fb4f58545f088f12f1. See docs/reverse-engineering/common-battle-semantics.md section4.1; no new base table."
-      }
+      ]
     }
   ]
 }

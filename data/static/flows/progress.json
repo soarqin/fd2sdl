@@ -1,13 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "domain": "progress",
-  "source": {
-    "kind": "existing_confirmed_definition",
-    "file": "src/field_game.c",
-    "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-    "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_unit_experience_reward_execute @0x1e292; field_growth_stat_present_apply @0x1e529; field_phase_status_tick @0x1a866; docs/generated/ida-canonical/fd2-ida-decomp-all.c. G2: gain/total preserve signed DWORD bits, original signed total<100 follows gain488 ACK -> close11tick ACK -> EX low-byte commit without level/growth/recompute, including negative contribution; ordering and branch edges remain defined here. stationary.recover: sub_13FD4 @0x13fd4 HP!=max/raw25/raw26 gate; mode0/focus/wait1/cue4/actor2/wait1/actor0/wait1/HP clamp/mode1, no number or RNG. physical.full: player18d8c always calls2e2b0; AI1548e does so only option53af9=0. physical.short: AI1548e face/map/optional counter-face/1eb05 panels/reset/1e856 attack; surviving counter gate then face both/1e611/counter1e856/reset. Existing per-sequence core retains each mode's distinct extra-strike RNG rules. G5: physical.full is bare2e2b0 and has no134e4 (35730 caller); physical.caller.full records18d8c/1548e caller reset+20 exactly once. SHORT1548e calls134e4 before and after hits, each with20ms; loot action.finish must not repeat the caller reset after descriptors."
-  },
   "operations": {
     "reward_gate": {"args": [{"name": "normal_limit", "min": 1, "max": 255}, {"name": "special_id_a", "min": 0, "max": 67}, {"name": "special_id_b", "min": 0, "max": 67}, {"name": "special_limit", "min": 1, "max": 255}]},
     "reward_validate": {"args": []},

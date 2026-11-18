@@ -35,6 +35,8 @@ CMake 优先查找本机 SDL3（CMake 配置包，其次 pkg-config），未找�
 
 完整键位、资源清单和兼容范围见[使用指南](docs/user-guide.md)。数据格式、逆向依据和发布说明见[文档索引](docs/README.md)。
 
+修改单位、物品和事件流程可参考[静态数据与 Mod 制作](docs/formats/static-data.md)。
+
 ## Credits
 
 - 原版游戏：汉堂国际（Dynasty International Information）。原版数据归原权利人所有，不随本项目分发。

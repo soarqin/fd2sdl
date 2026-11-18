@@ -1,13 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "domain": "loot",
-  "source": {
-    "kind": "existing_confirmed_definition",
-    "file": "src/field_game.c",
-    "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-    "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "field_loot_descriptors_execute @0x1aa1d / field_special_cell_execute @0x190ac / field_completed_chest_tiles_apply @0x12263；按现有SDL的text_ready、ACK、取消、收集和resume边界等价迁移，原版运行范围另登记；G2依据完整1aa1d switch补mode4..255 default推进，collector255哨兵另保留；通用0/1/3预检不以stage编号拒绝，callback仍按真实绑定核查。G4 mode2先按真实绑定查询common域，以原caller只读检查资源；未命中保legacy stage0/action4/count14与stage1/action6/count11及notice容量门。common callback的实际呈现由其冷图完成，返回后直接续父descriptor，不再产生legacy FIELD_EVENT通知。没有新增生产stage绑定。 G4完整1548e原指令：SHORT15616与FULL15624共同汇15627，1562f先collect、1563b调用11cac(0)、15643清死亡、15652执行descriptor、1565c再次11cac(0)、1566a奖励。kind5空descriptor亦由同一loot owner闭尾；child只执行caller-local一条，不进入父刷新／奖励。 G4复核190ac无stage门，普通0/1按真实资源/16slot校验跨stage复用。非0/1 mode共用YES后25b45(UI31,12,1)→300ms→200ms(保持框)→196cb close→完整WORD callback(actor)；common直接续父，legacy通知只一次。特殊格callback不自动写完成位，未知真实绑定仍拒。 G5: complete field_player_command_execute18d8c clears BIOS keys only in physical branch after actor_mark_acted, before return/controller reward. action.finish retains that branch and finite runtime_clear_keys; other action kinds do not clear here. G5: remove the duplicate action.finish physical direction reset:18d8c calls134e4 beforecollect/death/descriptors, then onlyacted and4e381. Physical caller reset+20 lives inprogress; bare event2e2b0 must not inherit it. G5: all six existingcallback bindings migrated tocommon_event; remove deadlegacy preflight stage0/1/count/capacity/probe branch and reject unknownbinding explicitly. Onlysameoriginal sixproductionidentities; noS added."
-  },
   "operations": {
     "emit": {
       "args": [

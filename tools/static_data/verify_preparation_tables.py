@@ -36,10 +36,6 @@ SERVICE_ANCHORS = ((0x29327, "6a0d"), (0x279d7, "be0c000000"),
                    (0x279f9, "be1d000000"), (0x27a09, "be3f000000"), (0x29dd1, "6a0e"))
 
 
-def sha(data):
-    return hashlib.sha256(data).hexdigest()
-
-
 def table_bytes(table, spec):
     name, c_type, dimensions, _ = spec
     if (table.get("name"), table.get("c_type"), table.get("dimensions")) != (name, c_type, list(dimensions)):
@@ -59,22 +55,10 @@ def table_bytes(table, spec):
     return struct.pack(f"<{len(values)}{fmt}", *values)
 
 
-def check_table(table, spec, expected):
-    name, _, _, va = spec
-    if table_bytes(table, spec) != expected:
-        raise ValueError(f"{name}: original bytes differ")
-    source = table.get("source", {})
-    identity = {"file": "FD2.EXE", "file_sha256": EXE_SHA256,
-                "object": 2 if va < 0x60000 else 3, "canonical_va": hex(va),
-                "length": len(expected), "sha256": sha(expected), "view": "raw-unrelocated"}
-    if any(source.get(k) != value for k, value in identity.items()) or not source.get("evidence"):
-        raise ValueError(f"{name}: source identity differs")
-
-
 def check(document, executable):
-    if sha(executable) != EXE_SHA256:
+    if hashlib.sha256(executable).hexdigest() != EXE_SHA256:
         raise ValueError("FD2.EXE identity mismatch")
-    if type(document.get("schema_version")) is not int or document["schema_version"] != 1:
+    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
         raise ValueError("preparation schema differs")
     tables = {t["name"]: t for t in document["tables"]}
     names = {s[0] for s in SPECS} | {"k_prepare_town_service_entries", "k_prepare_deployment_roster_gate",
@@ -87,29 +71,18 @@ def check(document, executable):
         for n in spec[2]:
             count *= n
         size = count * struct.calcsize(FORMATS[spec[1]][0])
-        check_table(tables[spec[0]], spec, source_range(executable, spec[3], size))
+        if table_bytes(tables[spec[0]], spec) != source_range(executable, spec[3], size):
+            raise ValueError(f"{spec[0]}: original bytes differ")
         total += size
     service = tables["k_prepare_town_service_entries"]
     if table_bytes(service, ("k_prepare_town_service_entries", "uint8_t", (6,), 0)) != bytes(SERVICE_ENTRIES):
         raise ValueError("preparation service dispatch differs")
-    source = service.get("source", {})
-    if (source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256 or
-            source.get("kind") != "decoded_call_constants" or
-            source.get("canonical_ranges") != SERVICE_RANGES or not source.get("evidence")):
-        raise ValueError("preparation service call source differs")
     for va, code in SERVICE_ANCHORS:
         if source_range(executable, va, len(bytes.fromhex(code))) != bytes.fromhex(code):
             raise ValueError("preparation original service argument differs")
     gate = tables["k_prepare_deployment_roster_gate"]
     if table_bytes(gate, ("k_prepare_deployment_roster_gate", "uint8_t", (1, 4), 0)) != bytes((0, 12, 6, 2)):
         raise ValueError("preparation deployment predicate differs")
-    source = gate.get("source", {})
-    if (source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256 or
-            source.get("kind") != "decoded_predicate" or
-            source.get("canonical_ranges") != ["0x10ae1", "0x10ae8", "0x10af1"] or
-            source.get("columns") != ["first_stage", "last_stage", "active_slot", "required_text_id"] or
-            not source.get("evidence")):
-        raise ValueError("preparation deployment predicate source differs")
     for va, code in ((0x10ae1, "837c241c0d"), (0x10ae8, "83fd06"), (0x10af1, "83f802")):
         if source_range(executable, va, len(bytes.fromhex(code))) != bytes.fromhex(code):
             raise ValueError("preparation original deployment compare differs")
@@ -118,11 +91,6 @@ def check(document, executable):
     portrait = tables["k_prepare_notice_portrait_origins"]
     if table_bytes(portrait, ("k_prepare_notice_portrait_origins", "uint16_t", (5,), 0)) != struct.pack("<5H", *origins):
         raise ValueError("preparation special portrait origins differ")
-    source = portrait.get("source", {})
-    if (source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256 or
-            source.get("kind") != "decoded_call_constants" or
-            source.get("canonical_ranges") != [hex(v) for v in addresses] or not source.get("evidence")):
-        raise ValueError("preparation portrait source differs")
     for va, value in zip(addresses, origins):
         if source_range(executable, va, 10) != bytes.fromhex("c705673c0000") + struct.pack("<I", value):
             raise ValueError("preparation original portrait constant differs")
@@ -159,9 +127,8 @@ def main():
         def table(d, name):
             return next(t for t in d["tables"] if t["name"] == name)
         mutations = (lambda d: table(d,"k_prepare_no_town")["values"].__setitem__(0, 255),
-                     lambda d: table(d,"k_prepare_revive_coefficients")["source"].update(canonical_va="0x52399"),
+                     lambda d: table(d,"k_prepare_revive_coefficients")["values"].__setitem__(1, 65536),
                      lambda d: table(d,"k_prepare_town_service_entries")["values"].__setitem__(2, 13),
-                     lambda d: table(d,"k_prepare_town_service_entries")["source"].update(kind="raw_unchecked"),
                      lambda d: table(d,"k_prepare_deployment_roster_gate")["values"][0].__setitem__(1, 13),
                      lambda d: table(d,"k_prepare_notice_portrait_origins")["values"].__setitem__(0, 1707),
                      lambda d: d["tables"].append(copy.deepcopy(d["tables"][0])))

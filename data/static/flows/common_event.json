@@ -1,21 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "domain": "common_event",
-  "source": {
-    "file": "FD2.EXE",
-    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-    "kind": "decoded_control_flow",
-    "evidence": "Historical source identity and baseline notes are retained in historical_evidence. Current S5 commit495e7d9 closes the former13 slots/14 references, stage20..29 bindings, ending HP natural-caller source, callback82, source wait0..65535, text owner and NoTown DAC. Current coverage is exact production bindings plus separately qualified source-only definitions and primitive caller domains; a graph or its count is not runtime acceptance. See docs/plans/s5-batch-expansion.md and docs/plans/full-alignment-audit.md; F1 current_consumer_summary joins the reviewed source to its actual consumer without changing flow bodies, support gates or S5 receipt identities.",
-    "related_sources": [
-      {
-        "kind": "decoded_domain_control_flow",
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "evidence": "S2 full callback source entries/chunks/CFG via convert_stage_callbacks.py and explicit shared-helper contracts; source.candidates only, no new stage/action binding. All original IDs, exact caller/WORD domains and original leaves/write order retained; callback82 source ABI remains refused from this domain."
-      }
-    ],
-    "historical_evidence": "G4 finite reusable event rules and deliberately unbound source fixtures: complete348ea/35123/35e0e/3623c/35854/35a0d/352ca/35346/355f0/35730, and the item-consumption portion240fa. Complete shared tails3530d/3531b were checked in G1 Domain scope-root-readset. No stage/action bindings or new stage capability are added. source fixture is not all-game source translation or native acceptance. The post-resource-replacement excerpt24754 retains separate4df4c map reset,10652 background rebuild and all following pan/palette/move/story steps; it does not translate the earlier stage-specific cutscene. Complete35677 invokes story5 then35f10(18), whose HP WORD loop and unified defeated-finalize call are separate cold nodes. Dynamic excerpts common.group.turn.source (35833@3583d through10b4e call, shared tail excluded) and common.story.state.source (362e8@3631a through15f84 call, surrounding camera/action choreography excluded) bind the finite source getters to real domain consumption; not complete callbacks. G5 migrates exactly six already-supported scene event bindings (000 actions0..4,001 action6) into the same event_resume finite continuation, not new S support. Complete34531/3460b/34673/346cd/34738/34778 original instructions and shared34663 tail, source readset7f5beff4 and strict relocated image8c40 verified. All text waits separate subsequent writes; 134e4 direction reset is followed by explicit source20ms delay. Arrival prepare/snapshot precedes Game group append; runtime.arrival owns the finite12-frame visual sequence. No whole-event rollback or future live writes in presentation replay. S2: complete result roots 20765/20872/20957/20b72/20bf5 preserve original ordered53ECC writes around text_dialog_render_tokens15f84. All source graphs are unbound candidates; original fixed actor prefix is validated before writes, story ACK/error stays in existing event_resume. S2: pal_partial_set11df2 uses base6bit+signedDWORDraw_add capped63 (source add0..255), not brightness; bios_tick_delay17aa9 uses signedWORD delta+65536 and signed goal, no water/actor/RNG/key-clear. Positive goal>65535 is nonterminating original domain and rejected, <=0 polls once; host clock is nominal SDL/55 only. S5: complete22253/22470/22547/22656 plus362e8/shared tails; unique stage.source.teleport, source callback82 only, no shipping binding/capability opened. Independent CPU/C page and write-prefix evidence in S5 report; conditional STATE16 ABI retains each caller. S5 source-only complete13 caller/CFG and fixed cinematic subgraphs. Pre-ending candidate03 deliberately fails at the undefined-HP montage dependency; no shipping support or equivalence claim. Original/DAT/raw and later qualification retain separate report identity."
-  },
   "operations": {
     "end": {
       "args": []

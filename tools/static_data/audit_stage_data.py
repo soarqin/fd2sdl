@@ -33,6 +33,15 @@ SOURCE_HASHES = {
     "FDSHAP.DAT": "901b70ea82d5d977192759fad510921ffe16a0ab6af6ab7c32757de03e30aa3c",
     "FDTXT.DAT": "b47e39ee727482528da061a8705f5cdee8a9cf759447aeda298afe17d9dd8bcc",
 }
+# 迁入冷图的历史 C 定义只在审计中校对；当前 JSON 的散列另记。
+FLOW_BASELINE_HASHES = {
+    "c6d2c576b196286f2d94129cf00b0fae6832c65b:src/field_game.c":
+        "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
+    "c6d2c576b196286f2d94129cf00b0fae6832c65b:src/scene.c":
+        "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
+    "6b24b33bfc13ac38087d1fed1cdc940fdc7b8147:src/scene.c":
+        "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
+}
 # 不是以相邻stage表反推120项action：90项之后有两个无fixup的DWORD，
 # 0x51d01为IDA独立符号funcs_1541F的magic dispatch，不是action90..119。
 DISPATCH = (
@@ -132,11 +141,9 @@ def load_definitions(directory):
     manifest_raw = manifest_path.read_bytes()
     manifest = flow_generator.decode_json(manifest_raw)
     paths = sorted((directory / "flows").glob("*.json"))
-    files = manifest.get("flow_files")
     contracts = manifest.get("flow_contracts", {})
-    if (type(manifest.get("schema_version")) is not int or manifest["schema_version"] != 1
-            or not isinstance(files, list) or len(files) != len(set(files))
-            or set(files) != {path.name for path in paths} or set(contracts) != set(files)):
+    if (type(manifest.get("schema_version")) is not int or manifest["schema_version"] != flow_generator.SCHEMA_VERSION
+            or not isinstance(contracts, dict) or not contracts or set(contracts) != {path.name for path in paths}):
         raise ValueError("flow manifest/consumer contract coverage mismatch")
     flows, aliases, provenance, documents = {}, {}, [], {}
     inputs = {manifest_path: manifest_raw}
@@ -146,9 +153,8 @@ def load_definitions(directory):
         document = flow_generator.validate_flows(flow_generator.decode_json(raw))
         if document["domain"] != path.stem:
             raise ValueError("flow domain/file mismatch")
-        flow_generator.validate_source(document["source"], manifest["sources"], path.name)
         documents[path.name] = document
-        provenance.append({"file": str(path.relative_to(directory)), "sha256": digest(raw), "source": document["source"],
+        provenance.append({"file": str(path.relative_to(directory)), "sha256": digest(raw),
                            "consumer_manifest_sha256": digest(manifest_raw)})
         local = {flow["id"]: flow for flow in document["flows"]}
         if flows.keys() & local.keys():
@@ -161,51 +167,25 @@ def load_definitions(directory):
     if flows.keys() & aliases.keys():
         raise ValueError("alias shadows a real flow")
     all_flows = {**flows, **{alias: flows[target] for alias, target in aliases.items()}}
+    movement_path = directory / "tables/movement_scripts.json"
+    inputs[movement_path] = movement_path.read_bytes()
+    scripts = flow_generator.read_movement_scripts(flow_generator.decode_json(inputs[movement_path]))
     for name, document in documents.items():
-        flow_generator.validate_flow_contract(document, contracts[name], SCRIPT_IDS, all_flows)
+        flow_generator.validate_flow_contract(document, contracts[name], scripts.keys(), all_flows)
     if any(path.read_bytes() != raw for path, raw in inputs.items()):
         raise ValueError("static definitions changed while auditing")
     return flows, aliases, provenance
 
 
-def validate_definition_sources(provenance, repository=ROOT, source_files=None):
-    """历史定义校验Git blob；新逆向定义必须有实读的同身份原EXE。"""
+def verify_flow_baselines():
     verified = {}
-    for document in provenance:
-        pending = [document["source"]]
-        while pending:
-            record = pending.pop()
-            if (not isinstance(record, dict) or not isinstance(record.get("evidence"), str)
-                    or not record["evidence"].strip()):
-                raise ValueError("definition source lacks nonempty evidence")
-            related = record.get("related_sources", [])
-            if not isinstance(related, list):
-                raise ValueError("definition related_sources must be a list")
-            pending.extend(related)
-            # 四种已登记标签只区分来源描述，均须实读同一原EXE；
-            # 不按decoded前缀放行，更不把身份通过当作语义/运行已验。
-            if record.get("kind") in ("canonical_disassembly", "decoded_control_flow",
-                                      "decoded_domain_control_flow", "original_executable"):
-                payload = source_files.get("FD2.EXE") if isinstance(source_files, dict) else None
-                actual = digest(payload) if isinstance(payload, bytes) else None
-                if (record.get("file") != "FD2.EXE" or record.get("file_sha256") != EXE_SHA256 or
-                        actual != EXE_SHA256):
-                    raise ValueError("executable definition source lacks matching original executable bytes")
-                verified["FD2.EXE"] = actual
-                continue
-            commit, file = record.get("baseline_commit", ""), record.get("file", "")
-            if (record.get("kind") != "existing_confirmed_definition"
-                    or not isinstance(commit, str) or not re.fullmatch(r"[a-f0-9]{40}", commit)
-                    or not isinstance(file, str) or not file.startswith("src/") or ".." in Path(file).parts or ":" in file):
-                raise ValueError("definition source lacks an exact historical source identity/evidence")
-            key = f"{commit}:{file}"
-            if key not in verified:
-                result = subprocess.run(["git", "show", key], cwd=repository, capture_output=True, check=False)
-                if result.returncode:
-                    raise ValueError(f"definition baseline blob is unavailable: {key}")
-                verified[key] = digest(result.stdout)
-            if verified[key] != record.get("baseline_source_sha256"):
-                raise ValueError(f"definition baseline source hash mismatch: {key}")
+    for key, expected in FLOW_BASELINE_HASHES.items():
+        result = subprocess.run(["git", "show", key], cwd=ROOT, capture_output=True, check=False)
+        if result.returncode:
+            raise ValueError(f"definition baseline blob is unavailable: {key}")
+        verified[key] = digest(result.stdout)
+        if verified[key] != expected:
+            raise ValueError(f"definition baseline source hash mismatch: {key}")
     return verified
 
 
@@ -694,7 +674,7 @@ def audit(original, definitions=ROOT / "data/static", ida_directory=ROOT / "docs
     if any(type(stage) is not int or not 0 <= stage < 33 for stage in selected) or not selected:
         raise ValueError("stage selection must be in0..32")
     flows, aliases, definition_sources = load_definitions(definitions)
-    baseline_sources = validate_definition_sources(definition_sources, source_files=sources)
+    baseline_sources = verify_flow_baselines()
     tables, gap, functions, ida_sources = read_dispatch(original / "FD2.EXE", ida_directory)
     scripts = source_scripts(original / "FD2.EXE")
     movement_table = read_movement_table(original / "FD2.EXE", scripts)

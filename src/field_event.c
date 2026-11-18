@@ -26,7 +26,7 @@ typedef struct {
     size_t size;
 } fd2_static_movement_script;
 
-/* 原指针表0x627d8的已确认读集与完整字节流校验见生成器及来源清单。 */
+/* 原指针表0x627d8的读取依据见 verify_movement_scripts.py。 */
 #include "static_data/movement_scripts.inc"
 #include "static_data/common_event.inc"
 

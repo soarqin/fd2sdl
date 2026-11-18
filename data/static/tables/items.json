@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "ITEM_RECORDS",
@@ -221,17 +221,7 @@
         [34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 4, 0, 1, 2, 0, 0, 0],
         [34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 4, 1, 1, 2, 0, 1, 0],
         [34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 4, 1, 1, 2, 0, 1, 0]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x602ad",
-        "length": 4945,
-        "sha256": "bb64df69e73dfc4d642d342aac7bad8d7c2f4fb0527bb55d35c153b9f79432ca",
-        "evidence": "field_item_record_get @0x4e8bc; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     },
     {
       "name": "profiles",
@@ -267,17 +257,7 @@
         [255, 255, 255, 255, 255, 255, 1],
         [255, 255, 255, 255, 255, 255, 1],
         [7, 21, 26, 255, 255, 255, 1]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x6188a",
-        "length": 203,
-        "sha256": "f1dd24fd3d1045fc0a82f07442a0ef1ef0c650bb102044e1bf564b97206addba",
-        "evidence": "field_equipment_profile_get @0x4e88e; field_unit_can_equip_item @0x1c1c3; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     }
   ]
 }

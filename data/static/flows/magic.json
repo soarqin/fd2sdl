@@ -1,12 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "domain": "magic",
-  "source": {
-    "kind": "canonical_disassembly",
-    "file": "FD2.EXE",
-    "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-    "evidence": "sub_2D80D @0x2d80d / 0x2ddca..0x2deec；完整Domain读集与strict LE/fixup逐chunk一致。G1 common-battle-semantics §3.4确认全组raw顺序和清浮字边界；费用由外层intro marker一次链负责，组内不重复wrapper扣费。；23按2218a/22253的22547位置写点分OUT/IN前后四段同步，费用/贡献、临时255、display及focus顺序均为冷节点。；G2 Item20c6f/21082外层FX→原effect→浮字→条件caster重算→条件移槽→code19恢复EX→清贡献由item.effect控制；code23嵌入既有023冷图，原UI资格/首层display与Magic分开。"
-  },
   "operations": {
     "effect_group": {
       "args": [

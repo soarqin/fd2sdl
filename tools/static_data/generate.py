@@ -1,7 +1,4 @@
-"""已确认冷定义的严格校验与 C11 生成；只使用 Python 标准库。
-
-来源见各 JSON 的 source；本工具不读取 FD2.EXE，不推断未知字段。
-"""
+"""校验冷定义并生成 C11 数据；只使用 Python 标准库。"""
 from __future__ import annotations
 
 import argparse
@@ -9,10 +6,9 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import struct
 
 ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 INTEGER_TYPES = {
     "uint8_t": (0, 255), "int8_t": (-128, 127),
     "uint16_t": (0, 65535), "int16_t": (-32768, 32767),
@@ -76,7 +72,7 @@ def validate_document(document):
         raise ValueError("nonempty tables required")
     names = set()
     for table in document["tables"]:
-        if not isinstance(table, dict) or set(table) != {"name", "c_type", "dimensions", "values", "source"}:
+        if not isinstance(table, dict) or set(table) != {"name", "c_type", "dimensions", "values"}:
             raise ValueError("unknown/missing table field")
         name, c_type, dimensions = table["name"], table["c_type"], table["dimensions"]
         if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", name) or name in names:
@@ -87,9 +83,6 @@ def validate_document(document):
         if not isinstance(dimensions, list) or not 1 <= len(dimensions) <= 3 or any(
                 type(n) is not int or not 1 <= n <= 65536 for n in dimensions):
             raise ValueError(f"invalid dimensions: {dimensions}")
-        source = table["source"]
-        if not isinstance(source, dict) or not isinstance(source.get("evidence"), str) or not source["evidence"].strip():
-            raise ValueError(f"{name}: source evidence required")
         validate_values(table["values"], dimensions, c_type)
     return document
 
@@ -160,47 +153,64 @@ def preparation_views(tables):
             raise ValueError("invalid preparation deployment gate reference")
     return [
         {"name": "k_prepare_revive_profile_valid", "c_type": "uint8_t", "dimensions": [29],
-         "values": valid, "source": {"evidence": "derived from unique base32/promotion36 profile references; profile0 remains invalid"}},
+         "values": valid},
         {"name": "k_prepare_service_return_fragments", "c_type": "uint16_t", "dimensions": [6],
-         "values": prefix + coefficients[:1], "source": {"evidence": "5238d prefix5 plus unique52397 neighboring word; no duplicated editable bytes"}},
+         "values": prefix + coefficients[:1]},
     ]
 
 
-def render(document, input_digest):
-    lines = ["/* 由 tools/static_data/generate.py 生成，禁止手改。",
-             f" * schema={SCHEMA_VERSION}; source JSON SHA256={input_digest} */"]
-    for table in document["tables"]:
+def render_tables(tables):
+    lines = ["/* 由 tools/static_data/generate.py 生成，禁止手改。 */"]
+    for table in tables:
         dimensions = "".join(f"[{n}]" for n in table["dimensions"])
         lines.append(f"static const {table['c_type']} {table['name']}{dimensions} = {{")
         lines.extend("    " + initializer(row) + "," for row in table["values"])
         lines.extend(["};", ""])
-    scripts = [t for t in document["tables"] if "script_id" in t["source"]]
-    if scripts:
-        ids = set()
-        lines.append("static const fd2_static_movement_script k_movement_scripts[] = {")
-        for table in sorted(scripts, key=lambda t: t["source"]["script_id"]):
-            identity = table["source"]["script_id"]
-            if type(identity) is not int or not 0 <= identity <= 255 or identity in ids:
-                raise ValueError("invalid/duplicate movement script ID")
-            ids.add(identity)
-            data = table["values"]
-            if table["c_type"] != "uint8_t" or len(table["dimensions"]) != 1:
-                raise ValueError("movement script must be a byte stream")
-            at = 1
-            for _ in range(data[0]):
-                if at + 2 > len(data):
-                    raise ValueError("truncated movement group")
-                mode, count = data[at:at+2]
-                at += 2
-                if count > 32 or at + count*2 > len(data) or any(data[pos] >= 96 for pos in range(at, at+count*2, 2)) or any(data[pos] > 3 and not (mode == 0x80 and data[pos] == 5) for pos in range(at+1, at+count*2, 2)):
-                    raise ValueError("invalid movement actor/direction pairs")
-                at += count*2
-            if at != len(data):
-                raise ValueError("movement stream not completely consumed")
-            name = table["name"]
-            lines.append(f"    {{{identity}, {name}, sizeof({name})}},")
-        lines.extend(["};", ""])
     return "\n".join(lines).encode("utf-8")
+
+
+def read_movement_scripts(document):
+    if (not isinstance(document, dict) or set(document) != {"schema_version", "scripts"} or
+            type(document["schema_version"]) is not int or document["schema_version"] != SCHEMA_VERSION or
+            not isinstance(document["scripts"], dict) or not document["scripts"]):
+        raise ValueError("movement script document requires schema_version and nonempty scripts")
+    scripts = {}
+    for identity, data in document["scripts"].items():
+        if not re.fullmatch(r"0|[1-9][0-9]{0,2}", identity) or int(identity) > 255:
+            raise ValueError(f"invalid movement script ID: {identity}")
+        if not isinstance(data, list) or not data:
+            raise ValueError(f"movement script {identity} must be a nonempty byte stream")
+        for value in data:
+            integer(value, "uint8_t")
+        at = 1
+        for _ in range(data[0]):
+            if at + 2 > len(data):
+                raise ValueError(f"movement script {identity}: truncated group")
+            mode, count = data[at:at+2]
+            at += 2
+            end = at + count * 2
+            if count > 32 or end > len(data):
+                raise ValueError(f"movement script {identity}: invalid actor pair count")
+            for pos in range(at, end, 2):
+                actor, direction = data[pos:pos+2]
+                if actor >= 96 or (direction > 3 and not (mode == 0x80 and direction == 5)):
+                    raise ValueError(f"movement script {identity}: invalid actor/direction pair")
+            at = end
+        if at != len(data):
+            raise ValueError(f"movement script {identity}: stream not completely consumed")
+        scripts[int(identity)] = data
+    return scripts
+
+
+def render_movement_scripts(scripts):
+    tables = []
+    lines = ["static const fd2_static_movement_script k_movement_scripts[] = {"]
+    for identity, data in sorted(scripts.items()):
+        name = f"k_movement_script_{identity:02x}"
+        tables.append({"name": name, "c_type": "uint8_t", "dimensions": [len(data)], "values": data})
+        lines.append(f"    {{{identity}, {name}, sizeof({name})}},")
+    lines.extend(["};", ""])
+    return render_tables(tables) + "\n".join(lines).encode("utf-8")
 
 
 def constructor_alias_records(tables):
@@ -218,26 +228,9 @@ def constructor_alias_records(tables):
     return result
 
 
-def validate_source(source, sources, label):
-    if not isinstance(source, dict) or not isinstance(source.get("evidence"), str) or not source["evidence"].strip():
-        raise ValueError(f"{label}: source evidence required")
-    source_key = source.get("file", "")
-    source_hash = source.get("file_sha256")
-    if source.get("kind") == "existing_confirmed_definition":
-        source_key += "@" + source.get("baseline_commit", "")
-        source_hash = source.get("baseline_source_sha256")
-    if source_key not in sources or source_hash != sources[source_key]["sha256"]:
-        raise ValueError(f"{label}: unknown/mismatched source identity")
-    related = source.get("related_sources", [])
-    if not isinstance(related, list):
-        raise ValueError(f"{label}: related_sources must be a list")
-    for identity in related:
-        validate_source(identity, sources, label + " related source")
-
-
 def validate_flows(document):
     """有限图结构和固定参数契约；不会执行脚本或推断未实现的领域语义。"""
-    required = {"schema_version", "domain", "source", "operations", "flows"}
+    required = {"schema_version", "domain", "operations", "flows"}
     if not isinstance(document, dict) or not required <= document.keys() or set(document) - required - {"bindings"}:
         raise ValueError("unknown/missing flow document field")
     if type(document["schema_version"]) is not int or document["schema_version"] != SCHEMA_VERSION:
@@ -353,10 +346,9 @@ def flow_index(document):
     return {**flows, **{alias: flows[target] for alias, target in document.get("bindings", {}).items()}}
 
 
-def render_flows(document, digest):
+def render_flows(document):
     domain = document["domain"]
-    lines = ["/* 冷流程生成定义，禁止手改；原语语义由领域 C 模块提供。 */",
-             f"/* JSON SHA256={digest} */"]
+    lines = ["/* 冷流程生成定义，禁止手改；原语语义由领域 C 模块提供。 */"]
     for i, flow in enumerate(document["flows"]):
         ids = {n["id"]: j for j, n in enumerate(flow["nodes"])}
         lines.append(f"static const fd2_static_flow_node k_{domain}_nodes_{i}[] = {{")
@@ -599,119 +591,78 @@ def generate(root: Path, output: Path, check=False):
     manifest_bytes = manifest_path.read_bytes()
     manifest = decode_json(manifest_bytes)
     inputs = {manifest_path: manifest_bytes}
-    if not isinstance(manifest, dict) or set(manifest) - {"schema_version", "table_files", "sources", "table_contracts", "flow_files", "flow_contracts"} or not {"schema_version", "table_files", "sources", "table_contracts"} <= manifest.keys() or type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION:
+    if (not isinstance(manifest, dict) or set(manifest) != {"schema_version", "table_contracts", "flow_contracts"} or
+            type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION):
         raise ValueError("invalid static manifest")
-    sources = manifest["sources"]
-    if not isinstance(sources, dict) or not sources or any(
-            not isinstance(value, dict) or not isinstance(value.get("sha256"), str) or
-            not re.fullmatch(r"[0-9a-f]{64}", value["sha256"]) for value in sources.values()):
-        raise ValueError("manifest source identities required")
-    files = manifest["table_files"]
-    if not isinstance(files, list) or len(set(files)) != len(files) or not files:
-        raise ValueError("table_files must be a nonempty unique list")
-    actual = {p.name for p in (root / "data/static/tables").glob("*.json")}
-    if actual != set(files):
-        raise ValueError(f"table manifest coverage mismatch: missing={set(files)-actual}, extra={actual-set(files)}")
-    if not isinstance(manifest["table_contracts"], dict) or set(manifest["table_contracts"]) != set(files):
-        raise ValueError("table contracts must cover every input exactly")
-    expected_outputs = {Path(name).stem + ".inc" for name in files}
-    flow_files = manifest.get("flow_files", [])
-    actual_flows = {p.name for p in (root / "data/static/flows").glob("*.json")}
-    if not isinstance(flow_files, list) or len(set(flow_files)) != len(flow_files) or set(flow_files) != actual_flows:
+    movement_file = "movement_scripts.json"
+    table_contracts = manifest["table_contracts"]
+    flow_contracts = manifest["flow_contracts"]
+    tables_dir = root / "data/static/tables"
+    flows_dir = root / "data/static/flows"
+    if not isinstance(table_contracts, dict) or not table_contracts or movement_file in table_contracts:
+        raise ValueError("invalid table contracts")
+    table_files = set(table_contracts) | {movement_file}
+    actual = {p.name for p in tables_dir.glob("*.json")}
+    if actual != table_files:
+        raise ValueError(f"table manifest coverage mismatch: missing={table_files-actual}, extra={actual-table_files}")
+    actual_flows = {p.name for p in flows_dir.glob("*.json")}
+    if not isinstance(flow_contracts, dict) or not flow_contracts or set(flow_contracts) != actual_flows:
         raise ValueError("flow manifest coverage mismatch")
-    expected_outputs |= {Path(name).stem + "_flows.inc" for name in flow_files}
+    expected_outputs = {Path(name).stem + ".inc" for name in table_files}
+    expected_outputs |= {Path(name).stem + "_flows.inc" for name in flow_contracts}
     extras = {path.name for path in output.glob("*.inc")} - expected_outputs
     if extras:
         raise ValueError(f"obsolete generated headers must be removed explicitly: {sorted(extras)}")
     outputs = {}
-    receipt = {"schema_version": SCHEMA_VERSION, "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(), "tables": []}
-    names = set()
     tables = {}
-    script_ids = set()
-    for name in sorted(files):
+    for name, contracts in sorted(table_contracts.items()):
         if not re.fullmatch(r"[a-z][a-z0-9_]*\.json", name):
             raise ValueError(f"unsafe table file: {name}")
-        path = root / "data/static/tables" / name
+        path = tables_dir / name
         raw = path.read_bytes()
         inputs[path] = raw
-        digest = hashlib.sha256(raw).hexdigest()
-        document = validate_document(decode_json(raw))
-        contracts = manifest["table_contracts"][name]
-        if not isinstance(contracts, dict) or set(contracts) != {t["name"] for t in document["tables"]}:
+        records = validate_document(decode_json(raw))["tables"]
+        if not isinstance(contracts, dict) or set(contracts) != {t["name"] for t in records}:
             raise ValueError(f"{name}: ABI table coverage differs from manifest")
-        for table in document["tables"]:
-            if json.dumps(contracts[table["name"]], sort_keys=True) != json.dumps({"c_type": table["c_type"], "dimensions": table["dimensions"]}, sort_keys=True):
-                raise ValueError(f"{name}/{table['name']}: consumer ABI contract mismatch")
-            source = table["source"]
-            source_key = source.get("file", "")
-            source_hash = source.get("file_sha256")
-            if source.get("kind") == "existing_confirmed_definition":
-                source_key += "@" + source.get("baseline_commit", "")
-                source_hash = source.get("baseline_source_sha256")
-            if source_key not in sources or source_hash != sources[source_key]["sha256"]:
-                raise ValueError(f"{name}/{table['name']}: unknown/mismatched source identity")
-            if table["name"] in names:
-                raise ValueError(f"duplicate global table name: {table['name']}")
-            names.add(table["name"])
-            tables[table["name"]] = table["values"]
-            if "script_id" in source:
-                script_ids.add(source["script_id"])
-            receipt["tables"].append({"file": name, "name": table["name"], "dimensions": table["dimensions"], "input_sha256": digest, "source": table["source"]})
-        outputs[Path(name).stem + ".inc"] = render(document, digest)
+        for table in records:
+            symbol = table["name"]
+            shape = {"c_type": table["c_type"], "dimensions": table["dimensions"]}
+            if json.dumps(contracts[symbol], sort_keys=True) != json.dumps(shape, sort_keys=True):
+                raise ValueError(f"{name}/{symbol}: consumer ABI contract mismatch")
+            if symbol in tables:
+                raise ValueError(f"duplicate global table name: {symbol}")
+            tables[symbol] = table["values"]
+        outputs[Path(name).stem + ".inc"] = render_tables(records)
     validate_references(tables)
     aliases = constructor_alias_records(tables)
-    projection = {"schema_version": SCHEMA_VERSION, "tables": [{
+    outputs["unit_base.inc"] += b"\n" + render_tables([{
         "name": "k_player_base_alias_records", "c_type": "uint8_t",
-        "dimensions": [len(aliases), 24], "values": aliases,
-        "source": {"evidence": "derived from k_player_base_alias_views and the unique growth/stage_prepare definitions"}}]}
-    projection_bytes = json.dumps({"views": tables["k_player_base_alias_views"],
-        "records": aliases}, sort_keys=True).encode("utf-8")
-    outputs["unit_base.inc"] += b"\n" + render(projection, hashlib.sha256(projection_bytes).hexdigest())
-    receipt["projections"] = [{"name": "k_player_base_alias_records",
-        "specification": "k_player_base_alias_views", "inputs": ["k_growth_records", "k_stage_prepare"],
-        "dimensions": [len(aliases), 24], "sha256": hashlib.sha256(bytes(sum(aliases, []))).hexdigest()}]
-    prepared = preparation_views(tables)
-    projection = {"schema_version": SCHEMA_VERSION, "tables": prepared}
-    projection_bytes = json.dumps(projection, sort_keys=True).encode("utf-8")
-    outputs["preparation.inc"] += b"\n" + render(projection, hashlib.sha256(projection_bytes).hexdigest())
-    for table, projection_inputs in zip(prepared, (
-            ["k_player_base_records", "k_prepare_promotion_records"],
-            ["k_prepare_service_return_prefix", "k_prepare_revive_coefficients"])):
-        raw = (bytes(table["values"]) if table["c_type"] == "uint8_t" else
-               struct.pack("<6H", *table["values"]))
-        receipt["projections"].append({"name": table["name"], "inputs": projection_inputs,
-            "dimensions": table["dimensions"], "sha256": hashlib.sha256(raw).hexdigest()})
-    receipt["flows"] = []
+        "dimensions": [len(aliases), 24], "values": aliases}])
+    outputs["preparation.inc"] += b"\n" + render_tables(preparation_views(tables))
+    path = tables_dir / movement_file
+    inputs[path] = path.read_bytes()
+    scripts = read_movement_scripts(decode_json(inputs[path]))
+    outputs["movement_scripts.inc"] = render_movement_scripts(scripts)
     global_ids = set()
     flow_documents = {}
-    for name in sorted(flow_files):
-        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*\.json", name):
+    for name in sorted(flow_contracts):
+        if not re.fullmatch(r"[a-z][a-z0-9_]*\.json", name):
             raise ValueError("invalid flow file name")
-        path = root / "data/static/flows" / name
+        path = flows_dir / name
         raw = path.read_bytes()
         inputs[path] = raw
         document = validate_flows(decode_json(raw))
         if document["domain"] != path.stem:
             raise ValueError("flow domain/file mismatch")
-        validate_source(document["source"], sources, name)
         flow_documents[name] = document
         for identity in flow_index(document):
             if identity in global_ids:
                 raise ValueError("duplicate global flow ID")
             global_ids.add(identity)
-        digest = hashlib.sha256(raw).hexdigest()
-        outputs[path.stem + "_flows.inc"] = render_flows(document, digest)
-        receipt["flows"].append({"file": name, "input_sha256": digest, "source": document["source"],
-            "flow_count": len(document["flows"]), "runtime_flow_count": len(flow_index(document)),
-            "bindings": document.get("bindings", {}),
-            "node_count": sum(len(f["nodes"]) for f in document["flows"])})
-    contracts = manifest.get("flow_contracts", {})
-    if set(contracts) != set(flow_files):
-        raise ValueError("flow consumer contracts must cover every domain")
+        outputs[path.stem + "_flows.inc"] = render_flows(document)
     all_flows = {identity: flow for d in flow_documents.values() for identity, flow in flow_index(d).items()}
     for name, document in flow_documents.items():
-        validate_flow_contract(document, contracts[name], script_ids, all_flows)
-    outputs["sources.json"] = (json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+        validate_flow_contract(document, flow_contracts[name], scripts.keys(), all_flows)
     # 全部输入验证成功后才更新任何输出，坏数据不能留下半套新定义。
     if any(path.read_bytes() != data for path, data in inputs.items()):
         raise ValueError("static inputs changed during generation")
@@ -725,7 +676,7 @@ def generate(root: Path, output: Path, check=False):
         temporary = path.with_suffix(path.suffix + ".tmp")
         temporary.write_bytes(data)
         temporary.replace(path)
-    return len(names)
+    return len(tables) + len(scripts)
 
 
 def main():
@@ -738,7 +689,7 @@ def main():
         count = generate(args.root, args.output, args.check)
     except (ValueError, OSError, TypeError) as error:
         parser.exit(1, f"static data: {error}\n")
-    print(f"static data: {count} validated tables")
+    print(f"static data: {count} validated data arrays")
 
 
 if __name__ == "__main__":

@@ -13,12 +13,15 @@ generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
 
 
+def read_script_ids():
+    return generator.read_movement_scripts(generator.load_json(ROOT / "data/static/tables/movement_scripts.json")).keys()
+
+
 class StaticFlowTest(unittest.TestCase):
     def test_source_capability_requires_exact_entry_victory_and_result_owner_bindings(self):
         manifest = generator.load_json(ROOT / "data/static/manifest.json")
         docs = {p.name: generator.load_json(p) for p in (ROOT / "data/static/flows").glob("*.json")}
-        scripts = {t["source"]["script_id"] for t in generator.load_json(
-            ROOT / "data/static/tables/movement_scripts.json")["tables"]}
+        scripts = read_script_ids()
 
         def check(current):
             index = {name: flow for d in current.values() for name, flow in generator.flow_index(d).items()}
@@ -57,7 +60,7 @@ class StaticFlowTest(unittest.TestCase):
                        for i in range(1546)]
         flow["entry"]="n300";flow["entries"]={"source_prefix":"n0"}
         generator.validate_flows(data)
-        self.assertIn(b", 1546, 300}",generator.render_flows(data,"0"*64))
+        self.assertIn(b", 1546, 300}",generator.render_flows(data))
         flow["nodes"]=[flow["nodes"][0]]*32768
         with self.assertRaisesRegex(ValueError,"capacity"):generator.validate_flows(data)
 
@@ -70,7 +73,7 @@ class StaticFlowTest(unittest.TestCase):
                 generator.validate_flows(data)
 
     def document(self):
-        return {"schema_version": 1, "domain": "test", "source": {"evidence": "synthetic"},
+        return {"schema_version": 2, "domain": "test",
                 "operations": {"test": {"args": [{"name": "value", "min": 0, "max": 5}]}, "end": {"args": []}},
                 "flows": [{"id": "test.branch", "entry": "choose", "nodes": [
                     {"id": "choose", "op": "test", "args": [1], "on": {"yes": "accepted", "no": "rejected"}},
@@ -107,10 +110,10 @@ class StaticFlowTest(unittest.TestCase):
 
     def test_edges_drive_generated_code_and_external_entries_are_explicit(self):
         data = self.document()
-        before = generator.render_flows(generator.validate_flows(data), "0"*64)
+        before = generator.render_flows(generator.validate_flows(data))
         node = data["flows"][0]["nodes"][0]
         node["on"]["yes"], node["on"]["no"] = node["on"]["no"], node["on"]["yes"]
-        after = generator.render_flows(generator.validate_flows(data), "0"*64)
+        after = generator.render_flows(generator.validate_flows(data))
         self.assertNotEqual(before, after)
         node["on"] = {"yes": "accepted"}
         data["flows"][0]["entries"] = {"cancelled_from_host": "rejected"}
@@ -130,7 +133,7 @@ class StaticFlowTest(unittest.TestCase):
         index = generator.flow_index(data)
         self.assertIs(index["stage.001.action.042"], index["test.branch"])
         self.assertIs(index["stage.002.action.042"]["nodes"], index["test.branch"]["nodes"])
-        rendered = generator.render_flows(data, "0"*64).decode("utf-8")
+        rendered = generator.render_flows(data).decode("utf-8")
         self.assertEqual(rendered.count("static const fd2_static_flow_node "), 1)
         for identity in ("test.branch", "stage.001.action.042", "stage.002.action.042"):
             self.assertIn('{' + json.dumps(identity) + ', k_test_nodes_0, 3, 0}', rendered)
@@ -141,7 +144,7 @@ class StaticFlowTest(unittest.TestCase):
             with self.subTest(bindings=bindings), self.assertRaises(ValueError):
                 generator.validate_flows(dict(data, bindings=bindings))
 
-    def test_real_scene_new_binding_receipt_and_global_collision(self):
+    def test_real_flow_accepts_new_binding_and_rejects_global_collision(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name) / "root"
             shutil.copytree(ROOT / "data/static", root / "data/static")
@@ -151,11 +154,9 @@ class StaticFlowTest(unittest.TestCase):
             path.write_text(json.dumps(data), encoding="utf-8")
             output = Path(name) / "generated"
             generator.generate(root, output)
-            receipt = json.loads((output / "sources.json").read_text(encoding="utf-8"))
-            scene = next(row for row in receipt["flows"] if row["file"] == "common_event.json")
-            self.assertEqual(scene["bindings"], data["bindings"])
-            self.assertEqual(scene["runtime_flow_count"], len(data["flows"]) + len(data["bindings"]))
-            self.assertEqual(scene["node_count"], sum(len(flow["nodes"]) for flow in data["flows"]))
+            lines = (output / "common_event_flows.inc").read_text(encoding="utf-8").splitlines()
+            original = next(line for line in lines if '{"common.legacy.action.006",' in line)
+            self.assertIn(original.replace('"common.legacy.action.006"', '"stage.001.action.042"'), lines)
             before = {p.name: p.read_bytes() for p in output.iterdir()}
             generator.generate(root, output, check=True)
             data["bindings"]["stage.entry.001"] = "common.legacy.action.006"
@@ -225,8 +226,7 @@ class StaticFlowTest(unittest.TestCase):
     def test_game_initialization_view_matches_its_consumer(self):
         document = generator.load_json(ROOT / "data/static/flows/scene.json")
         contract = generator.load_json(ROOT / "data/static/manifest.json")["flow_contracts"]["scene.json"]
-        scripts = {table["source"]["script_id"] for table in generator.load_json(
-            ROOT / "data/static/tables/movement_scripts.json")["tables"]}
+        scripts = read_script_ids()
 
         def check(data):
             generator.validate_flow_contract(data, contract, scripts, generator.flow_index(data))
@@ -253,8 +253,7 @@ class StaticFlowTest(unittest.TestCase):
         manifest = generator.load_json(ROOT / "data/static/manifest.json")
         docs = {p.name: generator.load_json(p) for p in (ROOT / "data/static/flows").glob("*.json")}
         all_flows = {identity: flow for d in docs.values() for identity, flow in generator.flow_index(d).items()}
-        scripts = {t["source"]["script_id"] for t in generator.load_json(
-            ROOT / "data/static/tables/movement_scripts.json")["tables"]}
+        scripts = read_script_ids()
         for name, original in docs.items():
             contract = manifest["flow_contracts"][name]
             generator.validate_flow_contract(original, contract, scripts, all_flows)

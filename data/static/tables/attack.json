@@ -1,51 +1,23 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_terrain_attack_percent",
       "c_type": "int32_t",
       "dimensions": [6],
-      "values": [5, 0, -5, -5, -5, 0],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 2,
-        "canonical_va": "0x51a12",
-        "length": 24,
-        "evidence": "field_physical_attack_resolve @0x1ecc7；地形movement_cost_class 0..5的完整攻击百分比",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "36a58bfdc11610b31b9fbbf0a358b4302ce6f98335a9b27f5791a0bfbad18af8"
-      }
+      "values": [5, 0, -5, -5, -5, 0]
     },
     {
       "name": "k_terrain_defense_percent",
       "c_type": "int32_t",
       "dimensions": [6],
-      "values": [0, 0, 10, 10, -5, 0],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 2,
-        "canonical_va": "0x51a2a",
-        "length": 24,
-        "evidence": "field_physical_attack_resolve @0x1ecc7；地形movement_cost_class 0..5的完整防御百分比",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "bc1da659d53438395375da20af19b3b69f25e6595331a1de364d9354e07cbca7"
-      }
+      "values": [0, 0, 10, 10, -5, 0]
     },
     {
       "name": "k_critical_by_profile",
       "c_type": "uint8_t",
       "dimensions": [30],
-      "values": [5, 3, 3, 5, 3, 3, 0, 18, 5, 3, 3, 12, 3, 3, 12, 10, 6, 3, 3, 7, 3, 3, 30, 18, 0, 0, 0, 0, 0, 0],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 2,
-        "canonical_va": "0x524a8",
-        "length": 30,
-        "evidence": "field_physical_attack_resolve @0x1ecc7；movement profile 1-based基础暴击阈值",
-        "first_id": 1,
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "70be79b58107f0912888f3f7f6fd76c080e833d29e92412e42dd924a6e1fdf46"
-      }
+      "values": [5, 3, 3, 5, 3, 3, 0, 18, 5, 3, 3, 12, 3, 3, 12, 10, 6, 3, 3, 7, 3, 3, 30, 18, 0, 0, 0, 0, 0, 0]
     }
   ]
 }

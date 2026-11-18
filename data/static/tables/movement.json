@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_profiles",
@@ -35,17 +35,7 @@
         [1, 20, 1, 2, 2, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 20, 1, 2, 2, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [20, 20, 20, 20, 1, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x61646",
-        "length": 580,
-        "sha256": "4002a997ddd7c1e036461c7ee2b915560587f1653aae6c5978bd47d84f533935",
-        "evidence": "field_movement_profile_get @0x4e8a5; docs/generated/ida-canonical/fd2-ida-decomp-all.c",
-        "view": "raw-unrelocated"
-      }
+      ]
     }
   ]
 }

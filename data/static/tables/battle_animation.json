@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_battle_summary_bottom_override",
@@ -10,52 +10,19 @@
       "values": [
         24,
         17
-      ],
-      "source": {
-        "kind": "decoded_call_constants",
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "canonical_ranges": [
-          "0x2facd",
-          "0x2fb00",
-          "0x2fb09",
-          "0x2fb10",
-          "0x2fb23"
-        ],
-        "columns": [
-          "stage",
-          "raw_unit_index"
-        ],
-        "evidence": "完整95B sub_2FACD：原side0默认VGA(0,154)，side非0默认(171,4)；stage24且raw index17时强制bottom。raw为53A45记录索引，不是unit_id。九caller依实际actor/target数组保持参数与底图写序；summary painter仍18c6d。strict chunk SHA286b2e579e094c8b6e4498b7439d7faceba42ff2c0cc43c930437d4a1bf8f4c9。"
-      }
+      ]
     },
     {
       "name": "k_battle_ai_ray_item_present",
       "c_type": "int16_t",
       "dimensions": [13, 3],
-      "values": [[1, 0, 0], [2, 1, 0], [3, 0, 0], [4, 0, 0], [5, 6, 0], [1, 0, 0], [6, 0, 0], [7, 3, 0], [8, 0, 0], [1, 1, 0], [9, 80, -4], [10, 200, 0], [11, 64, 4]],
-      "source": {
-        "kind": "decoded_call_constants",
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "canonical_ranges": ["0x2dfc8", "0x2e0c4", "0x2e137", "0x2e19b", "0x2e1d3", "0x2e24f", "0x2e272", "0x2e284", "0x2e2a3", "0x15195", "0x151a2", "0x151af", "0x151be"],
-        "columns": ["operation", "value", "step"],
-        "evidence": "完整744B sub_2DFC8与15055 strict Domain原指令：fade-out、单actor intro(a2=1)、从继承EDI=原149f8目标count开始逐part绘制且每part一次duration等待(含0)、释放临时图形、重建唯一地图owner后wait6、fade-out/clear/11cac(1)/stop/fade-in；15055随后2189a(actor,80,-4)、delay200、64..0 pal_partial_set各delay4。有限op 1 fade、2 intro、3 parts、4 release、5 ticks、6 clear、7 return、8 stop、9 circle、10 ms、11 white-recover；不含后续20c6f真实效果，不消费业务RNG。"
-      }
+      "values": [[1, 0, 0], [2, 1, 0], [3, 0, 0], [4, 0, 0], [5, 6, 0], [1, 0, 0], [6, 0, 0], [7, 3, 0], [8, 0, 0], [1, 1, 0], [9, 80, -4], [10, 200, 0], [11, 64, 4]]
     },
     {
       "name": "k_battle_map_cast_preamble",
       "c_type": "uint8_t",
       "dimensions": [8, 2],
-      "values": [[1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1]],
-      "source": {
-        "kind": "decoded_call_constants",
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "canonical_ranges": ["0x1d6c8", "0x1d73f", "0x1d785", "0x1d790"],
-        "columns": ["use_magic_rgb", "wait_ticks"],
-        "evidence": "完整sub_1D6C8 212B strict Domain源：1d790 cmp4循环，每轮DAC0写51aad/51ad1/51af5[id]后1d741 wait1，再DAC0写黑后1d787 wait1。唯一原caller1cff0在1d459调用，限定id9..27且排除24，位于handler成本前；RGB继续复用k_battle_cast_colors。有限色/黑次序外置，不新增业务owner或RNG。"
-      }
+      "values": [[1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1], [1, 1], [0, 1]]
     },
     {
       "name": "shake_x",
@@ -70,15 +37,7 @@
         14,
         18,
         14
-      ],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/battle_animation.c",
-        "symbol": "shake_x",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
-      }
+      ]
     },
     {
       "name": "shake_y",
@@ -93,15 +52,7 @@
         6,
         8,
         10
-      ],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/battle_animation.c",
-        "symbol": "shake_y",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
-      }
+      ]
     },
     {
       "name": "k_battle_cast_colors",
@@ -291,23 +242,7 @@
           50,
           60
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_parallel_tables",
-        "object": 2,
-        "canonical_va": "0x51aad",
-        "length": 108,
-        "sha256": "c75398aa179ae53fd1d3af797a843312f7cefc0df87f8cb93f234cadeddbe27d",
-        "view": "raw-unrelocated",
-        "column_vas": [
-          "0x51aad",
-          "0x51ad1",
-          "0x51af5"
-        ],
-        "evidence": "sub_30E9D @0x30e9d direct magic_id indexes three36-byte columns; JSON rows preserve red/green/blue order. Includes composite32..35; first10 match original B6 projection."
-      }
+      ]
     },
     {
       "name": "k_battle_magic_shake_x",
@@ -320,15 +255,7 @@
         4,
         2,
         0
-      ],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/battle_animation.c",
-        "symbol": "magic_target_full.dx",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
-      }
+      ]
     },
     {
       "name": "k_battle_magic_shake_y",
@@ -341,15 +268,7 @@
         -2,
         -1,
         0
-      ],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/battle_animation.c",
-        "symbol": "magic_target_full.dy",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
-      }
+      ]
     },
     {
       "name": "k_battle_heal_curve",
@@ -383,15 +302,7 @@
         15,
         15,
         15
-      ],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/battle_animation.c",
-        "symbol": "floating_heals.curve",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "2c6956272121f48bfd386dd2afb1955319747844ecaa6e0ae21affc42d34009d"
-      }
+      ]
     },
     {
       "name": "k_battle_map_fx_start",
@@ -433,17 +344,7 @@
         0,
         0,
         64
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x51f33",
-        "length": 33,
-        "sha256": "2ce8b9ab5b621fd2b62575d8c3b6b54ba486b1f9e765333a234ac0ceba2fa626",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_map_fx_count",
@@ -485,17 +386,7 @@
         0,
         0,
         10
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x51f54",
-        "length": 33,
-        "sha256": "aa05eafd4b41f90cc25e8e831d552616bac1de95d01770b8ce2abf0cb59759a6",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_map_fx_cue",
@@ -537,17 +428,7 @@
         0,
         0,
         9
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x51f75",
-        "length": 33,
-        "sha256": "79cbcd661da226ad5b3d0b3531b5f87d5d8353e0753873c6486b52f1fb7673e6",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_popup_miss",
@@ -560,17 +441,7 @@
         117,
         118,
         118
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x5204a",
-        "length": 4,
-        "sha256": "66b3df1e841132d93bdc2ce7cf6bd7389f01a5fa298837e67beb194604caa368",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_composite_red",
@@ -583,17 +454,7 @@
         51,
         53,
         53
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x5265c",
-        "length": 4,
-        "sha256": "4051a5fdb568d060606e5f675c867cf33793fbae93742c8b186f569855ffc2f5",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_composite_green",
@@ -606,17 +467,7 @@
         57,
         0,
         58
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52660",
-        "length": 4,
-        "sha256": "02a842c7a7c67eaf90beec00790c8d9700760bb212402af3616f71b21d6d72a9",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_composite_blue",
@@ -629,17 +480,7 @@
         63,
         0,
         9
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52664",
-        "length": 4,
-        "sha256": "0eabc2e583d806987735444c06c1cf5e6482162745252ce8608ea700f7cdb857",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_composite_banks",
@@ -652,17 +493,7 @@
         92,
         93,
         94
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52668",
-        "length": 4,
-        "sha256": "9fcddc31b255e23ec66fc550aefc3b127be6d3e05a3438279cf9d3afe5abf251",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_map_damage_tint",
@@ -701,17 +532,7 @@
         16,
         8,
         8
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52006",
-        "length": 30,
-        "sha256": "2503db385ef51544be1958d3e8c55bd542fd6a8dce68432a9b342eecb08a6dcb",
-        "view": "raw-unrelocated",
-        "evidence": "G2: Domain G1 scope-callee-closure (1c4cc/1cd17/1e1dc/2d80d) full instructions; composite stack var38=red,var3c=green,var40=blue,var34=bank, index=magic_id-32. Map FX tables use actual core_id0..32."
-      }
+      ]
     },
     {
       "name": "k_battle_map_extra_cues",
@@ -771,16 +592,7 @@
           19,
           15
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x1c4cc"
-        ],
-        "evidence": "Domain full 1c4cc instructions, canonical pseudocode: ordered (core_id,frame,sample) branches after the initial-frame cue. Bank belongs to original map FX owner FDOTHER80, not caster FIGANI bank."
-      }
+      ]
     },
     {
       "name": "k_battle_default_scene",
@@ -819,17 +631,7 @@
         3,
         0,
         0
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52470",
-        "length": 30,
-        "sha256": "2659824ccbb0080419c909743fa9cf249b6c6dda7cc9051006029f6ba5983797",
-        "view": "raw-unrelocated",
-        "evidence": "2e2b0 and 30e25: terrain-immune profile selects per-stage background at52470; other targets/caster use terrain attr2. This data projection does not open stage combat."
-      }
+      ]
     },
     {
       "name": "k_battle_heal_masks",
@@ -855,19 +657,7 @@
           6,
           6
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x21ad9",
-          "0x21b99",
-          "0x2211c",
-          "0x22153"
-        ],
-        "evidence": "Full Domain/canonical caller instructions to21eb1 for13..16: initial radius and per-frame increment, not four copies of stage13 timing."
-      }
+      ]
     },
     {
       "name": "k_battle_item_presentations",
@@ -977,29 +767,7 @@
           1,
           0
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x20c6f",
-          "0x21082",
-          "0x211a4",
-          "0x22af6",
-          "0x22d1b",
-          "0x1c4cc",
-          "0x1cd17",
-          "0x1cac7"
-        ],
-        "first_code": 5,
-        "columns": [
-          "actor_style_0_none_1_solid_2_ramp_3_duotone",
-          "popup_kind_0_none_1_red_2_green",
-          "numeric_zero_on_success"
-        ],
-        "evidence": "Full Domain/canonical20c6f code5..24 callers and21082: HP/MP/permanentstat use direct1c4cc+1c2da, no21eb1 radial;20/24 always1cd17 ramp,21 always2111a/1cac7 duotone, even effect_id10/11/12. Permanent stats show originalpower as red numeric including0 before caster recompute/slot removal. Status success calls1e0db even0; damage helpers0 becomeMISS.23 is four22253 stages and has no numeric queue; itemcaller display1 differs from Magic23 display2."
-      }
+      ]
     },
     {
       "name": "k_battle_map_solid_color",
@@ -1009,17 +777,7 @@
       ],
       "values": [
         200
-      ],
-      "source": {
-        "kind": "decoded_call_constants",
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "canonical_ranges": [
-          "0x1c2da",
-          "0x4e127"
-        ],
-        "evidence": "Full Domain caller1c2da pushes source stride456 and unused51f15[id] arg_C. Callee4e127 reads arg_8 twice:4e133 for row stride,4e13b/4e13e into AH for every opaque write; arg_C is never read. Effective map SOLID color is original stride456 low byte200, independent of SDL framebuffer stride. Confirmed original34 WGC opaque actor shapes use palette200; source opcode execution is recorded separately."
-      }
+      ]
     },
     {
       "name": "k_battle_short_fx_offsets",
@@ -1049,19 +807,7 @@
         0,
         56,
         56
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_pointer_offsets",
-        "canonical_ranges": [
-          "0x4e87d",
-          "0x1e98c"
-        ],
-        "pointer_va": "0x61955",
-        "target_base_va": "0x619a9",
-        "evidence": "21 object3 internal offset fixups; target minus619a9 selects the count-prefixed frame/cue sequence. Consumer uses equipped weapon item[0], not item[9] effect type. All six distinct target sequences end before619fd magic records."
-      }
+      ]
     },
     {
       "name": "k_battle_short_fx_sequences",
@@ -1154,18 +900,7 @@
         255,
         30,
         255
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "source_range",
-        "object": 3,
-        "canonical_va": "0x619a9",
-        "view": "raw-unrelocated",
-        "length": 84,
-        "sha256": "ad41da472286d083b3b1d67282e8a471be44d3a860e021eb93283d5546c15b92",
-        "evidence": "4e87d weapon visual pointer table and1e98c: count followed by frame/cue pairs, cue255 means none. Six sequences partition84 bytes exactly; target frames0..38 are FDOTHER6, audio bank64 comes from1a7bd."
-      }
+      ]
     },
     {
       "name": "k_battle_map_action_parameters",
@@ -1183,33 +918,7 @@
         80,
         8,
         55
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x1a7bd",
-          "0x25bf4",
-          "0x1e98c",
-          "0x1eb05",
-          "0x1e856",
-          "0x1e611",
-          "0x4e127"
-        ],
-        "columns": [
-          "short_sfx_bank",
-          "recovery_sfx_bank",
-          "short_original_sprite_stride",
-          "short_panel_first_frame",
-          "short_panel_frame_count",
-          "short_panel_delay_ms",
-          "short_effect_delay_ms",
-          "short_bar_delay_ms",
-          "counter_top_bar_width"
-        ],
-        "evidence": "1a7bd loads FDOTHER64 into53b0f only when53af9!=0;1a7f1 frees that owner. Main25bf4 loads FDOTHER31 into53eec, used by13fd4 cue4. 1e98c source sprite stride320 determines solid64 at4e127 (arg_C ignored), and waits80ms per weapon FX. 1eb05 opens FDOTHER6 frames39..48 at25ms;1e856 shrinks HPbar at8ms;1e611 fixed counter top width55. Recovery wait/cue/actor order remains in stationary.recover cold flow, not this metadata."
-      }
+      ]
     }
   ]
 }

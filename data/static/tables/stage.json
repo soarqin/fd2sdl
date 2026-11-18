@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_stage_prepare",
@@ -32,18 +32,7 @@
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 4, 88, 9, 28, 41, 50, 60, 70, 142, 153, 161, 171, 177, 255, 194, 195, 196, 197, 255, 255, 255, 255, 195, 207, 40, 255, 255, 255, 255, 255],
         [0, 0, 99, 10, 31, 42, 104, 60, 105, 143, 154, 162, 171, 177, 255, 195, 207, 255, 255, 255, 255, 255, 255, 195, 207, 255, 255, 255, 255, 255, 255]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 3,
-        "canonical_va": "0x6238d",
-        "length": 806,
-        "evidence": "sub_4E809 @0x4e809；26条完整准备记录，保留全部未知字节",
-        "getter_va": "0x4e809",
-        "first_id": 1,
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "e6332bf1c878f962553757101e3b45422a51ac1eead96ddbb80381a44af3c094"
-      }
+      ]
     },
     {
       "name": "k_stage_music",
@@ -80,18 +69,7 @@
         [19, 1],
         [19, 1],
         [8, 8]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 2,
-        "canonical_va": "0x51e63",
-        "length": 60,
-        "evidence": "music_track_play @0x25977 / field_turn_cycle_run @0x1a30b；原primary/alternate两张30字节表按stage投影配对",
-        "alternate_va": "0x51e81",
-        "projection": "primary[i], alternate[i]",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "55279696aca0a053c4e94ea451d486beb8a1e11594008a0236a556b62c5afb50"
-      }
+      ]
     }
   ]
 }

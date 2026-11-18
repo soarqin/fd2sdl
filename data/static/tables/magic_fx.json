@@ -1,299 +1,131 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_fx_friendly_clips",
       "c_type": "uint16_t",
       "dimensions": [9],
-      "values": [18, 19, 26, 39, 22, 24, 32, 37, 28],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.friendly",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [18, 19, 26, 39, 22, 24, 32, 37, 28]
     },
     {
       "name": "k_fx_hostile_clips",
       "c_type": "uint16_t",
       "dimensions": [10],
-      "values": [20, 21, 27, 43, 23, 25, 33, 38, 30, 44],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.hostile",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [20, 21, 27, 43, 23, 25, 33, 38, 30, 44]
     },
     {
       "name": "k_fx_banks",
       "c_type": "uint8_t",
       "dimensions": [10],
-      "values": [82, 82, 83, 84, 85, 86, 87, 88, 89, 90],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.banks",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [82, 82, 83, 84, 85, 86, 87, 88, 89, 90]
     },
     {
       "name": "k_fx_hp_denominators",
       "c_type": "uint8_t",
       "dimensions": [10],
-      "values": [7, 8, 6, 13, 6, 6, 5, 5, 16, 20],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.hp",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [7, 8, 6, 13, 6, 6, 5, 5, 16, 20]
     },
     {
       "name": "k_fx_sample_counts",
       "c_type": "uint8_t",
       "dimensions": [10],
-      "values": [2, 2, 4, 3, 2, 2, 4, 2, 3, 3],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.samples",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [2, 2, 4, 3, 2, 2, 4, 2, 3, 3]
     },
     {
       "name": "k_fx_minimum_parts",
       "c_type": "uint16_t",
       "dimensions": [10],
-      "values": [16, 30, 18, 33, 14, 12, 10, 5, 32, 31],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.parts",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [16, 30, 18, 33, 14, 12, 10, 5, 32, 31]
     },
     {
       "name": "k_fx_rain0_x",
       "c_type": "int32_t",
       "dimensions": [7],
-      "values": [40, 70, 120, 80, 50, 100, 70],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "rain.x0",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [40, 70, 120, 80, 50, 100, 70]
     },
     {
       "name": "k_fx_rain0_y",
       "c_type": "int32_t",
       "dimensions": [7],
-      "values": [0, -10, -20, 0, -15, -5, 0],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "rain.y0",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [0, -10, -20, 0, -15, -5, 0]
     },
     {
       "name": "k_fx_rain0_front",
       "c_type": "uint8_t",
       "dimensions": [7],
-      "values": [0, 0, 1, 0, 1, 0, 0],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "rain.front",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [0, 0, 1, 0, 1, 0, 0]
     },
     {
       "name": "k_fx_rain1_x",
       "c_type": "int32_t",
       "dimensions": [8],
-      "values": [-59, -39, 0, 39, 55, 39, 0, -39],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "rain.x1",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [-59, -39, 0, 39, 55, 39, 0, -39]
     },
     {
       "name": "k_fx_rain1_y",
       "c_type": "int32_t",
       "dimensions": [8],
-      "values": [-10, -24, -30, -24, -10, 4, 10, 4],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "rain.y1",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [-10, -24, -30, -24, -10, 4, 10, 4]
     },
     {
       "name": "k_fx_shower_x",
       "c_type": "int32_t",
       "dimensions": [12],
-      "values": [30, 0, 70, 40, 130, 70, -30, 30, 110, 80, -10, 30],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "shower.x",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [30, 0, 70, 40, 130, 70, -30, 30, 110, 80, -10, 30]
     },
     {
       "name": "k_fx_shower_y",
       "c_type": "uint8_t",
       "dimensions": [12],
-      "values": [0, 10, 0, 20, 5, 20, 0, 10, 0, 18, 0, 10],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "shower.y",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [0, 10, 0, 20, 5, 20, 0, 10, 0, 18, 0, 10]
     },
     {
       "name": "k_fx_shower_parts",
       "c_type": "uint8_t",
       "dimensions": [12],
-      "values": [22, 0, 0, 0, 0, 0, 11, 0, 22, 0, 0, 0],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "shower.part",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [22, 0, 0, 0, 0, 0, 11, 0, 22, 0, 0, 0]
     },
     {
       "name": "k_fx_dust_x",
       "c_type": "int32_t",
       "dimensions": [10],
-      "values": [30, 50, 70, 40, 80, 100, 70, 30, 60, 90],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "dust.x",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [30, 50, 70, 40, 80, 100, 70, 30, 60, 90]
     },
     {
       "name": "k_fx_orbit_dx",
       "c_type": "int32_t",
       "dimensions": [5],
-      "values": [10, 8, 3, 0, 0],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "orbit.dx",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [10, 8, 3, 0, 0]
     },
     {
       "name": "k_fx_orbit_dy",
       "c_type": "int32_t",
       "dimensions": [5],
-      "values": [10, 8, 3, 0, 0],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "orbit.dy",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [10, 8, 3, 0, 0]
     },
     {
       "name": "k_fx_surge_x",
       "c_type": "int32_t",
       "dimensions": [10],
-      "values": [30, -10, 70, 20, 100, 130, 40, 80, 110, 60],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "surge.x",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [30, -10, 70, 20, 100, 130, 40, 80, 110, 60]
     },
     {
       "name": "k_fx_burst_offsets",
       "c_type": "uint8_t",
       "dimensions": [16],
-      "values": [0, 8, 24, 16, 8, 0, 24, 16, 0, 8, 24, 16, 8, 0, 24, 16],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "burst.offsets",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [0, 8, 24, 16, 8, 0, 24, 16, 0, 8, 24, 16, 8, 0, 24, 16]
     },
     {
       "name": "k_fx_hit_frame_bases",
       "c_type": "uint16_t",
       "dimensions": [10],
-      "values": [32, 32, 32, 32, 176, 176, 176, 176, 176, 176],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.hit_frame_base",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [32, 32, 32, 32, 176, 176, 176, 176, 176, 176]
     },
     {
       "name": "k_fx_return_lut_bases",
       "c_type": "uint16_t",
       "dimensions": [10],
-      "values": [11, 11, 11, 11, 15, 15, 15, 15, 19, 15],
-      "source": {
-        "kind": "existing_confirmed_definition",
-        "file": "src/magic_fx.c",
-        "symbol": "fd2_magic_fx_parameters_get.return_lut_base",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "evidence": "既有实现文件头的 canonical VA 及 B6 局部向量；本次仅迁移已确认常量，不新增逆向语义",
-        "baseline_source_sha256": "d5435c7ef19f34031406903c9cd82f2d178aa2f23eef32e9e45b84971761d86a"
-      }
+      "values": [11, 11, 11, 11, 15, 15, 15, 15, 19, 15]
     }
   ]
 }

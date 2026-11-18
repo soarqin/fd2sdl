@@ -25,8 +25,6 @@ SCRIPT_IDS = tuple(range(106))
 POINTER_TABLE_VA = 0x627D8
 ACTOR_LIMIT = 96  # 原10010/1088d分配7680B，不能以当前某一关人数缩小全局域。
 EXPECTED_SOURCE_BYTES = 2896
-GETTER_EVIDENCE = "field_movement_script_ptr @0x4eb48"
-PLAYER_EVIDENCE = "field_movement_script_play @0x1366a"
 
 
 @dataclass(frozen=True)
@@ -92,52 +90,28 @@ def source_scripts(executable: Path) -> dict[int, ScriptSource]:
     return result
 
 
-def check_table(table: dict, identity: int, expected: ScriptSource) -> None:
+def check_script(values: list[int], identity: int, expected: ScriptSource) -> None:
     if type(identity) is not int or identity not in SCRIPT_IDS:
         raise ValueError("未支持的移动脚本ID")
-    if not isinstance(table, dict) or set(table) != {"name", "c_type", "dimensions", "values", "source"}:
-        raise ValueError(f"script{identity}: 表字段不符")
-    if (table["name"], table["c_type"], table["dimensions"]) != (
-            f"k_movement_script_{identity:02x}", "uint8_t", [len(expected.data)]):
-        raise ValueError(f"script{identity}: 名称／类型／尺寸不符")
-    values = table["values"]
     if not isinstance(values, list) or any(type(value) is not int or not 0 <= value <= 255 for value in values):
         raise ValueError(f"script{identity}: 脚本必须为完整byte数组")
     actual = parse_stream(bytes(values))
     if actual != expected.data:
         raise ValueError(f"script{identity}: 字节与独立fixup源不符")
-    source = table["source"]
-    provenance = {
-        "file": "FD2.EXE", "file_sha256": EXE_SHA256, "object": 3,
-        "canonical_va": hex(expected.canonical_va), "pointer_table_va": hex(POINTER_TABLE_VA),
-        "script_id": identity, "length": len(expected.data),
-        "sha256": hashlib.sha256(expected.data).hexdigest(),
-    }
-    if (not isinstance(source, dict) or
-            type(source.get("script_id")) is not int or
-            any(source.get(key) != value for key, value in provenance.items()) or
-            not isinstance(source.get("evidence"), str) or
-            GETTER_EVIDENCE not in source["evidence"] or PLAYER_EVIDENCE not in source["evidence"]):
-        raise ValueError(f"script{identity}: 来源身份／指针目标／规范getter依据不符")
 
 
 def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
-    if (not isinstance(document, dict) or set(document) != {"schema_version", "tables"} or
-            type(document["schema_version"]) is not int or document["schema_version"] != 1 or
-            not isinstance(document["tables"], list)):
+    if (not isinstance(document, dict) or set(document) != {"schema_version", "scripts"} or
+            type(document["schema_version"]) is not int or document["schema_version"] != 2 or
+            not isinstance(document["scripts"], dict)):
         raise ValueError("移动脚本JSON格式不符")
     if set(expected) != set(SCRIPT_IDS):
         raise ValueError("独立源读集必须覆盖固定106个已确认ID")
-    records = {}
-    for table in document["tables"]:
-        identity = table.get("source", {}).get("script_id") if isinstance(table, dict) and isinstance(table.get("source"), dict) else None
-        if type(identity) is not int or identity not in SCRIPT_IDS or identity in records:
-            raise ValueError("移动脚本ID未知／缺失／重复")
-        records[identity] = table
-    if set(records) != set(SCRIPT_IDS):
+    scripts = document["scripts"]
+    if set(scripts) != {str(identity) for identity in SCRIPT_IDS}:
         raise ValueError("移动脚本集合未覆盖固定106个已确认ID")
     for identity in SCRIPT_IDS:
-        check_table(records[identity], identity, expected[identity])
+        check_script(scripts[str(identity)], identity, expected[identity])
 
 
 def unique_keys(pairs):

@@ -24,6 +24,7 @@
 
 ## 数据格式
 
+- [静态数据与 Mod 制作](formats/static-data.md) · JSON 表字段、索引、事件图和构建步骤。
 - [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
 - [历史关卡来源账格式](formats/stage-source-ledger.md)：规范化来源、caller 和批量夹具合同；不是运行时数据。
 - [原版参照身份](formats/original-reference.md)：20个原文件及字库摘要、DOSBox配置与运行资格分账、只读生成／校验和负例；不替代原版运行证据。

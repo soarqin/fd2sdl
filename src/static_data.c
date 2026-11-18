@@ -1,4 +1,4 @@
-/* 冷流程定义：来源由data/static/manifest.json绑定原已确认C/IDA依据。
+/* 冷流程定义：复用各领域已确认的原版调用，依据见 docs/tools/static-data.md。
  * 同一份节点供Game、Scene、预检及unit preview消费，不复制可编辑真值。
  */
 #include "static_data.h"

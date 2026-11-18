@@ -76,7 +76,7 @@ def source_range(data: bytes, va: int, size: int) -> bytes:
 
 
 def check_table(table: dict, spec: tuple, expected: bytes) -> None:
-    name, c_type, dimensions, va = spec
+    name, c_type, dimensions, _ = spec
     if (table.get("name"), table.get("c_type"), table.get("dimensions")) != (name, c_type, list(dimensions)):
         raise ValueError(f"{name}: 名称／类型／维度不符")
 
@@ -94,15 +94,6 @@ def check_table(table: dict, spec: tuple, expected: bytes) -> None:
     actual = bytes(numbers) if c_type == "uint8_t" else struct.pack(f"<{len(numbers)}I", *numbers)
     if actual != expected:
         raise ValueError(f"{name}: 原始字段／未知字节与原版不符")
-    source = table.get("source", {})
-    identity = {
-        "file": "FD2.EXE", "file_sha256": EXE_SHA256,
-        "object": 2 if va < 0x60000 else 3, "canonical_va": hex(va),
-        "length": len(expected), "sha256": hashlib.sha256(expected).hexdigest(),
-        "view": "raw-unrelocated",
-    }
-    if any(source.get(key) != value for key, value in identity.items()) or not source.get("evidence"):
-        raise ValueError(f"{name}: 来源记录不符或缺少依据")
 
 
 def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tables") -> dict:
@@ -112,7 +103,8 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
         document = json.loads((tables_dir / f"{stem}.json").read_text(encoding="utf-8"))
         tables = document.get("tables")
         expected_count = len(specs) + (1 if stem == "unit_base" else len(MAGIC_CONTRACT_TABLES) if stem == "magic" else 0)
-        if document.get("schema_version") != 1 or not isinstance(tables, list) or len(tables) != expected_count:
+        if (type(document.get("schema_version")) is not int or document["schema_version"] != 2 or
+                not isinstance(tables, list) or len(tables) != expected_count):
             raise ValueError(f"{stem}: 格式版本或表集合不符")
         for table, spec in zip(tables, specs):
             count = 1
@@ -126,11 +118,10 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
             for table,name in zip(tables[len(specs):],MAGIC_CONTRACT_TABLES):
                 if (table.get("name"),table.get("c_type"),table.get("dimensions")) != (name,"uint8_t",[28]):
                     raise ValueError("magic contract: 新增有限投影的名称／类型／维度不符")
-                values=table.get("values");source=table.get("source",{})
+                values=table.get("values")
                 if (not isinstance(values,list) or len(values)!=28 or
-                        any(type(value) is not int or not 0<=value<=255 for value in values) or
-                        source.get("file")!="FD2.EXE" or source.get("file_sha256")!=EXE_SHA256 or not source.get("evidence")):
-                    raise ValueError("magic contract: 投影整数／原EXE来源不符")
+                        any(type(value) is not int or not 0<=value<=255 for value in values)):
+                    raise ValueError("magic contract: 投影整数不符")
     unit = json.loads((tables_dir / "unit_base.json").read_text(encoding="utf-8"))["tables"]
     stage = json.loads((tables_dir / "stage.json").read_text(encoding="utf-8"))["tables"]
     windows = {identity: source_range(data, 0x61DA1 + 24 * identity, 24) for identity in (48, 66)}
@@ -149,9 +140,6 @@ def check_constructor_alias_views(unit_tables, stage_tables, expected):
     if (alias.get("c_type"), alias.get("dimensions"), alias.get("values")) != (
             "uint16_t", [2, 3], [[48, 0, 384], [66, 1, 68]]):
         raise ValueError("constructor alias: 未确认的构造ID／来源／偏移")
-    source = alias.get("source", {})
-    if source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256 or not source.get("evidence"):
-        raise ValueError("constructor alias: 来源身份缺失")
     # 48读growth+384，66读stage_prepare+68；两个getter窗均非新基础表。
     growth = bytes(number for row in unit["k_growth_records"]["values"] for number in row)
     preparation = bytes(number for row in stage["k_stage_prepare"]["values"] for number in row)

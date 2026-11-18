@@ -3,7 +3,7 @@
 
 原读集由既有 getter、数据格式和 IDA 证据固定，不导入生产生成器。
 cue 是原调用常量的投影，另核对现有 11 项契约，不冒称连续原字节表。
---self-test 在内存中注入错误；原字节、来源或 cue 不符必须明确失败。
+--self-test 在内存中注入错误；原字节、EXE 身份或 cue 不符必须明确失败。
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ TABLES = {
     ),
 }
 
-# field_audio既有映射；依据详见表source及当前IDA伪C的对应sfx_play调用。
+# field_audio既有映射；依据为当前IDA伪C的对应sfx_play调用。
 # 顺序固定为公开fd2_field_sfx的0..10，不从待验values反向推导。
 CUES = (
     ("FD2_FIELD_SFX_DETAIL_OPEN", 31, 5),
@@ -93,7 +93,7 @@ def check(documents, executable):
         tables = document.get("tables")
         count = len(specs) + (stem == "field_audio")
         if (type(document.get("schema_version")) is not int
-                or document["schema_version"] != 1
+                or document["schema_version"] != 2
                 or not isinstance(tables, list) or len(tables) != count):
             raise ValueError(f"{stem}：格式版本或表集合不符")
         for table, spec in zip(tables, specs):
@@ -101,17 +101,6 @@ def check(documents, executable):
             expected = source_range(executable, va, size)
             if table_bytes(table, spec) != expected:
                 raise ValueError(f"{name}：原始字段／未知字节与原版不符")
-            source = table.get("source", {})
-            identity = {
-                "file": "FD2.EXE", "file_sha256": EXE_SHA256,
-                "object": 2 if va < 0x60000 else 3,
-                "canonical_va": hex(va), "length": size,
-                "sha256": hashlib.sha256(expected).hexdigest(),
-            }
-            if any(source.get(key) != value for key, value in identity.items()) or not source.get("evidence"):
-                raise ValueError(f"{name}：来源记录不符或依据缺失")
-            if name == "k_stage_music" and source.get("alternate_va") != "0x51e81":
-                raise ValueError("音乐alternate来源不符")
             checked += 1
             source_bytes += size
     cue = documents["field_audio"]["tables"][-1]
@@ -119,12 +108,6 @@ def check(documents, executable):
     expected = bytes(number for _, bank, sample in CUES for number in (bank, sample))
     if table_bytes(cue, spec) != expected:
         raise ValueError("cue：11项bank／sample映射不符")
-    source = cue.get("source", {})
-    if (source.get("file") != "FD2.EXE" or source.get("file_sha256") != EXE_SHA256
-            or source.get("kind") != "decoded_call_constants"
-            or source.get("cue_ids") != [name for name, _, _ in CUES]
-            or not source.get("canonical_ranges") or not source.get("evidence")):
-        raise ValueError("cue：调用常量投影来源缺失或enum次序不符")
     return {"ok": True, "raw_tables": checked, "source_bytes": source_bytes,
             "cue_mappings": len(CUES), "executable_sha256": EXE_SHA256}
 
@@ -139,14 +122,12 @@ def negative_checks(documents, executable):
                 values = values[0]
             values[0] += 1
             bad_cases.append((bad, executable))
-    for field, value in (("dimensions", [1]), ("source", {})):
-        bad = copy.deepcopy(documents)
-        bad["stage"]["tables"][0][field] = value
-        bad_cases.append((bad, executable))
-    for field, value in (("values", [[31, 5]] * 11), ("source", {})):
-        bad = copy.deepcopy(documents)
-        bad["field_audio"]["tables"][-1][field] = value
-        bad_cases.append((bad, executable))
+    bad = copy.deepcopy(documents)
+    bad["stage"]["tables"][0]["dimensions"] = [1]
+    bad_cases.append((bad, executable))
+    bad = copy.deepcopy(documents)
+    bad["field_audio"]["tables"][-1]["values"] = [[31, 5]] * 11
+    bad_cases.append((bad, executable))
     bad_cases.append((documents, bytes((executable[0] ^ 1,)) + executable[1:]))
     for bad, data in bad_cases:
         try:

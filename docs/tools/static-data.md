@@ -1,20 +1,20 @@
 # 冷定义的构建与来源校验
 
-当前内置的已确认冷表位于 `data/static/tables/*.json`，有限事件图位于 `data/static/flows/*.json`；清单与消费契约在 `data/static/manifest.json`。现有 item、magic、unit、movement、stage 等 getter 保留。构建期生成私有 `const` 表；流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。各 SD 阶段是否通过验收，以[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)为准，不能以生成成功代替。
+普通冷表和移动脚本位于 `data/static/tables/`，事件图位于 `data/static/flows/`，消费契约在 `data/static/manifest.json`。构建期生成私有 `const` 表。流程节点在 `static_data.c` 中只编译一份，由 Game、Scene、预检和成长预览共用。JSON 字段、索引和改动示例见[静态数据与 Mod 制作](../formats/static-data.md)。
 
 ## 构建与修改
 
-正常 CMake 构建自动使用 Python 3.9+ 标准库，将数据生成到各平台独立构建目录的 `generated/static_data/`。Release 运行无需 Python、JSON 文件或 `FD2.EXE`；构建需要 JSON 和生成器，离线源码清单已包含这些材料。命令见[工具速查](README.md)。
+正常 CMake 构建自动使用 Python 3.9+ 标准库，在构建目录的 `generated/static_data/` 下生成 `.inc` 文件。运行时使用已编译的数据和所需 DAT 资源。构建需要 JSON 和生成器，离线源码包包含这些材料。命令见[工具速查](README.md)。
 
-修改定义时只改 JSON，不改生成 `.inc`；源身份、原始读集摘要、canonical VA／依据保留在 `source`。`file_sha256` 表示完整源文件身份，`sha256` 表示原始读集；从已有确认实现迁移的参数使用 `baseline_commit` 和 `baseline_source_sha256` 追溯。本轮没有把这些 C 参数的迁移提升为新的原版机器码／运行验收。
+修改定义时编辑 JSON。版本 2 精简了构建输入，原版地址、读集与来源身份由源码注释、独立校验工具和逆向文档记录。旧 JSON 中的逐表、逐域 `source` 可在 Git 提交 `7ddd365` 的 `data/static/` 中追溯。原版文件身份见[原版参照身份](../formats/original-reference.md)，历史候选的验收范围见[历史证据索引](../history.md)。
 
-生成器检查重复键／符号、未知字段、整数类型／范围、矩形维度、稳定消费契约、来源身份引用和已解码跨表引用。ABI 尺寸变化需要同时审查调用方，不能通过缩短数组绕过 getter 的原 ID 门。完整验证成功后才替换输出；多余旧 `.inc` 会明确失败，须确认其不再被调用后仅移除该构建目录内的旧文件。生成失败不得继续用历史缓存宣称本轮通过。
+生成器检查重复键与符号、字段、整数范围、普通表尺寸和已解码引用。普通表的 ABI 尺寸变化需要同时审查调用方。移动脚本只检查 ID、字节流结构和流程引用，按实际字节数生成数组。所有输入验证成功后才替换输出。若报多余旧 `.inc`，可使用新的构建目录重新生成。
 
-修改数值不等于与原版一致。生成校验允许符合类型和引用的有意修改；独立来源验证器仍必须指出它与原始读集的差异，不自动更新预期摘要掩盖差异。未知 byte 保留，未确认语义不猜成引用。
+生成校验接受符合类型和引用合同的有意修改。是否与原版一致由独立校验器按原始读集判断。保留用途未确认的字节。
 
 ## 独立校验
 
-从项目根目录执行。下列工具只读指定 EXE，使用严格 LE 页映射；不导入生产生成器，也不使用 JSON 自报的地址／尺寸作为预期读集。没有合法原版文件时可运行无资源负例测试，但不能记为源字节对照通过。
+从项目根目录执行。原字节和调用常量校验工具从指定 EXE 的严格 LE 页读取独立登记的范围，或比对已审查的调用投影。工具回归可在没有原版文件的环境运行。
 
 Windows PowerShell：
 
@@ -25,6 +25,8 @@ python -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --self-
 python -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE
 python -B tools/static_data/verify_magic_contracts.py original_game/FD2.EXE --self-test
 python -B tools/static_data/verify_runtime_tables.py original_game/FD2.EXE --self-test
+python -B tools/static_data/verify_preparation_tables.py original_game/FD2.EXE --self-test
+python -B tools/static_data/verify_runtime_flows.py
 python -B -m unittest discover -s tools/tests -p 'test_static*.py'
 ```
 
@@ -37,12 +39,14 @@ python3 -B tools/static_data/verify_stage_tables.py original_game/FD2.EXE --self
 python3 -B tools/static_data/verify_movement_scripts.py original_game/FD2.EXE
 python3 -B tools/static_data/verify_magic_contracts.py original_game/FD2.EXE --self-test
 python3 -B tools/static_data/verify_runtime_tables.py original_game/FD2.EXE --self-test
+python3 -B tools/static_data/verify_preparation_tables.py original_game/FD2.EXE --self-test
+python3 -B tools/static_data/verify_runtime_flows.py
 python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 ```
 
 当前单位／成长／学习／物品／装备许可／法术／移动独立读集仍为9张原表、8,528 byte；另验ID48／66两份实际构造alias窗，共48 byte，不能混称新增基础表。准备／音乐／地形／暴击／脚步原973 byte及11项cue映射保留原身份。移动脚本已扩大为106条、计数消费总和2,896 byte，独立保留的完整候选payload为2,898 byte；跨流重叠和未消费尾分别保留，不能用两个总数之差猜尾部归属。
 
-地图法术4张28槽合同投影分别表达effect别名、费用记录、效果目标上限和费用相对CAST的顺序；`verify_magic_contracts.py`独立核28个fixup及原call／jump／标量锚点，并与审查过的wrapper合同相联。它们不是4张原连续字节表，也不声称自动证明全部wrapper控制流。动作／Item呈现投影由 `verify_runtime_tables.py`核原字节与已审调用常量；迁移的C参数仍保留原blob身份，不混入8,528 byte统计。
+地图法术的 4 张 28 槽合同投影分别表达效果别名、费用记录、效果目标上限和费用相对 CAST 的顺序。`verify_magic_contracts.py` 核对 28 个 fixup、原 call／jump 和标量锚点，以及已审查的 wrapper 合同。动作与物品呈现由 `verify_runtime_tables.py` 核对原字节与已审调用常量。`verify_field_background.py` 可用严格重定位镜像与 Unicorn 验证背景分派的局部机器码和调用参数。
 
 ## 事件图的编辑边界
 

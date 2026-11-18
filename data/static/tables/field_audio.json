@@ -1,21 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_footstep_classes",
       "c_type": "uint8_t",
       "dimensions": [29],
-      "values": [1, 1, 2, 1, 0, 0, 1, 1, 1, 1, 2, 1, 0, 0, 3, 1, 1, 1, 3, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-      "source": {
-        "file": "FD2.EXE",
-        "object": 2,
-        "canonical_va": "0x52725",
-        "length": 29,
-        "evidence": "field_actor_footstep_play @0x32230；1-based movement profile脚步类别",
-        "first_id": 1,
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "sha256": "00aea8b20537f01409d125e23536f7874dedecb41c901c1bfc1f12f9069ab38d"
-      }
+      "values": [1, 1, 2, 1, 0, 0, 1, 1, 1, 1, 2, 1, 0, 0, 3, 1, 1, 1, 3, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1]
     },
     {
       "name": "k_sfx_cues",
@@ -33,15 +23,7 @@
         [80, 1],
         [80, 11],
         [80, 13]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": ["0x1741c", "0x176b4", "0x164e8", "0x32230", "0x32999", "0x1c2da", "0x24618", "0x21527", "0x17aed", "0x17d6f"],
-        "evidence": "现有field_audio.c::fd2_field_sfx_resolve映射与权威IDA调用；不是原生连续表。每行(bank,sample)按field_audio.h的fd2_field_sfx enum原序投影",
-        "cue_ids": ["FD2_FIELD_SFX_DETAIL_OPEN", "FD2_FIELD_SFX_DETAIL_CLOSE", "FD2_FIELD_SFX_COMMAND_MENU", "FD2_FIELD_SFX_DIALOG_GLYPH", "FD2_FIELD_SFX_FOOTSTEP_SAMPLE_9", "FD2_FIELD_SFX_FOOTSTEP_SAMPLE_10", "FD2_FIELD_SFX_FOOTSTEP_SAMPLE_11", "FD2_FIELD_SFX_ACTOR_GROUP_ARRIVAL", "FD2_FIELD_SFX_ACTOR_GROUP_FLASH", "FD2_FIELD_SFX_STAGE_TRANSITION", "FD2_FIELD_SFX_EARTHQUAKE"],
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
-      }
+      ]
     }
   ]
 }

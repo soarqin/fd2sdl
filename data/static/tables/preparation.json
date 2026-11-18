@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tables": [
     {
       "name": "k_prepare_no_town",
@@ -38,17 +38,7 @@
         1,
         1,
         1
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x523e7",
-        "length": 30,
-        "sha256": "d26cecc9a5e738c9286bcbcaa4d44060a016d144090ddb7262dac3c065650c17",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_revive_coefficients",
@@ -86,17 +76,7 @@
         100,
         100,
         100
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52397",
-        "length": 58,
-        "sha256": "cff029ac8ffbfe16d99b08fce3cf71261b43c47aab056061e4f5ec9192aaad50",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte. Index0 is neighboring return-message506, not a valid profile0 fee; generated profile-valid mask gates consumption."
-      }
+      ]
     },
     {
       "name": "k_prepare_promotion_records",
@@ -250,17 +230,7 @@
           23,
           1
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 3,
-        "canonical_va": "0x615fe",
-        "length": 72,
-        "sha256": "980123c50d9cb82dd221ce30dd6981505e52f8b6ff08e71c5a46db65fa8b1870",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_special_items",
@@ -287,17 +257,7 @@
         91,
         255,
         255
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x523d5",
-        "length": 18,
-        "sha256": "cb9b171900a1893aeb3446b2ad214e46df229685fbc5995648d1090998781f29",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_town_x",
@@ -331,17 +291,7 @@
           242,
           136
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52363",
-        "length": 18,
-        "sha256": "1f851c16326fda56c681eb2a8af6bd5c6cbdb434722f27c3c381a5d89bf7be31",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_town_y",
@@ -375,17 +325,7 @@
           31,
           20
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52375",
-        "length": 18,
-        "sha256": "07552669bce534a9471ff919e7e05ad8e3c0725e93459c466d524c788dd2128e",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_town_portraits",
@@ -400,17 +340,7 @@
         130,
         131,
         132
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52387",
-        "length": 6,
-        "sha256": "d41dcc88101ca84c9101e7fe557752231b93916a9ae10674b7949ecf50b6a1a9",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_town_background_entries",
@@ -422,17 +352,7 @@
         11,
         61,
         62
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52405",
-        "length": 3,
-        "sha256": "93ead495ab9680b5c7fe5e1530a2236935b8d038dca6c138694633b99e5790a5",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_service_return_prefix",
@@ -446,17 +366,7 @@
         1,
         506,
         506
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x5238d",
-        "length": 10,
-        "sha256": "41fc858776dcabd48ee4b427810c1ca5eb44c0d6f6c794dbaac7d30e58e39bb0",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte. Selector5 overlaps52397 and is projected from k_prepare_revive_coefficients[0], never duplicated as editable data."
-      }
+      ]
     },
     {
       "name": "k_prepare_menu_slide_offsets",
@@ -469,17 +379,7 @@
         -13,
         13,
         39
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52408",
-        "length": 16,
-        "sha256": "fcc4b77857a68ec28c079b9b4b4afd86e3b3dc180fadb594d09484abcaeaa65b",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_menu_cursor_offsets",
@@ -492,17 +392,7 @@
         -13,
         13,
         39
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52418",
-        "length": 16,
-        "sha256": "fcc4b77857a68ec28c079b9b4b4afd86e3b3dc180fadb594d09484abcaeaa65b",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_buy_messages",
@@ -544,17 +434,7 @@
           1,
           507
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52428",
-        "length": 48,
-        "sha256": "3e1c8796b89fd5e073a680688653c3d13541ddf05f7b722533762c0b1653aa4b",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_sell_messages",
@@ -580,17 +460,7 @@
           509,
           509
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "object": 2,
-        "canonical_va": "0x52458",
-        "length": 24,
-        "sha256": "b4ded6520666d5e85909d50adf8218feb9afd8f0bb6c975a0d4157444cd6d7eb",
-        "view": "raw-unrelocated",
-        "evidence": "G1 preparation evidence; canonical26152/2670e/26ce4/26eda/279bc/2872b/28cbd/29daa/2a43e/2ae0e/4e7dd; see common-preparation-semantics.md. Preserve every source byte."
-      }
+      ]
     },
     {
       "name": "k_prepare_town_service_entries",
@@ -605,20 +475,7 @@
         29,
         14,
         63
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x29327",
-          "0x279d7",
-          "0x279f9",
-          "0x27a09",
-          "0x29dd1"
-        ],
-        "evidence": "Hotel29300/29327 selects13; shop279bc selects12 then selector3=>29/5=>63; church29daa/29dd1 selects14. selector2 departs without a service asset, represented by255, not a forged FDOTHER entry."
-      }
+      ]
     },
     {
       "name": "k_prepare_deployment_roster_gate",
@@ -634,24 +491,7 @@
           6,
           2
         ]
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_predicate",
-        "canonical_ranges": [
-          "0x10ae1",
-          "0x10ae8",
-          "0x10af1"
-        ],
-        "columns": [
-          "first_stage",
-          "last_stage",
-          "active_slot",
-          "required_text_id"
-        ],
-        "evidence": "1088d/10ae1..10af4: normal nonnegative stage<13 and active slot6 require current roster textID2; otherwise hidden empty active slot. Skipped slot advances neither roster nor placement cursor. Firststage0 is bounded normal stage domain, not another source instruction."
-      }
+      ]
     },
     {
       "name": "k_prepare_notice_portrait_origins",
@@ -665,20 +505,7 @@
         3939,
         1398,
         3644
-      ],
-      "source": {
-        "file": "FD2.EXE",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "kind": "decoded_call_constants",
-        "canonical_ranges": [
-          "0x19604",
-          "0x19618",
-          "0x1962c",
-          "0x19640",
-          "0x19654"
-        ],
-        "evidence": "portrait_prepare1956b switchIDs128..132 writes53c67 at19604/19618/1962c/19640/19654. 16559 uses these forward origins for special portrait frame0/mouth. Ordinary36887 reverse is separate; do not reuse hotel129 origin1707 for all services."
-      }
+      ]
     }
   ]
 }

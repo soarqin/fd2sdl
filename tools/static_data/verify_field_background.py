@@ -76,6 +76,8 @@ def original_dispatch(image,stage):
 
 
 def check(document,executable,image):
+    if type(document.get("schema_version")) is not int or document["schema_version"] != 2:
+        raise ValueError("背景冷表版本不符")
     if hashlib.sha256(executable).hexdigest()!=EXE_SHA256 or hashlib.sha256(image).hexdigest()!=IMAGE_SHA:
         raise ValueError("原EXE/strict relocated镜像身份不同")
     if hashlib.sha256(image[0x10652:0x1088d]).hexdigest()!=FUNCTION_SHA:
@@ -93,9 +95,6 @@ def check(document,executable,image):
         table=tables[name];raw=source_range(executable,va,length)
         if (table.get("c_type"),table.get("dimensions"),table.get("values"))!=("uint8_t",[length],list(raw)):
             raise ValueError("背景原byte不同")
-        source=table.get("source",{})
-        if source.get("canonical_va")!=hex(va) or source.get("length")!=length or source.get("sha256")!=hashlib.sha256(raw).hexdigest():
-            raise ValueError("背景原byte来源标签不同")
     return {"ok":True,"schema":"fd2.g4.background-source.v1",
             "original_dispatch_cases":33,"original_function_sha256":FUNCTION_SHA,
             "traces":[{"stage":stage,"config":trace[0],"calls":trace[1]} for stage,trace in enumerate(traces)],

@@ -1,30 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "domain": "stage",
-  "source": {
-    "kind": "existing_confirmed_definition",
-    "file": "src/field_game.c",
-    "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-    "baseline_source_sha256": "aa53f12f9753950d5a72c387544c2ef80ec8e0432c388e5e760eeb34d8168ed2",
-    "evidence": "Historical source identity and baseline notes are retained in historical_evidence. Current S5 commit495e7d9 closes the former13 slots/14 references, stage20..29 bindings, ending HP natural-caller source, callback82, source wait0..65535, text owner and NoTown DAC. Current coverage is exact production bindings plus separately qualified source-only definitions and primitive caller domains; a graph or its count is not runtime acceptance. See docs/plans/s5-batch-expansion.md and docs/plans/full-alignment-audit.md; F1 current_consumer_summary joins the reviewed source to its actual consumer without changing flow bodies, support gates or S5 receipt identities.",
-    "related_sources": [
-      {
-        "file": "src/scene.c",
-        "baseline_commit": "c6d2c576b196286f2d94129cf00b0fae6832c65b",
-        "baseline_source_sha256": "da2b4034c599b7d7b4d8a5c37d2fba43475b980bef61e5d1b5df9c6c32e58609",
-        "evidence": "fd2_scene_play_stage1_entry / stage2_entry / stage1_victory presentation order",
-        "kind": "existing_confirmed_definition"
-      },
-      {
-        "file": "FD2.EXE",
-        "kind": "decoded_domain_control_flow",
-        "evidence": "S2 frozen source-only conversion identity. Its original unresolved12/no-shipping descriptions are historical_evidence, not current support: S5 commit495e7d9 closes those dependencies and records current formal binding qualification in docs/plans/s5-batch-expansion.md. Raw source identity, complete owners/chunks and canonical views retain their original qualifications.",
-        "file_sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
-        "historical_evidence": "S2 tools/ida/s2_result_source.py: 30 result slots,18 targets,20 complete functions/1663 strict bytes; result-cpu05 original execution. tools/static_data/convert_stage_transitions.py: stage_entry/stage_victory60 slots/58 actual entries,80 complete Domain owners/23170 strict relocated bytes (transitions-source-05); explicit source IDs only, no new runtime stage binding. EXE520ba.. layout literals retain exact source coordinates in local conversion report; DAT metadata/placement/roster remain original resource references. 205da shared source initialization,233c6 typed layout and exact1f525/1f882 cold palette sequence are ordered finite leaves; unresolved12 bindings remain blocked. Composed victory6 event17/hidden and victory15 hidden66..73 count/turn/raw0 HPmax use existing typed predicates; original native loop is executed in caller oracle. Source pure condition reads are factored without changing active state or adding a local hot latch. 1088d final10b3c/10b3e group0 call remains an explicit append_group0 cold node after base constructor. Inline victory9/19 typed layout loops and victory7 VGA clear preserve exact array/store/view/fade order. Complete35b78 uses the existing exact palette_add leaf. 24e80 raw16..count ID31 position filter and state12+5/+8 text getter are finite source adapters with no new hot state. Source entry012/015/018/019/020 whole graph bodies are proven equal with Game.stage-bound setup; entry012 is the unique definition and four stage.source-only aliases retain separate exact caller provenance. No shipping stage/action alias is added."
-      }
-    ],
-    "historical_evidence": "field_stage1_entry_play @0x32d18; field_stage2_entry_play @0x32e8c; field_stage1_victory_play @0x22f37; field_stage1_battle_result_check @0x206c5; src/scene.c confirmed presentation order; result.default is existing SDL fallback, not original stage2 acceptance G4 result consumers share the const common_event query widths for explicit actor/state/turn/roster/inventory conditions (20926/20957 family); no caller is fabricated, actor=-1 and branch_caller are not registered in result domain. This registers finite mechanism capabilities without binding any later stage result. G5: stage.entry.001/002 use original134e4 reset plus20ms; reset is logic/present, sleep ispresent-only so resource preparation/projection never waits.3231b opening already declares its own20ms and is unchanged. S0: original205b4/206c5 results inspect hidden/side, not HP; original117e7 queries only after actual actor input returns.10010 restores bytes without reading/writing53ECC. Current stage0/1 flow disables the legacy SDL HP guard; default remains internal fallback only. S2: 30 result slots are 18 complete original targets; source_* definitions are explicit candidates only, never stage aliases. New fixed-raw sources reject count below required prefix via result_invalid; four latch-preserving targets retain the existing owner value. Five text/write-order sources live in common_event, not this const query domain. S4 stage.palette.transition.finish preserves complete24618 tail: delay500,32 palette_add(0,255,0..62 step2) with delay4 after each; original11df2 adds and clamps63, not11d40 darkness. Source: fade-caller-source01 six complete callers/3885 strict bytes, Domain SHA256 b94010fe3b42eef5a9ed2c4b50aeaaee6c21c03a8a5303133d3b694e97a87043; no shipping binding or capability change. S5: complete22253/22470/22547/22656 plus362e8/shared tails; unique stage.source.teleport, source callback82 only, no shipping binding/capability opened. Independent CPU/C page and write-prefix evidence in S5 report; conditional STATE16 ABI retains each caller. S5 source-only complete13 caller/CFG and fixed cinematic subgraphs. Pre-ending candidate03 deliberately fails at the undefined-HP montage dependency; no shipping support or equivalence claim. Original/DAT/raw and later qualification retain separate report identity."
-  },
   "operations": {
     "stage_setup": {
       "args": [

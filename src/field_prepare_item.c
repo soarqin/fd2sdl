@@ -52,8 +52,7 @@ int fd2_field_prepare_item_recompute(fd2_field_unit *unit) {
 int fd2_field_prepare_item_sell_price(uint8_t item_id, uint32_t *price) {
     const uint8_t *item=fd2_field_item_record_get(item_id);
     if (!item || !price) return -1;
-    uint32_t purchase=(uint32_t)item[19]|((uint32_t)item[20]<<8);
-    *price=3u*purchase/4u;return 0;
+    *price=3u*fd2_field_item_purchase_price(item)/4u;return 0;
 }
 
 /* sub_28632 @0x28632（原同名），28713..28723完整DWORD输出。

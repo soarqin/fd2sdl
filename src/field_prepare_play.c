@@ -48,27 +48,6 @@ static uint32_t read32(const uint8_t *p) {
 static int image_size(const fd2_image *image, int w, int h) {
     return image->pixels && image->width == w && image->height == h;
 }
-static int hotel_frame(fd2_image *out, const fd2_archive *fdother,
-        size_t index, int format) {
-    const uint8_t *data; size_t size;
-    if (fd2_archive_get(fdother, 13, &data, &size) != 0 || size < 6 ||
-        memcmp(data, "LMI1", 4) != 0) return -1;
-    size_t count = read16(data + 4);
-    if (index >= count || count > (size - 6u) / 4u) return -1;
-    size_t start = read32(data + 6u + index * 4u);
-    size_t end = index + 1u < count ? read32(data + 10u + index * 4u) : size;
-    if (start < 6u + count * 4u || end <= start || end > size) return -1;
-    if (format == 0) return fd2_image_decode_buf(out, data + start, end - start);
-    if (format == 1) return fd2_lmi_decode_image(out, data + start, end - start);
-    if (end - start != 484u || read16(data + start) != 24 || read16(data + start + 2) != 20)
-        return -1;
-    out->pixels = malloc(480);
-    if (!out->pixels) return -1;
-    out->width = 24; out->height = 20;
-    memcpy(out->pixels, data + start + 4, 480);
-    return 0;
-}
-
 /* 279bc/29daa消费相同+6目录；12/63是嵌套DAT，14/29是LMI1。
  * 两种容器均用真实边界，不用首offset反推LMI1的显式count。 */
 static int service_frame(fd2_image *out, const fd2_archive *fdother,
@@ -101,6 +80,16 @@ static int service_frame(fd2_image *out, const fd2_archive *fdother,
     out->width = width; out->height = height;
     memcpy(out->pixels, part + 4, pixels);
     return 0;
+}
+
+/* 酒店页FDOTHER13只接受LMI1容器；格式0/1同上，其余一律按24×20原始帧
+ * （格式2）。不足10字节的LMI1目录本就容纳不下任何条目。 */
+static int hotel_frame(fd2_image *out, const fd2_archive *fdother,
+        size_t index, int format) {
+    const uint8_t *data; size_t size;
+    if (fd2_archive_get(fdother, 13, &data, &size) != 0 || size < 6 ||
+        memcmp(data, "LMI1", 4) != 0) return -1;
+    return service_frame(out, fdother, 13, index, format == 0 || format == 1 ? format : 2);
 }
 
 static void service_assets_close(fd2_field_prepare_service_assets *service) {
@@ -969,6 +958,21 @@ static void detail_bottom(uint8_t *dst, const uint8_t *page,
 
 static int prepare_service_wait_key(prepare_ui *ui,fd2_input_event *event,int mode);
 
+/* 17e0b/17eef的12帧详情底页开合：with_sfx时每帧先播该phase音效，再合成
+ * 并呈现。返回0成功，音效失败-1，呈现非0时原样返回（>0为宿主退出）。 */
+static int prepare_detail_transition(prepare_ui *ui, const fd2_vga *page,
+        const uint8_t *background, int opening, int with_sfx) {
+    for (int step = 0; step < 12; step++) {
+        int phase = opening ? 11 - step : step;
+        int cue = with_sfx ? fd2_field_detail_sfx_for_phase(opening, phase) : -1;
+        if (cue >= 0 && sound(ui, (size_t)cue) != 0) return -1;
+        fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
+        int copied = present_copy(ui);
+        if (copied) return copied;
+    }
+    return 0;
+}
+
 static int member_detail(prepare_ui *ui, size_t index) {
     if (index >= ui->context->preparation.unit_count) return -1;
     fd2_field_unit unit;
@@ -993,12 +997,8 @@ static int member_detail(prepare_ui *ui, size_t index) {
     if (fd2_field_detail_draw(page, &ui->assets->info, &ui->assets->font,
         &ui->assets->text, &unit, &portraits[0]) != 0) goto done;
     ui->service.active_portraits=portraits;ui->service.notice_origin=3208u;
-    for (int phase = 11; phase >= 0; phase--) {
-        int cue=fd2_field_detail_sfx_for_phase(1,phase);
-        if(cue>=0 && sound(ui,(size_t)cue)!=0)goto done;
-        fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
-        {int copied=present_copy(ui);if(copied){result=copied;goto done;}}
-    }
+    result = prepare_detail_transition(ui, page, background, 1, 1);
+    if (result) goto done;
     /* 29620→17aed→17e0b：打开12帧后17ee8才4e381；flip/close不清队。 */
     result = prepare_clear_keys(ui);
     if (result) goto done;
@@ -1020,12 +1020,8 @@ static int member_detail(prepare_ui *ui, size_t index) {
         result = prepare_service_wait_key(ui,&event,0);
         if (result != 0) goto done;
     }
-    for (int phase = 0; phase < 12; phase++) {
-        int cue=fd2_field_detail_sfx_for_phase(0,phase);
-        if(cue>=0 && sound(ui,(size_t)cue)!=0){result=-1;goto done;}
-        fd2_field_detail_transition_frame(ui->vga->framebuffer, page->framebuffer, background, phase);
-        {int copied=present_copy(ui);if(copied){result=copied;goto done;}}
-    }
+    result = prepare_detail_transition(ui, page, background, 0, 1);
+    if (result) goto done;
     memcpy(ui->vga->framebuffer, background, VGA_W * VGA_H);
     result = present_copy(ui);
 done:

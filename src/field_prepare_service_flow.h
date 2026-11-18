@@ -165,7 +165,7 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
             s->product_id=id;
         } else if (kind==0) {
             const uint8_t *item=fd2_field_item_record_get(id);if (!item) goto fatal;
-            price=(uint32_t)item[19]|((uint32_t)item[20]<<8);
+            price=fd2_field_item_purchase_price(item);
         } else if (kind==2) {if (s->member<0 || fd2_field_prepare_revive_price(state,(size_t)s->member,&price)!=0) goto fatal;}
         else goto fatal;
         s->price=price;ui->context->message_number=price;

@@ -2076,3 +2076,14 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 整个文件由 3531 行减至 3349 行。
 
 验证（Windows Debug）：全目标构建通过，无新增警告。CTest 172 项全部通过，含原生窗口输入用例。新增 `tools/compare_field_play_builds.py`，对 `--field-play 0` 的 8 个场景各运行旧版两次、新版一次，覆盖待机整回合、攻击、取消、详情／F1、物品、法术、系统菜单（选项、总览、存档否／是、读档取消／是、出击）和结束回合。8 个场景的 stdout 与 `FD2.SAV` 均逐字节一致，旧版两次运行可重复。截图受水面、待机和光标实时动画影响，旧版两次之间也有差异，不作通过判据，用法见[图形测试规范](../tools/gui-testing.md)。本轮为纯重构，未改变可与原版对照的行为，因此未重跑 DOS 原版对照；Linux 未执行。
+
+## 延后的 AI／演出／准备页冗余重构（2026-11-18）
+
+以 `30d6fd8` 为基线，处理首轮审查因难以证明一致而延后的重复实现，逻辑与表现保持不变。
+
+- `field_ai.c`：抽出 selector filter 映射和「算目标范围→收集→释放」helper，法术与物品的候选选择及对外 collect 共用同一路径，物品直线／圆形分派也只写一份。地形 AP/DP 百分比一次取两项，actor 与 target 的地形修正合并为一个 helper。删除物理候选中与主循环筛选相同的预计数；零目标时主循环本就不产生候选。物品 outer>15 的手工十字范围保留：改用通用范围会多读邻格地形，在坏地形数据上的失败条件不同。
+- `battle_animation.c`：`magic_cast_full` 与 `magic_special_intro` 共用施法开场和 casting intro 循环。三处差异（derived 的 part cue、marker 时的 LUT／主音效／6 帧闪烁、是否画目标 idle）改为参数。20 处时钟／输出错误检查合为 `output_failed`，三处 312×192 视窗复制合为 `view_copy`。
+- 准备页：五处 12 帧详情底页开合（含音效）合为 `prepare_detail_transition`，服务页另包装宿主退出锁存。`hotel_frame` 改为「LMI1 门＋`service_frame`」，格式 0/1 之外仍按 24×20 原始帧。装备对象列表复用 `sprite_frame`，商品原价解码集中为 `fd2_field_item_purchase_price`。
+- `field_game.c`：AI 调度两个 pass 共用 `run_scheduled_ai_actor`。三处 1f04a 朝向计算合为 `face_toward`，五处视窗像素原点合为 `camera_origin_x/y`。
+
+验证（Windows Debug）：全目标构建通过，无新增警告；CTest 172 项全部通过。`compare_field_play_builds.py` 新增 5 个场景：施法（先结束一回合让敌方接近）、两轮敌方回合后存档、标题 LOAD 进入准备城镇（酒店成员详情翻页、道具店装备页、出口选人页、手工存档）、标题 CONTINUE 恢复第 29 关活动战场后结束回合（27 单位的后期敌方 AI 与演出），并修正了一个对时长敏感的场景标记。后两个场景使用本地 `original_game/FD2.SAV` 的副本。13 个场景的 stdout 和存档在旧版两次、新版一次中均逐字节一致。其间 `ai-save` 首轮因新版恰在战斗渐暗帧截图，被 WGC 判为单色帧而中断；工具改为只记录这类单色帧后，重跑通过。本轮未运行 DOS 原版对照，因为重构不改变可与原版比较的行为；Linux 未执行。

@@ -275,13 +275,23 @@ void fd2_battle_animation_set_skip(fd2_battle_animation *ctx, int skip) {
     if (ctx) ctx->skip=skip!=0;
 }
 
+/* 共享时钟或当前App输出已锁存错误；ctx为NULL时只查时钟与空输出。 */
+static int output_failed(const fd2_battle_animation *ctx) {
+    return fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0;
+}
+
+/* 只复制4px黑边内的312×192战场视窗。 */
+static void view_copy(fd2_vga *vga,const uint8_t *source) {
+    for (size_t y=4;y<196;y++) memcpy(vga->framebuffer+y*320u+4u,source+y*320u+4u,312);
+}
+
 static int stopped(fd2_battle_animation *ctx) {
     if (fd2_input_take_quit(&ctx->vga->input)) ctx->host_quit=1;
     return ctx->skip || ctx->host_quit;
 }
 
 static int present(fd2_battle_animation *ctx, uint32_t ticks) {
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))return -1;
+    if(output_failed(ctx))return -1;
     if (stopped(ctx)) return 0;
     /* 原有限帧只等自身ticks/ms；保宿主事件泵，不履行外来deadline。 */
     fd2_input_begin_frame(&ctx->vga->input);
@@ -294,17 +304,17 @@ static int present(fd2_battle_animation *ctx, uint32_t ticks) {
 
 static int battle_audio_play(fd2_battle_animation *ctx,fd2_pcm_player *player,
         const fd2_pcm_bank *bank,size_t index) {
-    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)return -1;
+    if(output_failed(ctx))return -1;
     int result=fd2_pcm_play_replace(player,bank,index,1,FD2_GAME_SFX_DEFAULT_GAIN);
-    return fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0?-1:result;
+    return output_failed(ctx)?-1:result;
 }
 static int battle_audio_stop(fd2_battle_animation *ctx,fd2_pcm_player *player) {
-    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)return -1;
+    if(output_failed(ctx))return -1;
     int result=fd2_pcm_stop(player);
-    return fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0?-1:result;
+    return output_failed(ctx)?-1:result;
 }
 static int play_cue(fd2_battle_animation *ctx,const fd2_pcm_bank *bank,int enabled,uint8_t index) {
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))return -1;
+    if(output_failed(ctx))return -1;
     if (stopped(ctx) || !ctx->primary || !enabled) return 0;
     return battle_audio_play(ctx,ctx->primary,bank,index);
 }
@@ -1032,8 +1042,7 @@ static int recovery_step(const fd2_field_game *game,const fd2_field_physical_eve
             ctx->vga->field_visual.cursor_phase)!=0) return -1;
         if (ctx->vga->field_page) {
             if (fd2_field_page_project(ctx->vga->field_page,72,72,ctx->vga->framebuffer,64000)!=0) return -1;
-        } else for (size_t y=4;y<196;y++)
-            memcpy(ctx->vga->framebuffer+y*320u+4,e->board.framebuffer+y*320u+4,312);
+        } else view_copy(ctx->vga,e->board.framebuffer);
         {if(present(ctx,0)<0){return -1;}}
     }
     return 0;
@@ -1058,7 +1067,7 @@ static int map_physical_restore(fd2_battle_animation *ctx,const fd2_field_game *
 }
 
 static int restore(fd2_battle_animation *ctx, const fd2_field_game *game, int animate) {
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){exchange_close(ctx);return -1;}
+    if(output_failed(ctx)){exchange_close(ctx);return -1;}
     fd2_battle_animation_exchange *e=ctx->exchange;
     if (!e) return -1;
     if (e->mode!=FD2_FIELD_PHYSICAL_MODE_FULL) return map_physical_restore(ctx,game,animate);
@@ -1083,12 +1092,12 @@ static int restore(fd2_battle_animation *ctx, const fd2_field_game *game, int an
     if (animate && !ctx->host_quit) {
         /* 2e8eb fade-out后2e8fc清VGA，再2e906刷新；montage不经此尾。 */
         if(battle_field_return(game,ctx,1,e->started && !ctx->skip)!=0) {
-            if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))goto source_failed;
+            if(output_failed(ctx))goto source_failed;
                 status=-1;memcpy(ctx->vga->framebuffer,e->map,64000);
         }
     } else memcpy(ctx->vga->framebuffer,e->map,64000);
     /* 正常2e2b0只停止primary；secondary是独立AIL handle，不作额外停止。 */
-    if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){goto source_failed;}}
+    if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if(output_failed(ctx)){goto source_failed;}}
     if (animate && status==0 && e->started && !stopped(ctx)) {if(fade(ctx,1)<0){goto source_failed;}}
     if (ctx->host_quit) memcpy(ctx->vga->framebuffer,e->map,64000);
     if(!animate || !e->started || ctx->skip || ctx->host_quit || status<0)
@@ -1104,7 +1113,7 @@ source_failed:
 static int physical_dispatch(const fd2_field_game *game,
         const fd2_field_physical_event *event, void *userdata) {
     fd2_battle_animation *ctx=userdata;
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))return -1;
+    if(output_failed(ctx))return -1;
     if (!game || !event || !ctx || !ctx->vga || !ctx->fdother || ctx->visual_owner!=game) return -1;
     if (event->phase!=FD2_FIELD_PHYSICAL_PREPARE && ctx->exchange &&
         event->presentation_mode!=ctx->exchange->mode) return -1;
@@ -1449,7 +1458,7 @@ static int magic_map_caller_preamble(const fd2_field_game *game,
         else dac0(ctx,0,0,0);
         {if(present(ctx,k_battle_map_cast_preamble[i][1])<0){return -1;}}
     }
-    if(ctx->host_quit && ctx->primary && enabled){(void)battle_audio_stop(ctx,ctx->primary);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){return -1;}}
+    if(ctx->host_quit && ctx->primary && enabled){(void)battle_audio_stop(ctx,ctx->primary);if(output_failed(ctx)){return -1;}}
     return ctx->host_quit?1:0;
 }
 
@@ -1498,7 +1507,7 @@ static uint32_t magic_fx_recorded_random(void *userdata) {
 
 static int magic_fx_emit(const fd2_magic_fx_emission *event,void *userdata) {
     magic_fx_reader *r=userdata;fd2_battle_animation *ctx=r->ctx;
-    if(fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)return -1;
+    if(output_failed(ctx))return -1;
     fd2_battle_magic_exchange *e=ctx->magic_exchange;
     if (event->kind==FD2_MAGIC_FX_PART) {
         if (event->index>=e->particles.clip.part_count) return -1;
@@ -1533,10 +1542,11 @@ static int magic_work_present(fd2_battle_animation *ctx,int origin,uint32_t wait
     return 0;
 }
 
-static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_present_event *event,
-        fd2_battle_animation *ctx) {
-    fd2_battle_magic_exchange *e=ctx->magic_exchange;magic_fx_reader reader;
-    if (!event->actor_before || magic_fx_reader_open(&reader,ctx,event)!=0) return -1;
+/* 施法开场：载入施法者并刷新简表；未跳过时淡出、恢复FDOTHER0调色板
+ * 并画intro底板。split_target沿intro_scene原参数。 */
+static int magic_intro_begin(const fd2_field_game *game,
+        const fd2_field_magic_present_event *event,fd2_battle_animation *ctx,int split_target) {
+    fd2_battle_magic_exchange *e=ctx->magic_exchange;
     e->caster=*event->actor_before;
     if (magic_summary(e,game,&e->caster,e->caster_index)!=0) return -1;
     if (!stopped(ctx)) {
@@ -1544,31 +1554,44 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
         const uint8_t *pal;size_t size;
         if (fd2_archive_get(ctx->fdother,0,&pal,&size)!=0 || size<768) return -1;
         fd2_vga_set_palette(ctx->vga,pal);
-        {if(intro_scene(ctx,&e->board,e->work,e->caster.side!=0,0,
+        {if(intro_scene(ctx,&e->board,e->work,e->caster.side!=0,split_target,
             &e->caster_idle,&e->target_idle[0],&e->terrain)<0){return -1;}}
     }
-    uint8_t idle=0,elapsed=0;unsigned flashes=0;
+    return 0;
+}
+
+/* casting clip逐part播放到intro_end：derived_cues时播放part cue；marker1扣MP并
+ * 刷新简表，marker_flash时再换返回LUT、播主音效并闪6帧DAC0；draw_target画
+ * 目标idle。目标idle计时总是推进。 */
+static int magic_cast_intro_loop(const fd2_field_game *game,fd2_battle_animation *ctx,
+        int derived_cues,int marker_flash,int draw_target) {
+    fd2_battle_magic_exchange *e=ctx->magic_exchange;
     const uint8_t *record=fd2_field_magic_record_get(e->id);
     if (!record) return -1;
+    unsigned flashes=0;uint8_t idle=0,elapsed=0;
     for (size_t i=0;i<e->casting.clip.intro_end;i++) {
         const fd2_figani_part *p=&e->casting.parts[i].part;
+        if (derived_cues && p->cue &&
+            play_cue(ctx,&e->casting.bank,e->sfx_enabled,p->cue)!=0) return -1;
         if (p->effect_marker==1) {
             e->caster.mp=(uint16_t)(e->caster.mp-record[5]);
-            if (magic_summary(e,game,&e->caster,e->caster_index)!=0 || sprite_lut(e,
-                fd2_field_lut_frame(&game->visuals,e->fx_parameters.return_lut_base))!=0)
-                return -1;
-            flashes=6;
-            if (play_cue(ctx,&e->sound,e->sfx_enabled,0)!=0) return -1;
+            if (magic_summary(e,game,&e->caster,e->caster_index)!=0) return -1;
+            if (marker_flash) {
+                if (sprite_lut(e,fd2_field_lut_frame(&game->visuals,e->fx_parameters.return_lut_base))!=0 ||
+                    play_cue(ctx,&e->sound,e->sfx_enabled,0)!=0) return -1;
+                flashes=6;
+            }
         }
         for (unsigned tick=0;tick<p->duration;tick++) {
             copy_pixels(e->work,320,e->board.framebuffer,320);
             if (e->caster.side) part_draw(e->work,320,200,320,&e->casting,i,0,0,-1);
-            part_draw(e->work,320,200,320,&e->target_idle[0],idle,0,0,-1);
+            if (draw_target) part_draw(e->work,320,200,320,&e->target_idle[0],idle,0,0,-1);
             if (!e->caster.side) part_draw(e->work,320,200,320,&e->casting,i,0,0,-1);
             if (!stopped(ctx)) memcpy(ctx->vga->framebuffer,e->work,64000);
             if (flashes) {
                 if (!stopped(ctx)) {
-                    dac0(ctx,k_battle_cast_colors[e->id][0],k_battle_cast_colors[e->id][1],k_battle_cast_colors[e->id][2]);{if(present(ctx,0)<0){return -1;}}
+                    dac0(ctx,k_battle_cast_colors[e->id][0],k_battle_cast_colors[e->id][1],k_battle_cast_colors[e->id][2]);
+                    {if(present(ctx,0)<0){return -1;}}
                     if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,30)<0){return -1;}}
                     dac0(ctx,0,0,0);
                 }
@@ -1580,6 +1603,15 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
             }
         }
     }
+    return 0;
+}
+
+static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_present_event *event,
+        fd2_battle_animation *ctx) {
+    fd2_battle_magic_exchange *e=ctx->magic_exchange;magic_fx_reader reader;
+    if (!event->actor_before || magic_fx_reader_open(&reader,ctx,event)!=0 ||
+        magic_intro_begin(game,event,ctx,0)!=0 ||
+        magic_cast_intro_loop(game,ctx,0,1,1)!=0) return -1;
     if (e->id==9) {
         for (int i=0;i<=10;i++) {
             copy_pixels(e->work+320,640,e->board.framebuffer,320);
@@ -1888,8 +1920,7 @@ static int map_actor_circle(const fd2_field_game *game,fd2_battle_animation *ctx
     int x=((int)actor->x-game->camera_cell_x)*24+12;
     int y=((int)actor->y-game->camera_cell_y)*24+18;
     for(unsigned frame=0;frame<10u && !stopped(ctx);frame++) {
-        if(diagnostic_base)for(size_t row=4;row<196;row++)
-            memcpy(ctx->vga->framebuffer+row*320u+4u,diagnostic_base+row*320u+4u,312);
+        if(diagnostic_base)view_copy(ctx->vga,diagnostic_base);
         const uint8_t *lut=fd2_field_lut_frame(&game->visuals,frame);
         if(!lut || (base ? fd2_field_game_effect_mask_frame(game,ctx->vga,base,lut,
                 x,y,radius,0,1):fd2_field_transition_lut_circle12(ctx->vga,lut,x,y,radius))!=0) {
@@ -2023,53 +2054,10 @@ static int magic_heal_prelude(const fd2_field_game *game,fd2_battle_animation *c
 static int magic_special_intro(const fd2_field_game *game,
         const fd2_field_magic_present_event *event,fd2_battle_animation *ctx) {
     fd2_battle_magic_exchange *e=ctx->magic_exchange;
-    if (!event->actor_before) return -1;
-    e->caster=*event->actor_before;
-    if (magic_summary(e,game,&e->caster,e->caster_index)!=0) return -1;
-    if (!stopped(ctx)) {
-        const uint8_t *pal;size_t size;
-        e->started=1;{if(fade(ctx,0)<0){return -1;}}
-        if (fd2_archive_get(ctx->fdother,0,&pal,&size)!=0 || size<768) return -1;
-        fd2_vga_set_palette(ctx->vga,pal);
-        {if(intro_scene(ctx,&e->board,e->work,e->caster.side!=0,e->id!=28,
-            &e->caster_idle,&e->target_idle[0],&e->terrain)<0){return -1;}}
-    }
-    const uint8_t *record=fd2_field_magic_record_get(e->id);
-    if (!record) return -1;
-    unsigned flashes=0;uint8_t idle=0,elapsed=0;
-    for (size_t i=0;i<e->casting.clip.intro_end;i++) {
-        const fd2_figani_part *p=&e->casting.parts[i].part;
-        if (e->mode==FD2_FIELD_MAGIC_MODE_DERIVED && e->id!=31 && p->cue &&
-            play_cue(ctx,&e->casting.bank,e->sfx_enabled,p->cue)!=0) return -1;
-        if (p->effect_marker==1) {
-            e->caster.mp=(uint16_t)(e->caster.mp-record[5]);
-            if (magic_summary(e,game,&e->caster,e->caster_index)!=0) return -1;
-            if (e->mode==FD2_FIELD_MAGIC_MODE_COMPOSITE) {
-                if (sprite_lut(e,fd2_field_lut_frame(&game->visuals,e->fx_parameters.return_lut_base))!=0 ||
-                    play_cue(ctx,&e->sound,e->sfx_enabled,0)!=0) return -1;
-                flashes=6;
-            }
-        }
-        for (unsigned frame=0;frame<p->duration;frame++) {
-            copy_pixels(e->work,320,e->board.framebuffer,320);
-            if (e->caster.side) part_draw(e->work,320,200,320,&e->casting,i,0,0,-1);
-            if (e->id==28) part_draw(e->work,320,200,320,&e->target_idle[0],idle,0,0,-1);
-            if (!e->caster.side) part_draw(e->work,320,200,320,&e->casting,i,0,0,-1);
-            if (!stopped(ctx)) memcpy(ctx->vga->framebuffer,e->work,64000);
-            if (flashes) {
-                if (!stopped(ctx)) {
-                    dac0(ctx,k_battle_cast_colors[e->id][0],k_battle_cast_colors[e->id][1],k_battle_cast_colors[e->id][2]);
-                    {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,30)<0){return -1;}}dac0(ctx,0,0,0);
-                }
-                flashes--;
-            }
-            {if(present(ctx,1)<0){return -1;}}
-            if (++elapsed==e->target_idle[0].parts[idle].part.duration) {
-                elapsed=0;if (++idle==e->target_idle[0].clip.part_count) idle=0;
-            }
-        }
-    }
-    return 0;
+    if (!event->actor_before || magic_intro_begin(game,event,ctx,e->id!=28)!=0) return -1;
+    return magic_cast_intro_loop(game,ctx,
+        e->mode==FD2_FIELD_MAGIC_MODE_DERIVED && e->id!=31,
+        e->mode==FD2_FIELD_MAGIC_MODE_COMPOSITE, e->id==28);
 }
 
 /* 2df01只写palette index0..254；factor0是目标纯色，40回原base palette。 */
@@ -2132,7 +2120,7 @@ static int magic_composite_cast(const fd2_field_game *game,
         }
     }
     if (!stopped(ctx)) {
-        if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){return -1;}}
+        if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if(output_failed(ctx)){return -1;}}
         /* 2dd9e stop后2ddac释放cast bank；MAP组只借另一个map_sound。 */
         fd2_pcm_bank_close(&e->sound);
     }
@@ -2175,10 +2163,6 @@ static int magic_derived_step(const fd2_field_game *game,
     return 0;
 }
 
-static void teleport_view_copy(fd2_vga *vga,const uint8_t *source) {
-    for (size_t y=4;y<196;y++) memcpy(vga->framebuffer+y*320u+4u,source+y*320u+4u,312);
-}
-
 /* 22253/22547/22656：radius是固定11，变化的是first_row，不能把两者
  * 混为普通恢复术的扩圆。frame124目录偏移为6+4*124=502。 */
 static int teleport_mask(const fd2_field_game *game,fd2_battle_animation *ctx,
@@ -2188,7 +2172,7 @@ static int teleport_mask(const fd2_field_game *game,fd2_battle_animation *ctx,
     int x=(e->teleport_x-game->camera_cell_x)*24+12;
     int y=(e->teleport_y-game->camera_cell_y)*24+15;
     if (e->map_base) return fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,11,first_row,0);
-    teleport_view_copy(ctx->vga,e->board.framebuffer);
+    view_copy(ctx->vga,e->board.framebuffer);
     if (fd2_field_transition_lut_before_actors_from(ctx->vga,lut,x,y,11,first_row)!=0 ||
         fd2_field_actor_visual_tick(ctx->vga,SDL_GetTicksNS())<0) return -1;
     fd2_field_game_render_effect_actors(game,ctx->vga);
@@ -2224,7 +2208,7 @@ static int magic_teleport(const fd2_field_game *game,
                 if (fd2_field_page_copy_pixels(ctx->vga->field_page,e->map_base)!=0 ||
                     battle_page_image(ctx->vga->field_page,&e->map_fx[frame],72+x,72+y,-1)!=0) return -1;
             } else {
-                teleport_view_copy(ctx->vga,e->board.framebuffer);
+                view_copy(ctx->vga,e->board.framebuffer);
                 blit(ctx->vga->framebuffer+1284,312,192,320,&e->map_fx[frame],x,y,-1);
             }
             if (ctx->vga->field_page) {
@@ -2468,7 +2452,7 @@ static int magic_finish_full(fd2_battle_animation *ctx,
 
 static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,int normal,
         const fd2_field_magic_present_event *event) {
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){magic_close_exchange(ctx);return -1;}
+    if(output_failed(ctx)){magic_close_exchange(ctx);return -1;}
     fd2_battle_magic_exchange *e=ctx->magic_exchange;if (!e) return -1;
     int full=e->mode==FD2_FIELD_MAGIC_MODE_FULL;
     int derived=e->mode==FD2_FIELD_MAGIC_MODE_DERIVED;
@@ -2481,7 +2465,7 @@ static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,in
             e->effect_id!=23 && !e->popup_done))) status=-1;
     if (normal && full && e->cast_done)
         status=magic_finish_full(ctx,event);
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))goto source_failed;
+    if(output_failed(ctx))goto source_failed;
     if (normal && status==0 && !ctx->host_quit && !ctx->skip) {
         if (full && e->cast_done) {
             size_t first=(size_t)e->fx_parameters.return_lut_base+1u;
@@ -2504,9 +2488,9 @@ static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,in
     }
     if (normal && status==0 && e->mode==FD2_FIELD_MAGIC_MODE_MAP && e->cast_done &&
         e->effect_id!=23 && !e->popup_done && !stopped(ctx) && floating_values(game,ctx)!=0) status=-1;
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))goto source_failed;
+    if(output_failed(ctx))goto source_failed;
     /* MAP/Item的1d4cb→1d4f6同样拥有primary尾停，不让bank释放后仍悬挂本轮声源。 */
-    if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){goto source_failed;}}
+    if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if(output_failed(ctx)){goto source_failed;}}
     if (normal && status==0 && (full || derived) && e->started && !stopped(ctx)) {
         {if(fd2_vga_wait_ticks(ctx->vga,derived ? 6u:8u)<0){goto source_failed;}}{if(fade(ctx,0)<0){goto source_failed;}}
     }
@@ -2524,7 +2508,7 @@ static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,in
         if (cinematic || ctx->skip) {
             /* 2d7da/30df2 fade-out后，2d7eb/30e03清VGA再刷新。 */
             if(battle_field_return(game,ctx,0,cinematic && e->started && !ctx->skip)!=0) {
-                if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))goto source_failed;
+                if(output_failed(ctx))goto source_failed;
                 status=-1;memcpy(ctx->vga->framebuffer,e->map,64000);
             }
         }
@@ -2543,7 +2527,7 @@ source_failed:
 static int magic_dispatch(const fd2_field_game *game,
         const fd2_field_magic_present_event *event,void *userdata) {
     fd2_battle_animation *ctx=userdata;
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0))return -1;
+    if(output_failed(ctx))return -1;
     if (!game || !event || !ctx || !ctx->vga || !ctx->fdother || ctx->visual_owner!=game) return -1;
     if(event->phase==FD2_FIELD_MAGIC_PRESENT_MAP_CALLER_PREAMBLE)
         return magic_map_caller_preamble(game,event,ctx);
@@ -2611,7 +2595,7 @@ int fd2_battle_animation_magic_present(const fd2_field_game *game,
 
 void fd2_battle_animation_close(fd2_battle_animation *ctx) {
     if (!ctx) return;
-    if(ctx->failed || (fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx ? ctx->vga:NULL)<0)){exchange_close(ctx);magic_close_exchange(ctx);}
+    if(ctx->failed || output_failed(ctx)){exchange_close(ctx);magic_close_exchange(ctx);}
     if (ctx->exchange && ctx->vga) restore(ctx,NULL,0);
     if (ctx->magic_exchange && ctx->vga) (void)magic_restore(ctx,NULL,0,NULL);
     fd2_archive_close(&ctx->backgrounds);

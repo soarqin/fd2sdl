@@ -156,6 +156,25 @@ static int collect_range_targets(
     return 0;
 }
 
+/* corrected code0 0x2ad54..0x2ad70：selector_mode 非 0 直接使用记录
+ * filter；为 0 时把 0 反转为 filter 1，非 0 则使用 filter 0。 */
+static uint8_t selector_filter(uint8_t selector_mode, uint8_t raw) {
+    return selector_mode != 0u ? raw : raw != 0u ? 0u : 1u;
+}
+
+/* 以(x,y)为中心、半径radius的目标范围内收集filter匹配单位；范围自行释放。 */
+static int collect_targets_around(const fd2_field_map *map,
+        const fd2_terrain_tileset *terrain, const fd2_field_units *units,
+        int x, int y, uint8_t radius, uint8_t filter,
+        uint8_t *indices, size_t capacity, size_t *count) {
+    fd2_field_path_result target_range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (fd2_field_target_range_compute(&target_range, map, terrain, x, y, 0, radius) != 0)
+        return -1;
+    int result = collect_range_targets(&target_range, units, filter, indices, capacity, count);
+    fd2_field_path_close(&target_range);
+    return result;
+}
+
 static int candidate_target_eligible(const fd2_field_unit *target,
                                      uint8_t side_selector) {
     if (!target || (target->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0)
@@ -163,24 +182,36 @@ static int candidate_target_eligible(const fd2_field_unit *target,
     return side_selector == 0u ? target->side != 0u : target->side == 0u;
 }
 
-static int attack_percent_at(const fd2_field_map *map,
-                             const fd2_terrain_tileset *terrain,
-                             int x, int y,
-                             int use_attack_percent,
-                             int32_t *percent) {
-    if (!map || !map->cells || !terrain || !terrain->attrs || !percent ||
+/* 指定格地形的AP/DP百分比修正；格外或地形表越界失败。 */
+static int terrain_percents_at(const fd2_field_map *map,
+                               const fd2_terrain_tileset *terrain,
+                               int x, int y,
+                               int32_t *attack_percent,
+                               int32_t *defense_percent) {
+    if (!map || !map->cells || !terrain || !terrain->attrs ||
         x < 0 || y < 0 || x >= map->width || y >= map->height)
         return -1;
     uint32_t cell = map->cells[(size_t)y * (size_t)map->width + (size_t)x];
     uint16_t terrain_id = (uint16_t)(cell & 0x03ffu);
     if (terrain_id >= terrain->attr_count) return -1;
-    int32_t attack_percent = 0;
-    int32_t defense_percent = 0;
-    if (fd2_field_attack_terrain_modifiers(
-            terrain->attrs[terrain_id].movement_cost_class,
-            &attack_percent, &defense_percent) != 0)
+    return fd2_field_attack_terrain_modifiers(
+        terrain->attrs[terrain_id].movement_cost_class,
+        attack_percent, defense_percent) != 0 ? -1 : 0;
+}
+
+/* 1f183返回非0的单位按(x,y)地形修正候选AP/DP；其余保持原值。 */
+static int terrain_adjusted_stats(const fd2_field_map *map,
+                                  const fd2_terrain_tileset *terrain,
+                                  const fd2_field_unit *unit, int x, int y,
+                                  uint32_t *attack, uint32_t *defense) {
+    *attack = unit->attack;
+    *defense = unit->defense;
+    if (!fd2_field_attack_unit_ignores_terrain_modifier(unit)) return 0;
+    int32_t attack_percent = 0, defense_percent = 0;
+    if (terrain_percents_at(map, terrain, x, y, &attack_percent, &defense_percent) != 0 ||
+        fd2_field_attack_apply_terrain_modifier(unit->attack, attack_percent, attack) != 0 ||
+        fd2_field_attack_apply_terrain_modifier(unit->defense, defense_percent, defense) != 0)
         return -1;
-    *percent = use_attack_percent ? attack_percent : defense_percent;
     return 0;
 }
 
@@ -210,25 +241,12 @@ int fd2_field_ai_choose_physical_candidate(
         for (int x = 0; x < move_range->width; x++) {
             if (!fd2_field_path_is_destination(move_range, x, y)) continue;
 
-            uint32_t adjusted_attack = actor->attack;
-            uint32_t adjusted_defense = actor->defense;
             /* 14237@143cd..143d7：1f183返回非0才修候选AP/DP。
              * 与实际damage的地形门是不同caller，不套后者的!immune。 */
-            if (fd2_field_attack_unit_ignores_terrain_modifier(actor)) {
-                int32_t attack_percent = 0;
-                int32_t defense_percent = 0;
-                if (attack_percent_at(map, terrain, x, y, 1,
-                                      &attack_percent) != 0 ||
-                    attack_percent_at(map, terrain, x, y, 0,
-                                      &defense_percent) != 0 ||
-                    fd2_field_attack_apply_terrain_modifier(
-                        actor->attack, attack_percent,
-                        &adjusted_attack) != 0 ||
-                    fd2_field_attack_apply_terrain_modifier(
-                        actor->defense, defense_percent,
-                        &adjusted_defense) != 0)
-                    return -1;
-            }
+            uint32_t adjusted_attack, adjusted_defense;
+            if (terrain_adjusted_stats(map, terrain, actor, x, y,
+                                       &adjusted_attack, &adjusted_defense) != 0)
+                return -1;
 
             fd2_field_unit positioned_actor = *actor;
             positioned_actor.x = (uint8_t)x;
@@ -238,19 +256,6 @@ int fd2_field_ai_choose_physical_candidate(
             if (fd2_field_attack_range_compute(
                     &attack_range, map, terrain, &positioned_actor) != 0)
                 return -1;
-
-            size_t target_count = 0;
-            for (size_t i = 0; i < units->count; i++) {
-                const fd2_field_unit *target = &units->items[i];
-                if (candidate_target_eligible(target, side_selector) &&
-                    fd2_field_path_is_destination(
-                        &attack_range, target->x, target->y))
-                    target_count++;
-            }
-            if (target_count == 0) {
-                fd2_field_path_close(&attack_range);
-                continue;
-            }
 
             /* 14586每名target重置ESI=候选AP-targetDP；14448返回的
              * count只由var34控制枚举，不把上一target的分数累加到下一名。 */
@@ -264,19 +269,11 @@ int fd2_field_ai_choose_physical_candidate(
                 uint32_t distance = abs_diff(x, target->x) +
                                     abs_diff(y, target->y);
 
-                uint32_t adjusted_target_defense = target->defense;
-                uint32_t adjusted_target_attack = target->attack;
                 /* 14532..14540同样是非0门，先取target坐标的AP和DP修正。 */
-                if (fd2_field_attack_unit_ignores_terrain_modifier(target)) {
-                    int32_t attack_percent = 0, defense_percent = 0;
-                    if (attack_percent_at(map, terrain, target->x, target->y, 1, &attack_percent) != 0 ||
-                        attack_percent_at(map, terrain, target->x, target->y, 0, &defense_percent) != 0 ||
-                        fd2_field_attack_apply_terrain_modifier(target->attack, attack_percent,
-                            &adjusted_target_attack) != 0 ||
-                        fd2_field_attack_apply_terrain_modifier(target->defense, defense_percent,
-                            &adjusted_target_defense) != 0) {
-                        fd2_field_path_close(&attack_range); return -1;
-                    }
+                uint32_t adjusted_target_attack, adjusted_target_defense;
+                if (terrain_adjusted_stats(map, terrain, target, target->x, target->y,
+                        &adjusted_target_attack, &adjusted_target_defense) != 0) {
+                    fd2_field_path_close(&attack_range); return -1;
                 }
                 int32_t score = (int32_t)adjusted_attack - (int32_t)adjusted_target_defense;
                 int32_t priority = score > 2 ? 8 : 0; /* 14586..14595。 */
@@ -465,29 +462,14 @@ int fd2_field_ai_choose_magic_candidate(
             for (int x = 0; x < cast_range.width; x++) {
                 if (!fd2_field_path_is_destination(&cast_range, x, y))
                     continue;
-                fd2_field_path_result target_range =
-                    FD2_FIELD_PATH_RESULT_INITIALIZER;
-                if (fd2_field_target_range_compute(
-                        &target_range, map, terrain, x, y,
-                        0, magic[4]) != 0) {
-                    fd2_field_path_close(&cast_range);
-                    return -1;
-                }
                 uint8_t target_indices[FD2_FIELD_MAX_UNITS];
                 size_t target_count = 0;
-                /* corrected code0 0x2ad54..0x2ad70：selector_mode 非 0
-                 * 直接使用 spell +6；为 0 时把 +6==0 反转为 filter 1，
-                 * +6!=0 则使用 filter 0。 */
-                uint8_t filter = selector_mode != 0u ? magic[6] :
-                    magic[6] != 0u ? 0u : 1u;
-                if (collect_range_targets(
-                        &target_range, units, filter, target_indices,
+                if (collect_targets_around(map, terrain, units, x, y, magic[4],
+                        selector_filter(selector_mode, magic[6]), target_indices,
                         sizeof(target_indices), &target_count) != 0) {
-                    fd2_field_path_close(&target_range);
                     fd2_field_path_close(&cast_range);
                     return -1;
                 }
-                fd2_field_path_close(&target_range);
                 if (target_count == 0) continue;
 
                 fd2_field_ai_score_targets targets = {
@@ -613,6 +595,20 @@ static int collect_line_targets(
     return 0;
 }
 
+/* 物品在目标格的对象：outer>15 为自actor向目标格的直线，否则为圆形范围。 */
+static int collect_item_targets_at(const fd2_field_map *map,
+        const fd2_terrain_tileset *terrain, const fd2_field_units *units,
+        const fd2_field_unit *actor, const uint8_t *item,
+        int target_x, int target_y, uint8_t selector_mode,
+        uint8_t *indices, size_t capacity, size_t *count) {
+    if (item[0x10u] > 15u)
+        return collect_line_targets(
+            map, units, actor->x, actor->y, target_x, target_y,
+            (uint8_t)(item[0x10u] - 16u), 0, indices, capacity, count);
+    return collect_targets_around(map, terrain, units, target_x, target_y, item[0x12u],
+        selector_filter(selector_mode, item[0x11u]), indices, capacity, count);
+}
+
 int fd2_field_ai_choose_item_candidate(
         const fd2_field_map *map,
         const fd2_terrain_tileset *terrain,
@@ -668,34 +664,11 @@ int fd2_field_ai_choose_item_candidate(
                     continue;
                 uint8_t target_indices[FD2_FIELD_MAX_UNITS];
                 size_t target_count = 0;
-                if (outer_raw > 15u) {
-                    if (collect_line_targets(
-                            map, units, actor->x, actor->y, x, y,
-                            (uint8_t)(outer_raw - 16u), 0,
-                            target_indices, sizeof(target_indices),
-                            &target_count) != 0) {
-                        fd2_field_path_close(&positions);
-                        return -1;
-                    }
-                } else {
-                    fd2_field_path_result target_range =
-                        FD2_FIELD_PATH_RESULT_INITIALIZER;
-                    if (fd2_field_target_range_compute(
-                            &target_range, map, terrain, x, y,
-                            0, item[0x12u]) != 0) {
-                        fd2_field_path_close(&positions);
-                        return -1;
-                    }
-                    uint8_t filter = selector_mode != 0u ? item[0x11u] :
-                        item[0x11u] != 0u ? 0u : 1u;
-                    if (collect_range_targets(
-                            &target_range, units, filter, target_indices,
-                            sizeof(target_indices), &target_count) != 0) {
-                        fd2_field_path_close(&target_range);
-                        fd2_field_path_close(&positions);
-                        return -1;
-                    }
-                    fd2_field_path_close(&target_range);
+                if (collect_item_targets_at(map, terrain, units, actor, item, x, y,
+                        selector_mode, target_indices, sizeof(target_indices),
+                        &target_count) != 0) {
+                    fd2_field_path_close(&positions);
+                    return -1;
                 }
                 if (target_count == 0) continue;
 
@@ -740,18 +713,8 @@ int fd2_field_ai_collect_magic_targets(
         cast_x < 0 || cast_y < 0 || cast_x >= map->width ||
         cast_y >= map->height)
         return -1;
-    fd2_field_path_result target_range =
-        FD2_FIELD_PATH_RESULT_INITIALIZER;
-    if (fd2_field_target_range_compute(
-            &target_range, map, terrain, cast_x, cast_y,
-            0, magic[4]) != 0)
-        return -1;
-    uint8_t filter = selector_mode != 0u ? magic[6] :
-        magic[6] != 0u ? 0u : 1u;
-    int result = collect_range_targets(
-        &target_range, units, filter, indices, capacity, count);
-    fd2_field_path_close(&target_range);
-    return result;
+    return collect_targets_around(map, terrain, units, cast_x, cast_y, magic[4],
+        selector_filter(selector_mode, magic[6]), indices, capacity, count);
 }
 
 int fd2_field_ai_collect_item_targets(
@@ -768,24 +731,8 @@ int fd2_field_ai_collect_item_targets(
         !item || !indices || !count || target_x < 0 || target_y < 0 ||
         target_x >= map->width || target_y >= map->height)
         return -1;
-    const fd2_field_unit *actor = &units->items[actor_index];
-    if (item[0x10u] > 15u)
-        return collect_line_targets(
-            map, units, actor->x, actor->y, target_x, target_y,
-            (uint8_t)(item[0x10u] - 16u), 0,
-            indices, capacity, count);
-    fd2_field_path_result target_range =
-        FD2_FIELD_PATH_RESULT_INITIALIZER;
-    if (fd2_field_target_range_compute(
-            &target_range, map, terrain, target_x, target_y,
-            0, item[0x12u]) != 0)
-        return -1;
-    uint8_t filter = selector_mode != 0u ? item[0x11u] :
-        item[0x11u] != 0u ? 0u : 1u;
-    int result = collect_range_targets(
-        &target_range, units, filter, indices, capacity, count);
-    fd2_field_path_close(&target_range);
-    return result;
+    return collect_item_targets_at(map, terrain, units, &units->items[actor_index],
+        item, target_x, target_y, selector_mode, indices, capacity, count);
 }
 
 fd2_field_ai_action fd2_field_ai_select_attack_action(

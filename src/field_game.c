@@ -1011,6 +1011,21 @@ static void advance_phase(fd2_field_game *game) {
     if (run_turn_entry(game,entry) < 0) fail_action(game,0);
 }
 
+/* field_actor_face_toward @0x1f04a（原sub_1F04A）：比较两个actor记录坐标，
+ * 水平差严格大于垂直差时取左右（1/3），平价取上下（2/0）。 */
+static uint8_t face_toward(const fd2_field_unit *from, const fd2_field_unit *to) {
+    int dx = (int)from->x - (int)to->x, dy = (int)from->y - (int)to->y;
+    return abs(dx) > abs(dy) ? (dx > 0 ? 1u : 3u) : (dy > 0 ? 2u : 0u);
+}
+
+/* 战场视窗左上角的像素坐标：格坐标×24、去4px黑边、加镜头像素偏移。 */
+static int camera_origin_x(const fd2_field_game *game) {
+    return game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_x;
+}
+static int camera_origin_y(const fd2_field_game *game) {
+    return game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_y;
+}
+
 static void clear_view_border(fd2_vga *vga) {
     if (!vga || vga->field_page) return;
     /* 仅无App页的旧离屏诊断裁边。正式11cac只投影312×192，
@@ -2038,10 +2053,8 @@ static void render_field(const fd2_field_game *game, fd2_vga *vga,
                          int mode, fd2_field_game *ui_owner, uint8_t idle_phase, uint8_t terrain_phase) {
     int draw_ui = mode != 0;
     if (!game || !game->ready || !vga) return;
-    int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_x;
-    int camera_y = game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_y;
+    int camera_x = camera_origin_x(game);
+    int camera_y = camera_origin_y(game);
     if (vga->field_page) {
         int selection = mode == 1 ? 1 : mode == 2 ? 2 : 0;
         if (render_work_page(game, vga, selection, draw_ui, 1,
@@ -2393,10 +2406,8 @@ static int render_transition_mask(const fd2_field_game *game, fd2_vga *vga,
             center_x,center_y,radius,0,0);
         fd2_field_page_destroy(base);return result;
     }
-    int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_x;
-    int camera_y = game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_y;
+    int camera_x = camera_origin_x(game);
+    int camera_y = camera_origin_y(game);
     fd2_terrain_render_field_base_animated(vga, &game->terrain, &game->map,
         camera_x, camera_y, terrain_phase, idle_phase);
     (void)fd2_field_transition_lut_before_actors(vga, lut, center_x, center_y, radius);
@@ -2429,8 +2440,7 @@ void fd2_field_game_render_effect_tiles(const fd2_field_game *game, fd2_vga *vga
         return;
     }
     fd2_terrain_render_field_base_animated(vga, &game->terrain, &game->map,
-        game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_x,
-        game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_y,
+        camera_origin_x(game), camera_origin_y(game),
         game->terrain_visual_phase, game->idle_phase);
     clear_view_border(vga);
 }
@@ -2438,8 +2448,8 @@ void fd2_field_game_render_effect_tiles(const fd2_field_game *game, fd2_vga *vga
 void fd2_field_game_render_effect_actors(const fd2_field_game *game, fd2_vga *vga) {
     if (!game || !game->ready || !vga) return;
     if(vga->field_page) {(void)fd2_field_game_effect_actors(game,vga);return;}
-    int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_x;
-    int camera_y = game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER + game->camera_pixel_offset_y;
+    int camera_x = camera_origin_x(game);
+    int camera_y = camera_origin_y(game);
     fd2_field_units_render(vga, &game->sprites, &game->units, camera_x, camera_y, game->idle_phase);
     render_actor_terrain_overlays(game, vga, camera_x, camera_y, 0, game->terrain_visual_phase);
     clear_view_border(vga);
@@ -5561,9 +5571,7 @@ static int run_action_flow(field_action_flow *ctx, const char *id) {
             if (action_flow_present(ctx,(fd2_field_physical_phase)value,0,0)!=0) break;
         } else if (!strcmp(op,"action_face")) {
             fd2_field_unit *from=value ? target:actor,*to=value ? actor:target;
-            /* field_actor_face_toward @0x1f04a（原sub_1F04A）：平价取上下。 */
-            int dx=(int)from->x-to->x,dy=(int)from->y-to->y;
-            from->direction=abs(dx)>abs(dy) ? (dx>0 ? 1u:3u):(dy>0 ? 2u:0u);
+            from->direction=face_toward(from,to); /* 1f04a */
         } else if (!strcmp(op,"action_call_full")) {
             /* 固定领域子调用不能在bare FULL自递归，坏冷定义明确失败。 */
             if(strcmp(id,"physical.caller.full"))break;
@@ -6574,17 +6582,7 @@ static int commit_ai_physical_internal(
             if (commit_result == 0 && focus_to(game, target->x, target->y) != 0)
                 commit_result = -1;
             if(commit_result==0 && game->runtime_host_quit){path_host=1;goto path_cleanup;}
-            actor->direction = 0;
-            /* field_actor_face_toward @0x1f04a（IDA `sub_1F04A`）：以
-             * `abs(dx)` 与 `abs(dy)` 比较两个 actor 记录坐标，水平差
-             * 严格大于垂直差时取左右；平价取上下。 */
-            int dx = (int)actor->x - (int)target->x;
-            int dy = (int)actor->y - (int)target->y;
-            int abs_x = dx < 0 ? -dx : dx;
-            int abs_y = dy < 0 ? -dy : dy;
-            actor->direction = abs_x > abs_y
-                ? (actor->x > target->x ? 1u : 3u)
-                : (actor->y > target->y ? 2u : 0u);
+            actor->direction = face_toward(actor, target); /* 1f04a */
             if (commit_result == 0) {
                 game->interaction = FD2_FIELD_INTERACTION_COMMAND;
                 commit_result = resolve_physical_exchange(
@@ -6783,9 +6781,7 @@ static int ai_item_caller_present(fd2_field_game *game,size_t actor_index,
         else if(!strcmp(op,"ray_area_display"))game->ordinary_display_mode=(uint8_t)(item[0x12u]+2u);
         else if(!strcmp(op,"ray_is_long"))port=item[0x10u]>15u?FD2_FLOW_YES:FD2_FLOW_NO;
         else if(!strcmp(op,"ray_face_first")) {
-            /* 1516e→field_actor_face_toward @0x1f04a（原sub_1F04A）。 */
-            int dx=(int)actor->x-first->x,dy=(int)actor->y-first->y;
-            actor->direction=abs(dx)>abs(dy)?(dx>0?1u:3u):(dy>0?2u:0u);
+            actor->direction=face_toward(actor,first); /* 1516e→1f04a */
         } else if(!strcmp(op,"ray_refresh"))result=turn_present(game,FD2_FIELD_RUNTIME_REFRESH,value);
         else if(!strcmp(op,"ray_wait_ticks"))result=turn_present(game,FD2_FIELD_RUNTIME_WAIT_TICKS,value);
         else if(!strcmp(op,"ray_present")) {
@@ -7655,6 +7651,38 @@ static int run_ai_behavior(fd2_field_game *game, size_t actor_index,
     }
 }
 
+/* 调度器选中一名AI actor后的完整一步：推进游标、执行行为、处理延续，
+ * 补公共tail、分派待决格事件并结算外层结果。两个pass共用。
+ * 内部物理／法术／物品及移动事务都未执行tail；scheduler按原版无条件补一次，
+ * 不因效果提交后的acted/死亡跳过（behavior8除外）。原版 outer side loop
+ * 此时才调用 DS:0x1b91[cell_code]；未知handler不得按「无事件」继续，保留
+ * 已提交动作并显式停机，不能伪造外部RNG回滚。 */
+static int run_scheduled_ai_actor(fd2_field_game *game, size_t i, fd2_vga *vga,
+        uint32_t frame_delay_ms, field_path_playback_mode mode) {
+    game->phase_unit_cursor = i + 1u;
+    int run_common_tail = 1;
+    int action_result = run_ai_behavior(
+        game, i, vga, frame_delay_ms, &run_common_tail, mode);
+    if (action_result < 0) {
+        fail_action(game, i);
+        return -1;
+    }
+    if(game->runtime_host_quit)return game->failure==FD2_FIELD_FAILURE_NONE?1:-1;
+    if (progress_pending(game)) {
+        set_ai_continuation(game, FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER, i, run_common_tail);
+        return 1;
+    }
+    if (run_common_tail && finish_ai_action(game, i) != 0)
+        return -1;
+    if(game->runtime_host_quit)return 1;
+    if (game->failure != FD2_FIELD_FAILURE_NONE ||
+        dispatch_pending_cell_event(game, i) != 0)
+        return -1;
+    if(game->event_resume.active)return 1;
+    if(finish_ai_outer_result(game,i)<0)return -1;
+    return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
+}
+
 int fd2_field_game_process_automatic_action_visual(
         fd2_field_game *game, fd2_vga *vga, uint32_t frame_delay_ms,
         int clean_background) {
@@ -7719,31 +7747,8 @@ int fd2_field_game_process_automatic_action_visual(
                 if(result<0)return -1;if(result>0)return 1;
                 continue;
             }
-            game->phase_unit_cursor = i + 1u;
             /* 13a9f没有统一聚焦；各实际动作wrapper按自身原调用点处理。 */
-            int run_common_tail = 1;
-            int action_result = run_ai_behavior(
-                game, i, vga, frame_delay_ms, &run_common_tail, mode);
-            if (action_result < 0) {
-                fail_action(game, i);
-                return -1;
-            }
-            if(game->runtime_host_quit)return game->failure==FD2_FIELD_FAILURE_NONE?1:-1;
-            if (progress_pending(game)) {
-                set_ai_continuation(game, FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER, i, run_common_tail);
-                return 1;
-            }
-            if (run_common_tail && finish_ai_action(game, i) != 0)
-                return -1;
-            if(game->runtime_host_quit)return 1;
-            /* side outer在AI后分派1b91；已绑定走同common owner，未知仍
-             * 在真实边界冻结，不能吞掉已提交动作或伪造外部RNG回滚。 */
-            if (game->failure != FD2_FIELD_FAILURE_NONE ||
-                dispatch_pending_cell_event(game, i) != 0)
-                return -1;
-            if(game->event_resume.active)return 1;
-            if(finish_ai_outer_result(game,i)<0)return -1;
-            return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
+            return run_scheduled_ai_actor(game, i, vga, frame_delay_ms, mode);
         }
         game->phase_ai_pass = 1u;
         game->phase_unit_cursor = 0;
@@ -7758,32 +7763,7 @@ int fd2_field_game_process_automatic_action_visual(
             if(result<0)return -1;if(result>0)return 1;
             continue;
         }
-        game->phase_unit_cursor = i + 1u;
-        int run_common_tail = 1;
-        int action_result = run_ai_behavior(
-            game, i, vga, frame_delay_ms, &run_common_tail, mode);
-        if (action_result < 0) {
-            fail_action(game, i);
-            return -1;
-        }
-        if(game->runtime_host_quit)return game->failure==FD2_FIELD_FAILURE_NONE?1:-1;
-        if (progress_pending(game)) {
-            set_ai_continuation(game, FD2_FIELD_PROGRESS_RESUME_AI_SCHEDULER, i, run_common_tail);
-            return 1;
-        }
-        /* 内部物理／法术／物品及移动事务都未执行tail；scheduler按原版
-         * 无条件补一次，不因效果提交后的acted/死亡跳过。behavior8除外。 */
-        if (run_common_tail && finish_ai_action(game, i) != 0)
-            return -1;
-        if(game->runtime_host_quit)return 1;
-        /* 原版 outer side loop 此时才调用 DS:0x1b91[cell_code]。未知
-         * handler 不得按「无事件」继续；保留已提交动作并显式停机。 */
-        if (game->failure != FD2_FIELD_FAILURE_NONE ||
-            dispatch_pending_cell_event(game, i) != 0)
-            return -1;
-        if(game->event_resume.active)return 1;
-        if(finish_ai_outer_result(game,i)<0)return -1;
-        return game->failure == FD2_FIELD_FAILURE_NONE ? 1 : -1;
+        return run_scheduled_ai_actor(game, i, vga, frame_delay_ms, mode);
     }
     /* 扫到raw尾（含被跳过者）才换phase；不能remaining=0提前跳过清slot。 */
     advance_phase(game);
@@ -7826,10 +7806,8 @@ static void actor_flash_paint(fd2_field_game *game, uint8_t *snapshot,
     if (fd2_field_unit_is_hidden(unit) || !game->sprites.decoded_frames ||
         frame_index >= game->sprites.frame_count)
         return;
-    int camera_x = game->camera_cell_x * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_x;
-    int camera_y = game->camera_cell_y * 24 - FD2_FIELD_VIEW_BORDER +
-                   game->camera_pixel_offset_y;
+    int camera_x = camera_origin_x(game);
+    int camera_y = camera_origin_y(game);
     int x = (int)unit->x * 24 - camera_x;
     int y = (int)unit->y * 24 - camera_y - 6;
     const uint8_t *sprite = game->sprites.decoded_frames +

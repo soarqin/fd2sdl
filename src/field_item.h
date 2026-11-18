@@ -48,6 +48,10 @@ int fd2_field_item_list_select_step(
  * 表内容来自 corrected code0 0x684c1，对应 FD2.EXE file offset 0x792c1。 */
 const uint8_t *fd2_field_item_record_get(uint8_t item_id);
 int16_t fd2_field_item_i16(const uint8_t *record, size_t offset);
+/* 商店原价：record +19/+20 小端无符号WORD。 */
+static inline uint32_t fd2_field_item_purchase_price(const uint8_t *record) {
+    return (uint32_t)record[19] | ((uint32_t)record[20] << 8);
+}
 
 /* field_unit_can_equip_item @0x1c1c3（原sub_1C1C3）与
  * field_equipment_profile_get @0x4e88e（原sub_4E88E）的已证许可表。

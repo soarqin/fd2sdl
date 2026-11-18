@@ -513,7 +513,7 @@ cmake --build build/ab/old-build --config Debug --target fd2sdl --parallel
 python tools/compare_field_play_builds.py --root . --old-game build/ab/old-src/src/Debug/fd2sdl.exe --new-game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --artifacts build/ab/runs
 ```
 
-工具对 `--field-play 0` 依次运行待机整回合、攻击、各类取消、详情／F1、物品、法术、系统菜单（选项、总览、存档否／是、读档取消／是、出击）和结束回合等场景。每个场景运行旧版两次、新版一次，使用相同 RNG 种子和各自隔离的 `FD2.SAV`，并经驱动向本轮 PID 后台投递按键。stdout 全文和存档必须逐字节一致才算通过；同一旧版两次运行若不一致，说明场景对时长敏感，需先修正场景。截图逐步保存，只报告像素差异，因为水面、待机和光标动画按实时变化，旧版两次之间也会不同。`--explore` 只运行旧版并打印轨迹，用于编写场景。该工具只用于新旧 SDL 程序之间的对照，不是原版对照，也不能代替 CTest。驱动的任意按键与截图只在 Windows 实现，Linux 未提供对应入口。
+工具对 `--field-play 0` 依次运行待机整回合、攻击、各类取消、详情／F1、物品、法术列表、施法（先结束一回合让敌方接近）、系统菜单（选项、总览、存档否／是、读档取消／是、出击）、结束回合，以及两轮敌方回合后存档等场景。`prepare` 与 `continue` 两个场景从标题启动，把本地 `original_game/FD2.SAV` 复制到本轮目录后分别走 LOAD（酒店成员详情翻页、道具店装备页、出口选人页和手工存档）和 CONTINUE（活动战场结束回合，后期敌方 AI 与演出）；原存档只读，缺少该文件时这两个场景无法运行。标题阶段 stdout 不逐行刷新，这两个场景按固定启动等待后再投递按键。每个场景运行旧版两次、新版一次，使用相同 RNG 种子和各自隔离的 `FD2.SAV`，并经驱动向本轮 PID 后台投递按键。stdout 全文和存档必须逐字节一致才算通过；同一旧版两次运行若不一致，说明场景对时长敏感，需先修正场景。截图逐步保存（渐暗过渡帧会被 WGC 拒为近乎单色，只记录不判失败），只报告像素差异，因为水面、待机和光标动画按实时变化，旧版两次之间也会不同。`--explore` 只运行旧版并打印轨迹，用于编写场景。该工具只用于新旧 SDL 程序之间的对照，不是原版对照，也不能代替 CTest。驱动的任意按键与截图只在 Windows 实现，Linux 未提供对应入口。
 
 CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；总流程为每轮创建 `graphics-artifacts/<时间>/`，其中包括输入 trace、日志、原始截图、差异图、原版资源 SHA-256、子进程退出与清理记录及 `summary.json`。当前驱动的文件接口使用 Windows 当前代码页，测试产物目录先使用 ASCII 路径。总流程自动把 SDL 正式 UI 生成的 `storage-cancel/FD2.SAV` 传给原版配对。单独复跑时将示例的 fixture 路径换成该文件，并使用新的产物目录；不要拿任意高关卡存档要求仅支持 stage 0 的 SDL 呈现相同菜单。原版与转换产物不提交；只提交测试脚本、配置生成逻辑与文字结论。
 

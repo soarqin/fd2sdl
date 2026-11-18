@@ -164,7 +164,7 @@ int fd2_field_prepare_draw_items(fd2_vga *vga,const fd2_field_prepare_assets *a,
             status=fd2_field_info_number_draw(page,&a->info,x+118,y+121,value,3,1);
         } else fd2_map_sprite_blit(page,&a->info.digit_overflow[0],x+95,y+123,0);
         fd2_map_sprite_blit(page,&a->service.price_icon,x+95,y+131,-1);
-        uint32_t price=(uint32_t)item[19]|((uint32_t)item[20]<<8);
+        uint32_t price=fd2_field_item_purchase_price(item);
         if (selling) price=3u*price/4u;
         if (!status) status=fd2_field_info_number_draw(page,&a->info,x+104,y+131,(int32_t)price,5,2);
     }
@@ -185,18 +185,12 @@ int fd2_field_prepare_draw_equipment_recipients(fd2_vga *vga,
     size_t rows=count-first;if(rows>3u)rows=3u;
     view_name names[3];int32_t next[3][4];fd2_field_unit units[3];size_t frames[3];
     for (size_t i=0;i<rows;i++) {
-        size_t raw=raws[first+i];uint8_t sprite=0;
+        size_t raw=raws[first+i];
         if (raw>=state->unit_count) return -1;
         memcpy(&units[i],state->unit_area+raw*80u,80u);
         if (name_get(a,(size_t)units[i].text_id+1u,&names[i])!=0 ||
-            fd2_field_prepare_item_preview_stats(&units[i],item_id,next[i])!=0) return -1;
-        int cached=cached_sprite(a,state,raw,&sprite);
-        if (cached<0) return -1;
-        frames[i]=SIZE_MAX;
-        if (cached) {
-            if (!a->sprites.decoded_frames || (size_t)sprite*12u+11u>=a->sprites.frame_count) return -1;
-            frames[i]=(size_t)sprite*12u+(phase==3u ? 1u:phase);
-        }
+            fd2_field_prepare_item_preview_stats(&units[i],item_id,next[i])!=0 ||
+            sprite_frame(a,state,raw,phase,&frames[i])!=0) return -1;
     }
     fd2_vga *page=malloc(sizeof(*page));if(!page)return -1;*page=*vga;
     int status=0;

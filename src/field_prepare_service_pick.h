@@ -193,6 +193,14 @@ static int prepare_service_selection_resources(prepare_ui *ui) {
     return image_size(&s->selection_label,86,86) && image_size(&s->selection_cursor,24,24) ? 0:-1;
 }
 
+/* 服务页的12帧开合；宿主退出锁存到service后统一按失败返回。 */
+static int prepare_service_page_transition(prepare_ui *ui,int opening,int with_sfx) {
+    prepare_service *s=&ui->service;
+    int result=prepare_detail_transition(ui,s->page,s->page_background,opening,with_sfx);
+    if(result>0)s->host_quit=1;
+    return result ? -1:0;
+}
+
 static int prepare_service_selection_open(prepare_ui *ui) {
     prepare_service *s=&ui->service;
     if(s->page || s->page_background || prepare_service_selection_resources(ui)!=0)return -1;
@@ -202,11 +210,7 @@ static int prepare_service_selection_open(prepare_ui *ui) {
     s->page_kind=3;s->picker_mode=PREPARE_PICK_DEPLOYMENT;
     if(prepare_service_picker_draw(ui)!=0)return -1;
     memcpy(s->page->framebuffer,ui->vga->framebuffer,VGA_W*VGA_H);
-    for(int phase=11;phase>=0;phase--) {
-        int cue=fd2_field_detail_sfx_for_phase(1,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
-        fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-        {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
-    }
+    if(prepare_service_page_transition(ui,1,1)!=0)return -1;
     /* 2af28打开12帧后明确4e381，后继2b67f只消费一键。 */
     return prepare_service_clear_keys(ui) ? -1 : 0;
 }
@@ -216,11 +220,7 @@ static int prepare_service_selection_close(prepare_ui *ui) {
     if(!s->page || !s->page_background || s->page_kind!=3)return -1;
     if(prepare_service_picker_draw(ui)!=0)return -1;
     memcpy(s->page->framebuffer,ui->vga->framebuffer,VGA_W*VGA_H);
-    for(int phase=0;phase<12;phase++) {
-        int cue=fd2_field_detail_sfx_for_phase(0,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
-        fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-        {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
-    }
+    if(prepare_service_page_transition(ui,0,1)!=0)return -1;
     memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
     {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
     free(s->page_background);free(s->page);s->page_background=NULL;s->page=NULL;s->page_kind=0;
@@ -326,11 +326,7 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
         memcpy(s->page_background,ui->vga->framebuffer,VGA_W*VGA_H);s->page_kind=4;
         if(prepare_service_equipment_draw(ui)!=0)return -1;
         memcpy(s->page->framebuffer,ui->vga->framebuffer,VGA_W*VGA_H);
-        for(int phase=11;phase>=0;phase--) {
-            int cue=fd2_field_detail_sfx_for_phase(1,phase);if(cue>=0 && sound(ui,(size_t)cue)!=0)return -1;
-            fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-            {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
-        }
+        if(prepare_service_page_transition(ui,1,1)!=0)return -1;
         if(prepare_service_clear_keys(ui))return -1; /* 17e0b尾17ee8。 */
         s->equipment_selected=0;return 1;
     }
@@ -359,10 +355,7 @@ static int prepare_service_pick(prepare_ui *ui,const fd2_static_flow_node *node,
     if(!strcmp(op,"equipment_redraw"))return prepare_service_equipment_draw(ui)==0 ? 1:-1;
     if(!strcmp(op,"equipment_close")) {
         if(!s->page || !s->page_background || s->page_kind!=4)return -1;
-        for(int phase=0;phase<12;phase++) {
-            fd2_field_detail_transition_frame(ui->vga->framebuffer,s->page->framebuffer,s->page_background,phase);
-            {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
-        }
+        if(prepare_service_page_transition(ui,0,0)!=0)return -1;
         memcpy(ui->vga->framebuffer,s->page_background,VGA_W*VGA_H);
         {int copied=present_copy(ui);if(copied){if(copied>0)s->host_quit=1;return -1;}}
         free(s->page_background);free(s->page);s->page_background=NULL;s->page=NULL;s->page_kind=0;

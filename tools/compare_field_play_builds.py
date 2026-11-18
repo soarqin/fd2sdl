@@ -1,8 +1,12 @@
-"""对比两份 SDL 程序在相同 stage0 战场输入下的可观察结果（Windows）。
+"""对比两份 SDL 程序在相同输入下的可观察结果（Windows）。
 
 用于重构类改动的旧版／新版执行对照：同一 RNG 种子、隔离存档目录、
 经 fd2_field_play_input_driver 向本轮 PID 的窗口后台投递按键，记录
 stdout 逻辑轨迹（field ...: 行）、FD2.SAV 和每步 WGC 单窗口截图。
+
+场景默认从 `--field-play 0` 开始；也可从标题启动并预置存档副本（如
+`original_game/FD2.SAV` 的复制件），覆盖标题 LOAD 后的准备／城镇页与
+CONTINUE 活动战场。原存档只读，写入只发生在本轮副本。
 
 判定：逻辑轨迹与存档必须逐字节一致；截图含水面、待机和光标等实时
 动画，按像素差异计数报告，并以同一旧版两次运行的差异作为噪声基线。
@@ -28,7 +32,8 @@ import time
 READY = "field input ready: stage=0 turn=1 phase=2"
 
 # 场景用空格分隔的按键序列表示；"KEY!" 表示按键后等待新的 input ready 行
-# （只在奖励／事件提示后重报），"KEY^" 表示等待回到第 2 回合玩家阶段。
+# （只在奖励／事件提示后重报），"KEY^" 表示等待回到第 2 回合玩家阶段，
+# "KEY^3" 表示等待第 3 回合玩家阶段。
 # 浏览时 ESC/Z 为焦点轮换，A 无映射。
 # 方向在径向菜单中依次选 UP=0、LEFT=1、RIGHT=2、DOWN=3：
 # 指令菜单为攻击／法术／物品／待机；系统菜单为次级页／出击／选项／结束回合；
@@ -61,7 +66,36 @@ SCENARIOS = {
                "ENTER LEFT ENTER ENTER^"),
     # 结束回合确认（先选否再确认），敌方回合后回到玩家。
     "end-turn": "UP UP UP ENTER DOWN ENTER RIGHT ENTER A ENTER DOWN ENTER ENTER^",
+    # 先结束一回合让敌方接近，再由 unit1 施放首个法术（火炎术）并轮换到首个目标确认，
+    # 走完整施法演出、扣MP与奖励提示。
+    "cast": "UP UP UP ENTER DOWN ENTER ENTER^ A Z Z ENTER ENTER LEFT ENTER ENTER Z ENTER ENTER A",
+    # 两次结束回合后存档：AI两轮行动结果写入活动快照参与逐字节比较。
+    "ai-save": ("UP UP UP ENTER DOWN ENTER ENTER^ A "
+                "UP UP UP ENTER DOWN ENTER ENTER^3 A A A "
+                "UP UP UP ENTER ENTER LEFT ENTER ENTER A"),
+    # 标题LOAD进入准备城镇：酒店成员详情翻页、道具店装备页、出口出击选人页，
+    # 最后回酒店手工存档到槽0。需要本地原版存档作为输入副本。
+    "prepare": {
+        "argv": [], "fixture": "original_game/FD2.SAV", "ready": None, "startup": 10,
+        "keys": ("ENTER A DOWN ENTER A ENTER ENTER "
+                 "ENTER A ENTER A ESC ESC ESC "
+                 "RIGHT RIGHT ENTER A RIGHT RIGHT ENTER A ENTER A ENTER A ESC ESC ESC "
+                 "RIGHT ENTER A ENTER A ESC "
+                 "LEFT LEFT LEFT ENTER RIGHT ENTER A ENTER A A ESC ESC")},
+    # 标题CONTINUE恢复活动战场后结束回合，后期敌方AI与演出完整执行一轮。
+    "continue": {
+        "argv": [], "fixture": "original_game/FD2.SAV", "ready": None, "startup": 10,
+        "keys": "ENTER A DOWN DOWN ENTER! A UP UP UP ENTER DOWN ENTER ENTER^ A"},
 }
+
+
+def scenario_spec(name):
+    """把场景统一为 {argv, fixture, ready, steps}。"""
+    value = SCENARIOS[name]
+    if isinstance(value, str):
+        value = {"argv": ["--field-play", "0"], "fixture": None, "ready": READY, "keys": value}
+    # startup：标题片头先等待固定秒数，窗口与标题输入就绪后再投递按键。
+    return {"startup": 0, **value, "steps": scenario_steps(value["keys"])}
 
 
 MARKERS = {"!": "field input ready:", "^": "field phase: turn=2 phase=2"}
@@ -71,6 +105,9 @@ def scenario_steps(text):
     """返回 [(key, 等待标记或 None)]。"""
     steps = []
     for token in text.split():
+        if token.endswith("^3"):
+            steps.append((token[:-2], "field phase: turn=3 phase=2"))
+            continue
         marker = MARKERS.get(token[-1])
         steps.append((token[:-1] if marker else token, marker))
     return steps
@@ -107,7 +144,7 @@ def settle(log, process, quiet=2.0, minimum=0.6, timeout=90):
         time.sleep(0.1)
 
 
-def wait_marker(log, process, marker, after, timeout=60):
+def wait_marker(log, process, marker, after, timeout=600):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if marker in log.read_bytes()[after:].decode("utf-8", "replace"):
@@ -118,11 +155,15 @@ def wait_marker(log, process, marker, after, timeout=60):
     raise TimeoutError(f"missing {marker!r}")
 
 
-def run(args, game, label, name, steps):
+def run(args, game, label, name, spec):
     work = Path(args.artifacts) / name / label
     work.mkdir(parents=True, exist_ok=True)
     for stale in work.iterdir():
         stale.unlink()
+    if spec["fixture"]:
+        # 只读输入：复制到本轮目录，游戏只写副本。
+        (work / "FD2.SAV").write_bytes((Path(args.root) / spec["fixture"]).read_bytes())
+    steps = spec["steps"]
     log = work / "game.log"
     env = os.environ.copy()
     env.update(SDL_VIDEODRIVER="windows", SDL_AUDIODRIVER="dummy",
@@ -132,7 +173,7 @@ def run(args, game, label, name, steps):
     result = {"label": label, "captures": [], "exit_code": None, "forced": False,
               "error": None}
     with log.open("wb") as output:
-        process = subprocess.Popen([str(game), "--field-play", "0"], cwd=args.root,
+        process = subprocess.Popen([str(game), *spec["argv"]], cwd=args.root,
                                    env=env, stdout=output, stderr=subprocess.STDOUT)
 
         def driver(*argv):
@@ -142,7 +183,10 @@ def run(args, game, label, name, steps):
                 raise RuntimeError(f"driver {argv} failed: {completed.stderr}")
 
         try:
-            wait_marker(log, process, READY, 0)
+            # 标题阶段 stdout 未逐行刷新，只能按固定 startup 等待。
+            if spec["ready"]:
+                wait_marker(log, process, spec["ready"], 0)
+            time.sleep(spec["startup"])
             settle(log, process)
             for index, (key, marker) in enumerate(steps):
                 offset = log.stat().st_size
@@ -153,8 +197,14 @@ def run(args, game, label, name, steps):
                 if process.poll() is not None:
                     break
                 shot = work / f"{index:02d}-{key}.bmp"
-                driver("capture", str(shot))
-                result["captures"].append(shot.name)
+                try:
+                    driver("capture", str(shot))
+                    result["captures"].append(shot.name)
+                except RuntimeError as error:
+                    # 渐暗等过渡帧会被 WGC 判为近乎单色；只记录，不中止场景。
+                    if "uniform" not in str(error):
+                        raise
+                    result.setdefault("blank_captures", []).append(shot.name)
         except Exception as error:  # 记录后继续清理，由比较阶段判为失败
             result["error"] = f"{type(error).__name__}: {error}"
         finally:
@@ -215,16 +265,17 @@ def main():
     summary, ok = {}, True
     if args.explore:
         for name in names:
-            work, result = run(args, args.old_game, "explore", name, scenario_steps(SCENARIOS[name]))
-            print(f"== {name}: {work} exit={result['exit_code']} captures={len(result['captures'])}")
+            work, result = run(args, args.old_game, "explore", name, scenario_spec(name))
+            print(f"== {name}: {work} exit={result['exit_code']} "
+                  f"captures={len(result['captures'])} error={result['error']}")
             for line in result["trace"]:
                 if line.startswith("field ") and not line.startswith("field result query"):
                     print("  " + line)
         return 0
     for name in names:
-        old1_dir, old1 = run(args, args.old_game, "old1", name, scenario_steps(SCENARIOS[name]))
-        old2_dir, old2 = run(args, args.old_game, "old2", name, scenario_steps(SCENARIOS[name]))
-        new_dir, new = run(args, args.new_game, "new", name, scenario_steps(SCENARIOS[name]))
+        old1_dir, old1 = run(args, args.old_game, "old1", name, scenario_spec(name))
+        old2_dir, old2 = run(args, args.old_game, "old2", name, scenario_spec(name))
+        new_dir, new = run(args, args.new_game, "new", name, scenario_spec(name))
         noise = compare(name, old1_dir, old1, old2_dir, old2)
         delta = compare(name, old1_dir, old1, new_dir, new)
         clean_exit = all(r["exit_code"] == 0 and not r["forced"] and not r["error"]

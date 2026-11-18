@@ -1,6 +1,6 @@
 # 音频调用与对照依据
 
-本文记录已确认的原版播放语义和局部捕获，不维护开发排期。资源布局见[数据格式](../formats/data-formats.md#4-音频相关文件)，当前实现与剩余资格见[F5记录](../plans/f5-audio-device.md)，历史工作见[音频计划](../plans/audio.md)，实际组件与许可证见[第三方清单](../../src/third_party/README.md)。函数地址均采用[规范命名登记](function-names.md)中的 canonical VA。
+本文记录已确认的原版播放语义和局部捕获，不维护开发排期。资源布局见[数据格式](../formats/data-formats.md#4-音频相关文件)，当前实现与剩余资格见[F5记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f5-audio-device.md)，历史工作见[音频计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/audio.md)，实际组件与许可证见[第三方清单](../../src/third_party/README.md)。函数地址均采用[规范命名登记](function-names.md)中的 canonical VA。
 
 ## 播放入口
 
@@ -44,7 +44,7 @@ FIGANI／动画 metadata 与 caller 决定 bank；`0x5414b`、`0x54153` 是相�
 
 同一 handle 重播会替换未播完的样本；FULL 返回前还显式停止。82/1原始长度为13,424点（约1.218秒），重复调用间距仅两个主 tick，不能要求每次整样本播完，也不能把同一个相关峰复用为七个已观察时点。声明读集含52／80／82三个完整 bank、24个样本，其中80/0与82/0、80/3与80/4分别字节完全相同；波形只能证明相应 VOICE 字节等价类，不能据此唯一推断运行 bank／sample指针。
 
-资源须在首次播放前预检，bank存活到对应 handle 停止或其最后引用退休；静音、skip、无设备及宿主退出不能额外消耗业务 RNG 或重复提交效果。取证先等 WGC／进程音频 ready，正常停止并封好所有采集文件后再关闭目标，具体接口见[工具速查](../tools/README.md#连续画面与进程音频取证windows)。三核心的最低完整帧／有限SFX身份与录音内顺序已按实际及单列离线来源完成验收，来源见[阶段记录](../plans/stage-log.md#b6a6full-战斗演出与动态音效)；不扩为整段逐帧、全部重复cue、精确输入时延或A7保真，也不由纯kernel、资源SHA或采集exit0互相替代。
+资源须在首次播放前预检，bank存活到对应 handle 停止或其最后引用退休；静音、skip、无设备及宿主退出不能额外消耗业务 RNG 或重复提交效果。取证先等 WGC／进程音频 ready，正常停止并封好所有采集文件后再关闭目标，具体接口见[工具速查](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/tools/README.md#连续画面与进程音频取证windows)。三核心的最低完整帧／有限SFX身份与录音内顺序已按实际及单列离线来源完成验收，来源见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md#b6a6full-战斗演出与动态音效)；不扩为整段逐帧、全部重复cue、精确输入时延或A7保真，也不由纯kernel、资源SHA或采集exit0互相替代。
 
 ### XMIDI／OPL
 
@@ -109,7 +109,7 @@ DOSBox 0.74 的 44100 Hz mixer capture 已对照 FDOTHER[31] SFX 5/8。按 11025
 | natural C2 的首次实际 phase，录音 29.719 秒 | 初段、敌方阶段片段、新回合末段分别支持 19→12→19，与 `field_turn_cycle_run` 调用顺序一致 | 录音在后续未知对白取证失败前已正常停止；可作为该 phase 的音频前缀证据，不代表自然整关通过，SDL 端当时未启动 |
 | natural C25完整原版的首phase，录音30.704秒 | 六参考、五个固定窗口首候选为19／19／12／12／19，支持19→12→19；Round002资源ACK在录音receipt开始后24.625秒 | 原版端完整通过；自然项另联合新C27独立SDL完整链，旧C25顶层仍FAILED。只绑定该原生录音，不含SDL声音或A7 |
 
-C25最短0.22秒窗口中19与12分数接近，不能单凭该窗口唯一识别；五个窗口均按预先固定范围分析，没有为结果移动或拟合。这里的结论是六候选中的波形／频谱指纹排序，不能扩成完整曲库唯一识别或运行时资源指针追踪。参考片段匹配偏移不等于原版硬件切曲时刻；本轮也未录得对应 SDL 实时输出，未证明绝对时序、逐样本／混音一致或 A7 保真完成。历史失败与后续独立复验分别保留，实际收据索引见[阶段日志](../plans/stage-log.md)。
+C25最短0.22秒窗口中19与12分数接近，不能单凭该窗口唯一识别；五个窗口均按预先固定范围分析，没有为结果移动或拟合。这里的结论是六候选中的波形／频谱指纹排序，不能扩成完整曲库唯一识别或运行时资源指针追踪。参考片段匹配偏移不等于原版硬件切曲时刻；本轮也未录得对应 SDL 实时输出，未证明绝对时序、逐样本／混音一致或 A7 保真完成。历史失败与后续独立复验分别保留，实际收据索引见[阶段日志](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。
 
 ### A7 当前证据与限制
 
@@ -119,7 +119,7 @@ C25最短0.22秒窗口中19与12分数接近，不能单凭该窗口唯一识别
 
 2026-11-07 用户选择保留当前 Nuked原始响度与音色，不加 BGM补偿，不以 MIDI/OPL音色相似度作为本阶段门或新增此测量。既有标题固定素材约2.1倍差异保留为局部后端观察，不作为全曲库固定增益。这个选择不影响 PCM `101/128` 的原版名义模型修复；也不把完整波形、绝对时延或严格 PIC 的未过／未验事实改成通过。
 
-四 episodes共有六个目标（四 SDL、两原版），每端独立资源／输入／SAV／正常退出与 late guard闭合。SFX重开C3把旧失败运行的闭合原版声音、新原版00→01业务／Save与新SDL窄声音联合：原 full2652点、13候选、0.8分数／0.05 margin门不变。它不是fresh音频pair，也不把旧失败改记通过；OFF窗口未检出不能声明绝对无声，启用后的身份门不证明唯一ESC次数或精确触发时刻。原失败、单端、完整波形与后续场景的边界见[阶段日志](../plans/stage-log.md#a7当前受支持音频行为与后端边界)。
+四 episodes共有六个目标（四 SDL、两原版），每端独立资源／输入／SAV／正常退出与 late guard闭合。SFX重开C3把旧失败运行的闭合原版声音、新原版00→01业务／Save与新SDL窄声音联合：原 full2652点、13候选、0.8分数／0.05 margin门不变。它不是fresh音频pair，也不把旧失败改记通过；OFF窗口未检出不能声明绝对无声，启用后的身份门不证明唯一ESC次数或精确触发时刻。原失败、单端、完整波形与后续场景的边界见[阶段日志](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md#a7当前受支持音频行为与后端边界)。
 
 ### 外部音乐原型
 

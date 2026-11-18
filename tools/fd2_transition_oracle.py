@@ -21,7 +21,7 @@ from run_original_comparison import archive_entry, decode_image
 from run_original_end_turn import META, STRIDE, decode_lmi
 from run_original_player import sheet_frame, exact_tile
 from run_original_battle_menu import match_indexed
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 
 FILE_SIZE = 0x59cb
 SLOT_BASE, SLOT_STRIDE, ROSTER_SIZE = 0x312b, 0xa28, 0xa00

@@ -478,7 +478,7 @@ def run(args) -> dict:
         game_copy = output / "game"
         shutil.copytree(original, game_copy)
         fixture = args.save_fixture.resolve() if args.save_fixture else original / "FD2.SAV"
-        from run_graphics_tests import decode_save
+        from fd2_save_checks import decode_save
         plain = decode_save(fixture)
         result["save_fixture"] = {
             "path": str(fixture), "sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),

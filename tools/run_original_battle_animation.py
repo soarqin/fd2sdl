@@ -23,6 +23,7 @@ import time
 import wave
 from contextlib import contextmanager
 from fd2_display_requirement import windows_display_requirement
+from fd2_windows_job import owned_job_required
 
 from PIL import Image
 
@@ -37,7 +38,7 @@ import fd2_core_sfx_gate as core_sfx
 from fd2_app_mix_capture import AppMixCapture
 from fd2_item_list_oracle import inventory_templates
 from fd2_reward_oracle import magic_page
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import Capture, archive_entry, normalize, running, title_templates
 from run_original_battle_menu import wait_state, wait_title
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, round_assets, round_two_template, check_round_phase_log
@@ -60,15 +61,6 @@ def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def fingerprint(directory):
     return {str(p.relative_to(directory)):{"sha256":sha(p),"size":p.stat().st_size,"mtime_ns":p.stat().st_mtime_ns}
         for p in sorted(Path(directory).rglob("*")) if p.is_file()}
-
-def owned_job_required():
-    if sys.platform!="win32":raise RuntimeError("B6真实采集需要Windows owned Job；未创建产物")
-    kernel=ctypes.WinDLL("kernel32",use_last_error=True)
-    kernel.GetCurrentProcess.restype=ctypes.c_void_p
-    kernel.IsProcessInJob.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_int)]
-    present=ctypes.c_int()
-    if not kernel.IsProcessInJob(kernel.GetCurrentProcess(),None,ctypes.byref(present)) or not present.value:
-        raise RuntimeError("请用本轮driver run-job启动；未创建产物或启动窗口")
 
 def qpc_stamp():
     if sys.platform!="win32":return {"host_monotonic":time.monotonic(),"qpc":None,"qpc_frequency":None}
@@ -629,7 +621,7 @@ def dependencies():
         name=getattr(module,'__file__',None)
         if not name:continue
         path=Path(name).resolve()
-        if path.suffix=='.py' and path.is_file() and any(folder.resolve() in path.parents for folder in (ROOT/'tools',ROOT/'src/tests')):
+        if path.suffix=='.py' and path.is_file() and any(folder.resolve() in path.parents for folder in (ROOT/'tools',ROOT/'tests')):
             rows[str(path)]={'sha256':sha(path),'size':path.stat().st_size}
     return rows
 

@@ -1,8 +1,8 @@
 # G1 通用事件来源分类与执行能力缺口
 
-2026-11-10。本文对应[通用审计](../plans/common-logic-audit.md) C02／C05／C13—C17，登记原来源的语义族、通用能力缺口与关卡实例边界。开发优先级只见[总计划](../plans/development.md)。**来源分类完成不等于事件图全部提取、G2—G4实现完成或原版运行验收通过。**
+2026-11-10。本文对应[通用审计](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md) C02／C05／C13—C17，登记原来源的语义族、通用能力缺口与关卡实例边界。开发优先级只见[总计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md)。**来源分类完成不等于事件图全部提取、G2—G4实现完成或原版运行验收通过。**
 
-> 版本口径：§1—6 保留 G1 `5b9619f` 分类时的来源、统计与当时缺口，不作为当前实现状态；其中「仍需 G2／G4」或「本轮未运行」均指该历史分类轮次。G2—G4 的阶段历史见总计划；G5 代码冻结时点的消费者、旧新映射和直接验证范围见 §7；本轮最终统一回归和逐项签核见[审计 §13](../plans/common-logic-audit.md)，通用完成门已按所列来源域通过。§7 的待验描述保留冻结时点身份。
+> 版本口径：§1—6 保留 G1 `5b9619f` 分类时的来源、统计与当时缺口，不作为当前实现状态；其中「仍需 G2／G4」或「本轮未运行」均指该历史分类轮次。G2—G4 的阶段历史见总计划；G5 代码冻结时点的消费者、旧新映射和直接验证范围见 §7；本轮最终统一回归和逐项签核见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)，通用完成门已按所列来源域通过。§7 的待验描述保留冻结时点身份。
 
 ## 1. 方法、来源与输出
 
@@ -162,7 +162,7 @@ event、loot、progress、detail、controller 和 host 忙态仍禁止活动／�
 
 ### 7.4 独立原 caller 与等待来源
 
-[`verify_fd2_legacy_events.py`](../../tools/ida/verify_fd2_legacy_events.py) 实际执行六个完整原 caller 和 `134e4` 本体，固定 strict relocated 镜像／完整函数摘要、原90分发表的六个指针及 FDFIELD 来源。构造、group、arrival、motion、text、BIOS、delay 是显式替身；原直接 SIDE、AI 成对字节和方向写点由 CPU 真正执行。它不证明完整派生、文字 RNG、声音、像素或原生窗口。
+[`verify_fd2_legacy_events.py`](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/tools/ida/verify_fd2_legacy_events.py) 实际执行六个完整原 caller 和 `134e4` 本体，固定 strict relocated 镜像／完整函数摘要、原90分发表的六个指针及 FDFIELD 来源。构造、group、arrival、motion、text、BIOS、delay 是显式替身；原直接 SIDE、AI 成对字节和方向写点由 CPU 真正执行。它不证明完整派生、文字 RNG、声音、像素或原生窗口。
 
 | 原函数 | 原 CPU 确认的关键分界 |
 |---|---|
@@ -198,6 +198,6 @@ arrival `32999` 使用同一短寿命视觉 scope：prepare／snapshot→Game ap
 
 ## 8. G5 统一回归与当前结论（2026-11-11）
 
-§7 保留实现冻结时的直接证据。随后完整候选已完成当前 Windows 所列历史回归：自然0／stage1及B7交接、准备服务和跨场景、共享条件／等待／取消及 child39 代表均按各自正式／夹具身份验收，最终来源和失败见[审计 §13](../plans/common-logic-audit.md)与[阶段记录](../plans/stage-log.md)。六个原正式绑定继续由同一 event_resume 逐叶推进，旧 whole LOGIC 预提交、回滚和 Scene 重放不再驱动已知事件。
+§7 保留实现冻结时的直接证据。随后完整候选已完成当前 Windows 所列历史回归：自然0／stage1及B7交接、准备服务和跨场景、共享条件／等待／取消及 child39 代表均按各自正式／夹具身份验收，最终来源和失败见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)与[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。六个原正式绑定继续由同一 event_resume 逐叶推进，旧 whole LOGIC 预提交、回滚和 Scene 重放不再驱动已知事件。
 
 当前来源域未发现尚未实现的已证通用事件规则。15 份机制图不等于15个自然绑定；未来非线性身份／资源组合仍须按真实使用补取证与预检。新关实例或真正私有剧情留 S，发现新通用语义则先补机制；S 未启动。

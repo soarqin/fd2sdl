@@ -33,7 +33,7 @@ from run_original_magic_list import actor_focus_resources
 from run_original_player import exact_tile, match_indexed, screen, sheet_frame
 from run_original_result import selection_probe, selection_state
 from run_original_reward import actor_view, command, list_state, navigate, quiet_browse
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_item_list import use_range_probe
 from field_play_input_test import wait_log
 
@@ -52,7 +52,7 @@ def source_paths(root):
                 not any(part == "tests" or part.startswith("build") or part in ("Debug", "Release", "_deps", "CMakeFiles") for part in parts)):
             files.add(p.resolve())
     files.update(p.resolve() for p in (root / "data/static").rglob("*.json"))
-    files.update(p.resolve() for p in (root / "src/build-win/generated/static_data").glob("*.inc"))
+    files.update(p.resolve() for p in (root / "build/windows/generated/static_data").glob("*.inc"))
     return files
 
 

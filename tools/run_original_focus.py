@@ -18,7 +18,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import Capture, TOLERANCE, archive_entry, hashes, running, title_templates
 from run_original_battle_menu import MENU_OFFSETS, match_indexed, wait_state, wait_title
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, browse_anywhere, round_assets, validate_initial

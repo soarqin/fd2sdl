@@ -22,7 +22,7 @@ from fd2_display_requirement import windows_display_requirement
 from fd2_transition_oracle import picker_image,picker_match,town_images
 from run_g2_battle_check import freeze,unchanged,sha,fingerprint
 from run_g4_detail_check import detail_series,series_checkpoint
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_battle_animation import AnimationCollectors,owned_job_required,parse_job,series_index,latest_series_frame,qpc_stamp
 from run_original_battle_menu import wait_title,wait_state as resource_wait_state
 from run_original_comparison import Capture,running,title_templates,compare
@@ -709,7 +709,7 @@ def main(argv=None):
     if args.original_evidence and any(getattr(args,k) is None or not getattr(args,k).is_file() for k in ('driver','dosbox')):
         parser.error('继承原版校验需存在的--driver/--dosbox')
     if not args.prepare_only and args.scenario not in RUNTIME_SCENARIOS:
-        parser.error('本入口的P5/P6仅准备；实际运行请用tools/run_g3_deployment_check.py')
+        parser.error('本入口的 P5/P6 仅用于准备夹具，不运行部署对照')
     report=run(args);print(json.dumps({k:report[k] for k in ('ok','status','scenario')},ensure_ascii=False))
     return 0 if report['ok'] or args.prepare_only else 1
 

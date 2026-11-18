@@ -16,7 +16,9 @@ import struct
 
 SCHEMA = "fd2-windows-release-inputs-v1"
 CODE_EXTENSIONS = {".c", ".cpp", ".h", ".hpp", ".inl", ".inc", ".ipp", ".tcc", ".cmake", ".in"}
-REQUIRED_SOURCE = {"LICENSE", "README.md", "src/CMakeLists.txt", "src/main.c",
+REQUIRED_SOURCE = {"LICENSE", "README.md", "CMakeLists.txt", "src/main.c",
+                   "CMake/Application.cmake", "CMake/BuildOptions.cmake",
+                   "CMake/SDL3.cmake", "CMake/StaticData.cmake",
                    "data/static/manifest.json", "tools/static_data/generate.py",
                    "src/third_party/nukedopl3.c", "src/third_party/nukedopl3.h",
                    "src/third_party/LICENSE.nukedopl3"}
@@ -75,10 +77,13 @@ def _source_allowed(relative: str) -> bool:
             len(parts) == 4 and parts[2] in {"tables", "flows", "stages"} and
             Path(name).suffix.lower() == ".json")
     if len(parts) == 1:
-        return name in {"LICENSE", "README.md", ".gitattributes", "THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md"}
-    if parts[0] != "src" or (len(parts) > 2 and parts[1] not in {"third_party", "cmake"}):
+        return name in {"CMakeLists.txt", "LICENSE", "README.md", ".gitattributes",
+                        "THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md"}
+    if parts[0] == "CMake":
+        return relative in REQUIRED_SOURCE
+    if parts[0] != "src" or (len(parts) > 2 and parts[1] != "third_party"):
         return False
-    return name == "CMakeLists.txt" or Path(name).suffix.lower() in CODE_EXTENSIONS or (
+    return Path(name).suffix.lower() in CODE_EXTENSIONS or (
         "third_party" in parts and (name.startswith(("LICENSE", "COPYING", "NOTICE")) or name == "README.md"))
 
 
@@ -104,16 +109,12 @@ def _inventory(root: Path, paths) -> list[dict]:
 def source_inventory(root: Path | str) -> list[dict]:
     """完整App构建材料；测试/原版/反编译产物不属于BUILD_TESTING=OFF所需源码。"""
     root = Path(root).resolve(strict=True)
-    paths = [root / name for name in ("LICENSE", "README.md", ".gitattributes") if (root / name).is_file()]
-    paths += [root / name for name in ("THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md") if (root / name).is_file()]
+    paths = [root / name for name in ("CMakeLists.txt", "LICENSE", "README.md", ".gitattributes",
+                                       "THIRD_PARTY_NOTICES", "THIRD_PARTY_NOTICES.md")
+             if (root / name).is_file()]
     src = root / "src"
     paths += [path for path in src.iterdir() if path.is_file() and _source_allowed(path.relative_to(root).as_posix())]
-    for name in ("third_party", "cmake"):
-        if (src / name).is_dir():
-            if _link(src / name):
-                raise ValueError("source subtree must not be linked")
-            paths += [path for path in _tree(src / name) if _source_allowed(path.relative_to(root).as_posix())]
-    for subtree in ("data/static", "tools/static_data"):
+    for subtree in ("CMake", "src/third_party", "data/static", "tools/static_data"):
         path = root / subtree
         if path.is_dir():
             if _link(path):
@@ -179,7 +180,7 @@ def _rebuild(config_dir: str, generator: str) -> bytes:
     return ("# 修改 source/src/third_party/nukedopl3.c/.h 后可用同一SDK重新构建。\n"
             "$ErrorActionPreference = 'Stop'\n"
             "$kit = $PSScriptRoot\n"
-            "& cmake -S \"$kit/source/src\" -B \"$kit/rebuild\" -G '" + generator + "' -A x64 "
+            "& cmake -S \"$kit/source\" -B \"$kit/rebuild\" -G '" + generator + "' -A x64 "
             "-DBUILD_TESTING=OFF -DFD2SDL_USE_SYSTEM_SDL3=ON "
             '"-DSDL3_DIR=$kit/sdk/sdl/' + config_dir + '"\n'
             "if ($LASTEXITCODE) { exit $LASTEXITCODE }\n"

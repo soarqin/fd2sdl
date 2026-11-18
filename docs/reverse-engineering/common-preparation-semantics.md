@@ -1,6 +1,6 @@
 # 通用准备服务：G1 原版语义依据
 
-本文对应[通用审计](../plans/common-logic-audit.md) C16—C19。§1—8 保留 G1 的取证历史：输入为 `c1b6598` 已发布 canonical 伪 C、独立 IDA 9.5 数据库副本及既有严格 relocated 镜像，当时只确认静态控制流、读写和原始数据引用，尚未运行城镇服务。G3 的实现、运行证据和有效域补记于文末；阶段完成仍以[总计划](../plans/development.md)和[阶段记录](../plans/stage-log.md)为准。
+本文对应[通用审计](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md) C16—C19。§1—8 保留 G1 的取证历史：输入为 `c1b6598` 已发布 canonical 伪 C、独立 IDA 9.5 数据库副本及既有严格 relocated 镜像，当时只确认静态控制流、读写和原始数据引用，尚未运行城镇服务。G3 的实现、运行证据和有效域补记于文末；阶段完成仍以[总计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md)和[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)为准。
 
 ## 1. 来源、地址和本轮结果
 
@@ -213,4 +213,4 @@ raw26视觉复用VGA App级共享tick锚：frame强制0、水平0／1px相位，
 
 ## 12. G5 服务与队伍统一复核（2026-11-11）
 
-G1／G3 的来源、实现和定向范围保留原身份。G5 对完整32人持久表、17／21人最终取消、NoTown缺员与保存、装备重选、不同成员转交取消、隐藏店和双向 SAV 等重新核对当前正式路径；金额／转职闭帧内容与教会音乐 owner 又各自按离线／真实 RAM 取样分账通过。完整容器、资源／费用／取消、未知字节和未出阵尾仍沿原 owner，未以截断队伍或拒绝整个合法服务代替图形有界处理。最终来源、有限有效域和门见[审计 §13](../plans/common-logic-audit.md)；它不把后期准备资源验证扩大为相应 battle 开放。
+G1／G3 的来源、实现和定向范围保留原身份。G5 对完整32人持久表、17／21人最终取消、NoTown缺员与保存、装备重选、不同成员转交取消、隐藏店和双向 SAV 等重新核对当前正式路径；金额／转职闭帧内容与教会音乐 owner 又各自按离线／真实 RAM 取样分账通过。完整容器、资源／费用／取消、未知字节和未出阵尾仍沿原 owner，未以截断队伍或拒绝整个合法服务代替图形有界处理。最终来源、有限有效域和门见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)；它不把后期准备资源验证扩大为相应 battle 开放。

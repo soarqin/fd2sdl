@@ -89,11 +89,15 @@ class ReleasePackageTest(unittest.TestCase):
         self.assertIn("source/src/third_party/LICENSE.nukedopl3", paths)
         self.assertIn("source/data/static/manifest.json", paths)
         self.assertIn("source/tools/static_data/generate.py", paths)
+        self.assertIn("source/CMakeLists.txt", paths)
+        self.assertIn("source/CMake/Application.cmake", paths)
+        self.assertNotIn("source/CMake/Tests.cmake", paths)
         self.assertIn("sdk/sdl/lib/SDL3-static.lib", paths)
         self.assertIn("sdk/sdl/include/SDL3/SDL.h", paths)
         self.assertNotIn("bin/SDL3.dll", paths)
         self.assertFalse(any("original_game" in path or path.endswith((".sav", ".dat")) for path in paths))
         rebuild = (self.output / "rebuild.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn('cmake -S "$kit/source"', rebuild)
         self.assertIn("-DBUILD_TESTING=OFF", rebuild)
         self.assertIn("$kit/sdk/sdl/lib/cmake/SDL3", rebuild)
         self.assertFalse(result["offline_rebuild_verified_by_packager"])
@@ -126,7 +130,7 @@ class ReleasePackageTest(unittest.TestCase):
         self.assertIn("https://example.com/src/third_party/license", relocated)
 
     def test_source_whitelist_excludes_tests_build_decomp_and_capture(self):
-        for name in ["src/tests/capture.png", "src/tests/local_test.c", "src/build-win/fake.c",
+        for name in ["tests/capture.png", "tests/local_test.c", "CMake/Tests.cmake", "build/windows/fake.c",
                      "docs/generated/ida-canonical/decomp.c", "src/capture.wav", "src/local.bin"]:
             self.put(self.source / name, b"not runtime source")
         names = {row["path"] for row in release.source_inventory(self.source)}

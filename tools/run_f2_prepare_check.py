@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 from run_f2_input_check import sha, source_facts, validate_output
-from run_original_battle_animation import owned_job_required
+from fd2_windows_job import owned_job_required
 from run_original_comparison import quiet_game_command
 import original_reference
 import run_g3_prepare_check as g3

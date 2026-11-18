@@ -14,7 +14,7 @@ from fd2_item_list_oracle import START_SHA256, PLAIN_SHA256
 from fd2_magic_list_oracle import glyphs
 from fd2_opening_oracle import fragments, portraits, raw_ui
 from fd2_reward_oracle import common_tokens, derive_fixture as reward_fixture
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import archive_entry
 from run_original_battle_menu import match_indexed
 from run_original_end_turn import META, STRIDE, UNITS

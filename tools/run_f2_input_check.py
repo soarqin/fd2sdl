@@ -8,10 +8,10 @@ import argparse, hashlib, json, os, shutil, subprocess, sys
 from pathlib import Path
 from run_original_comparison import Capture, compare, hashes, running, title_templates
 from run_original_battle_menu import wait_title
-from run_original_battle_animation import owned_job_required
+from fd2_windows_job import owned_job_required
 from fd2_display_requirement import windows_display_requirement
 from run_original_opening import title_menu_counts
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 import original_reference
 
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()

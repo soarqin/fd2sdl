@@ -23,7 +23,7 @@ from PIL import Image, ImageChops
 from run_original_comparison import (Capture, SIZE, TOLERANCE, archive_entry,
                                      compare, decode_image, hashes,
                                      require_content, running, title_templates)
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 
 BUTTON_POSITIONS = ((232, 168), (264, 168))
 PARENT_IDS = (7, 5, 6, 4)

@@ -16,7 +16,7 @@ import wave
 from PIL import Image
 
 import fd2_battle_animation_oracle as business
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_battle_menu import match_indexed
 from run_original_comparison import archive_entry, normalize
 from run_original_end_turn import META, STRIDE, UNITS

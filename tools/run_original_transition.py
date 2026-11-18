@@ -30,7 +30,7 @@ from run_original_battle_menu import wait_state, wait_title
 from run_original_end_turn import RoundOracle, round_assets
 from run_original_player import exact_tile
 from run_original_load import require_source_unchanged, wait_measured_save
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_item_list import paired_checkpoint_records, rgb_difference
 from run_original_reward import endpoint_guard
 
@@ -524,7 +524,7 @@ def run(args):
         candidate = getattr(module, "__file__", None)
         if not candidate: continue
         path = Path(candidate).resolve()
-        if path.suffix == ".py" and (path.is_relative_to(project / "tools") or path.is_relative_to(project / "src/tests")):
+        if path.suffix == ".py" and (path.is_relative_to(project / "tools") or path.is_relative_to(project / "tests")):
             report["tool_sources"][name] = {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
     (output / "fixture-manifest.json").write_text(json.dumps(prepared["manifest"], ensure_ascii=False, indent=2), encoding="utf-8")
     guards = {}

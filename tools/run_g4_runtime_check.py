@@ -19,7 +19,7 @@ import time
 from PIL import Image
 from fd2_display_requirement import windows_display_requirement
 from run_g2_battle_check import freeze, unchanged, sha
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import Capture, archive_entry, decode_image, normalize, running, title_templates
 from run_original_battle_animation import OwnedHelper, owned_job_required, wait_ready, series_index
 from run_original_battle_menu import match_indexed, wait_state, wait_title

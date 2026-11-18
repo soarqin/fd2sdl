@@ -17,7 +17,7 @@ from run_original_comparison import Capture, hashes, running, title_templates
 from run_original_battle_menu import wait_state, wait_title
 from run_original_end_turn import META, RoundOracle, round_assets
 from run_original_load import require_source_unchanged, wait_measured_save
-from run_graphics_tests import check_roster_count, decode_save
+from fd2_save_checks import check_roster_count, decode_save
 from fd2_opening_oracle import build_pages, page_match, first_browse, geometry, measurement, compare_measurements
 
 

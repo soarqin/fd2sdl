@@ -3,7 +3,7 @@
 
 接口：--root ROOT --game EXE --driver EXE --dosbox EXE --artifacts NEWDIR。
 例如：driver.exe run-job 600000 python -B tools/run_background_input_check.py
-      --root . --game src/build-win/Debug/fd2sdl.exe --driver driver.exe
+      --root . --game build/windows/Debug/fd2sdl.exe --driver driver.exe
       --dosbox dosbox-x.exe --artifacts <新的隔离目录>。
 
 原版／SDL串行使用既有标题和菜单资源门；同文件--sentinel子模式仅供内部
@@ -93,7 +93,7 @@ def sentinel(path):
     write(path,{**initial,'keys':keys,'closed':True});return 0
 
 def fixture_from_start(root,dest):
-    from run_graphics_tests import decode_save
+    from fd2_save_checks import decode_save
     source=root/'original_game/START.SAV';before=decode_save(source);plain=bytearray(before)
     # 只派生焦点四字节，保留真实START镜头(5,11)。
     if plain[0x30c6:0x30ca]!=bytes((5,11,8,15)):raise AssertionError('Unexpected START viewport/focus')
@@ -138,10 +138,10 @@ def check_output(root,out):
 
 def run(args):
     root=args.root.resolve();out=args.artifacts.resolve();check_output(root,out);out.mkdir(parents=True,exist_ok=False)
-    sys.path[:0]=[str(root/'tools'),str(root/'src/tests')]
+    sys.path[:0]=[str(root/'tools'),str(root/'tests')]
     import run_original_comparison as title
     import run_original_battle_menu as battle
-    before=evidence(root/'original_game');source_before={name:evidence(root/name) for name in ('tools','src/tests')};binary={k:{'path':str(v.resolve()),'sha256':sha(v)} for k,v in (('game',args.game),('driver',args.driver),('dosbox',args.dosbox))}
+    before=evidence(root/'original_game');source_before={name:evidence(root/name) for name in ('tools','tests')};binary={k:{'path':str(v.resolve()),'sha256':sha(v)} for k,v in (('game',args.game),('driver',args.driver),('dosbox',args.dosbox))}
     report={'ok':False,'scope':'background HWND directed keys, exact existing title5/menu-cancel WGC predicates; inactive owned sentinel zero keys, no claim about user foreground application key receipts; not natural-stage0 or A7 audio fidelity','processes':[],'original_before':before,'binaries':binary,'scenarios':[],'native_audio':None}
     sent=None;audit=None;sentinel_hwnd=None;sent_state=out/'sentinel.json';audio_started=False
     raw_capture=title.Capture;raw_running=title.running

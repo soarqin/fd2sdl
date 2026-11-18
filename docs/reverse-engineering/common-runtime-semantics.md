@@ -1,6 +1,6 @@
 # 通用控制、设置与共享运行语义
 
-G1 取证基线为 `c1b6598`；2026-11-10 的 §8—9 另记 G4 实现及其来源。G4 本阶段定向验收与实质审查已完成，各候选原生范围、失败和整阶段提交／集成见[审计 §11](../plans/common-logic-audit.md#11-g4-实施与定向验收2026-11-10)及阶段记录；文中早期「候选／待验」保留当时证据边界，不代替最新阶段收口。G5 已按实际 caller 修复跨帧输入保留／清键及返场合同，并完成本轮统一回归和通用门签核；§10 保留实施过程，最终候选与测量界见[审计 §13](../plans/common-logic-audit.md)。本文件为[通用逻辑审计](../plans/common-logic-audit.md) C21—C25 的取证依据，优先级仍以[总计划](../plans/development.md)为准。地址均为 canonical relbase VA；object1 `code0 = VA - 0x10000`。不把伪 C 的寄存器参数、`MEMORY` 类型或共享尾猜测为已确认 ABI。
+G1 取证基线为 `c1b6598`；2026-11-10 的 §8—9 另记 G4 实现及其来源。G4 本阶段定向验收与实质审查已完成，各候选原生范围、失败和整阶段提交／集成见[审计 §11](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md#11-g4-实施与定向验收2026-11-10)及阶段记录；文中早期「候选／待验」保留当时证据边界，不代替最新阶段收口。G5 已按实际 caller 修复跨帧输入保留／清键及返场合同，并完成本轮统一回归和通用门签核；§10 保留实施过程，最终候选与测量界见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)。本文件为[通用逻辑审计](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md) C21—C25 的取证依据，优先级仍以[总计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md)为准。地址均为 canonical relbase VA；object1 `code0 = VA - 0x10000`。不把伪 C 的寄存器参数、`MEMORY` 类型或共享尾猜测为已确认 ABI。
 
 ## 1. 本轮方法与来源
 
@@ -9,7 +9,7 @@ G1 取证基线为 `c1b6598`；2026-11-10 的 §8—9 另记 G4 实现及其来�
 - 数据库 SHA-256：`f3fb61198b00660e17e3b131be1339350c345209fbbb4d8b38fc07bd2d0ede53`，运行前后不变。
 - 原文件：主项目只读 `original_game/FD2.EXE`，SHA-256 `bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd`。
 - 再生产脚本：[g1_runtime_extract.py](../../tools/ida/g1_runtime_extract.py)。技能 `run.py` 的 TEMP／TMP 另设本轮独立目录，隔离其 cache／过期清理；`save_on_close=False`。
-- 本地结果：`build/g1/ida/runtime/domain-evidence.json`、`validation.json`。31 个函数、14 个全局、15,787 个指令 byte 经既有严格 LE parser／合法 fixup 构成的内存视图逐字节对照，全部一致；没有把镜像写回原文件。篡改指令负例被拒绝；[5 项证据验证器回归](../../tools/tests/test_g1_runtime_evidence.py)通过。
+- 本地结果：`build/g1/ida/runtime/domain-evidence.json`、`validation.json`。31 个函数、14 个全局、15,787 个指令 byte 经既有严格 LE parser／合法 fixup 构成的内存视图逐字节对照，全部一致；没有把镜像写回原文件。篡改指令负例被拒绝；[5 项证据验证器回归](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/tools/tests/test_g1_runtime_evidence.py)通过。
 
 这证明的是**静态字节及调用／读写关系**，不是局部原机器码执行、SDL 功能测试或 DOSBox 原版运行。G1 本次取证没有新增 GUI／录音／SAV 运行证据；后续 G4 候选验证与此范围分列。已有权威伪 C 仅用于帮助理解，与本次指令及真实 xref 交叉核对。
 
@@ -269,20 +269,15 @@ helper 先读取 `movsx WORD[0x46c]` 作为 start。每轮严格先调用 `4e31c
 
 这不是无符号 16 位环绕差：`0x7fff→0x8000` 是有符号倒退，应结束；`0xffff→0` 是 `-1→0`，会正常继续到时限。宿主继续用 `SDL_GetTicks()/55` 投影低 WORD，帧等待只是让出执行及上传当前页；该近似不宣称 BIOS／硬件绝对时序相同。`fast` 明确是跳过等待的诊断模式，不能计作原生时序证据；真实资源错误与宿主退出仍提前返回，不执行后续 ACK。
 
-新永久工具 [`verify_fd2_notice_wait.py`](../../tools/ida/verify_fd2_notice_wait.py) 严核七个完整 Domain 函数及 caller／water／clear 原指令，实际执行完整 `1e5c0` 的九类局部 CPU 向量：10／11 tick、已有键、稍后按键、零 tick、两种有符号跨界、负 start 和第二次读钟倒退。`build/g4/notice-wait-original-cpu-01.json` 为该局部原码结果，水色、输入、clear 和 Watcom 栈检查是显式替身，不替代原版窗口。四项纯测试另锁坏源／缺 chunk／指令断裂、错误 C trace 和不完整向量拒绝。
+新永久工具 [`verify_fd2_notice_wait.py`](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/tools/ida/verify_fd2_notice_wait.py) 严核七个完整 Domain 函数及 caller／water／clear 原指令，实际执行完整 `1e5c0` 的九类局部 CPU 向量：10／11 tick、已有键、稍后按键、零 tick、两种有符号跨界、负 start 和第二次读钟倒退。`build/g4/notice-wait-original-cpu-01.json` 为该局部原码结果，水色、输入、clear 和 Watcom 栈检查是显式替身，不替代原版窗口。四项纯测试另锁坏源／缺 chunk／指令断裂、错误 C trace 和不完整向量拒绝。
 
-`field_progress_play_test --notice-wait-json` 直接消费生产私有 helper，使用同一九类输入域导出水色、查键、读钟及尾清键计数；测试同时断言每轮调用次序、已有键保留、退出／水色错误前缀以及 actor／portrait／RNG 不动。`build/g4/notice-wait-machine-comparison-19.json` 已记录实际九类 C／完整原码差分通过；同候选 `field_progress_play`／`field_play_result`／`field_detail_flow` 三项 CTest 通过。删除 loot 两处无源清键后的 `queued-key-ctest-20.log` 又记录新 `field_progress_play` 通过：固定延时最后一帧的键交给真实 wait0，TEXT_READY 的真实 Core 写入之后由 wait0 同帧消费一次键、先取一次 blink RNG；私有 hook 不替换提交，吞键实现会即时断言，另有帧上限。它们不是新增原版窗口组。Windows PowerShell 的复现形式如下，`--c-probe` 指向本轮同配置生成的实际测试二进制；省略它时只执行原码，不得报 C 差分通过：
-
-```powershell
-python -m unittest tools.tests.test_notice_wait_source -v
-uv run --no-project --with unicorn python tools/ida/verify_fd2_notice_wait.py --image E:/Projects/fd2sdl/tools/fd2_le_relocated_relbase.bin --readset build/g4/ida/progress-wait-01/domain-evidence.json --c-probe src/build-win/Debug/fd2_field_progress_play_test.exe --output build/g4/notice-wait-rerun.json
-```
-
-Linux Bash 参数相同，以本机只读镜像和对应测试二进制路径替换上述值，用 `python3` 运行 unittest；本轮未执行 Linux，输出仍须选新文件。只读 Domain 提取没有保存数据库或增加名称／ABI，本次不重复发布 IDA。
+`field_progress_play_test --notice-wait-json` 曾通过真实私有 helper 导出同一九类向量，核对水色、查键、读钟与尾清键，并检查错误／退出前缀及 actor／portrait／RNG 不变。`build/g4/notice-wait-machine-comparison-19.json` 登记九类局部差分通过；`queued-key-ctest-20.log` 另核固定延时尾键由真实 wait0 消费。它们不是新增原版窗口组。C 探针、工具与复现命令已退役，见[当时的源码与文档](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/reverse-engineering/common-runtime-semantics.md#96-状态与奖励通知的限时等待)。
 
 本次清键修订只恢复现有 App 输入 owner 中仍可见脉冲的消费边界，没有新增全局 FIFO 或宣称 BIOS 键盘队列完全等价。原 BIOS 可以保留延时／滑入中更早到达的键，而 App 普通键在新帧重建脉冲；这是 G5 必须另审的输入／业务边界。审查需覆盖早到确认或取消在后继 `16c57`／choice／callback 中是否仍可见、是否多取 blink RNG 或多等待、是否改变一次提交和后继交互。它不是纯图形／硬件精度差异，未完成审查前不能据此签通用逻辑总门。
 
-## 10. G5 输入、caller 与全场图修复（进行中）
+## 10. G5 输入、caller 与全场图修复（候选历史）
+
+§11 登记后续实际验收。以下保留当时的候选范围。
 
 §9 末段保留的是 G4 候选的已知限制。G5 已在同一 `fd2_vga.input` owner 实现跨帧有序键缓存，没有把输入写入 Game／SAV。`10620` 检查、`16c57`／INT16 读一与 `4e381` 显式清队分别消费；具体 caller 合同见[输入设计](../systems/input.md)。普通键 DOWN／UP 完整发生于两次 present 之间仍须可读，UP 不撤销已排键。清队保 held／repeat deadline／quit，并只在原调用点执行；固定 `3790a` 等待不自行吃键，普通 modal 开合也不能统一清空。
 
@@ -310,7 +305,7 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 
 §10 的实现、直接源验证和当时待验保留历史身份。FIFO／原 caller 清键、关闭屏障、共享页、完整 `11cac(0)` 返回、到场／方向等待、四设置及共享 Round／通知已在当前来源域完成统一审查与原版／SDL 回归。F1 的 stage1、stage2 和高图资源别名、总览换行别名各有独立实际门；它们不开放相应后期战斗。
 
-成功活动 Load 的新观察器确认原 10010 的完整 Round 后，才要求返场资源、六框边和五种 Round 相位消失及已有稳定窗，避免在原尾清键前错误发送下一菜单键。此改动属于验收观察，不删除产品有源清键，也不声称精确 guest PC／tick 等价。通用完成门及旧新候选、失败、当前 Windows／其他平台、完整 RNG／像素／声音界统一见[审计 §13](../plans/common-logic-audit.md)。
+成功活动 Load 的新观察器确认原 10010 的完整 Round 后，才要求返场资源、六框边和五种 Round 相位消失及已有稳定窗，避免在原尾清键前错误发送下一菜单键。此改动属于验收观察，不删除产品有源清键，也不声称精确 guest PC／tick 等价。通用完成门及旧新候选、失败、当前 Windows／其他平台、完整 RNG／像素／声音界统一见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)。
 
 ## 12. S0 结果锁存与活动恢复合同（2026-11-13）
 
@@ -323,12 +318,12 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 
 局部证据复用Domain只读数据库副本：9完整函数共5,979 B逐chunk核对固定strict relocated镜像，另显式核8 B共享返回尾，不保存数据库。有限执行覆盖576个完整原结果函数向量，与真实C纯查询probe逐输入比较；另有60个完整`117e7`控制点向量、3个Load尾保锁存和10个main出口控制点向量。Watcom栈检查、controller键盘／actor/action／render／奖励／phase等叶替身及完整Load文件IO未执行范围在本地`build/s0/result-cpu-06.json`逐项登记；它不是完整Load CPU差分、原生图形或全RNG证明。可复跑工具是`tools/ida/s0_result_source.py`与`verify_s0_result_contract.py`，C probe沿现有field_save测试的`--s0-vectors`，不增加生产探针。
 
-正式WGC、RPC／CDB只读owner、CONTINUE／活动Load／首次controller出口及当前C测试结果由[阶段记录](../plans/stage-log.md)按实际候选登记；缺对应运行门时仍为待验，不能从本节静态／局部证据推定整阶段完成。
+正式WGC、RPC／CDB只读owner、CONTINUE／活动Load／首次controller出口及当前C测试结果由[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)按实际候选登记；缺对应运行门时仍为待验，不能从本节静态／局部证据推定整阶段完成。
 
 
 ## 13. S2 来源结果与等待原义（2026-11-13）
 
-完整 Domain 读集、原指令轨迹、定义和 consumer 的对应关系见[S2 报告](../plans/s2-shared-semantics.md)。新增 source 结果域不改 S0 的 stage0／1 调度：纯查询只返回结果；带故事的原函数先写／保留原锁存，再按原分支等待，不能把最终枚举结果替代中间写点。原 0／1／2 表示进行／失败／胜利，SDL 0／1／2 表示进行／胜利／失败，映射在来源叶明确保持。
+完整 Domain 读集、原指令轨迹、定义和 consumer 的对应关系见[S2 报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/s2-shared-semantics.md)。新增 source 结果域不改 S0 的 stage0／1 调度：纯查询只返回结果；带故事的原函数先写／保留原锁存，再按原分支等待，不能把最终枚举结果替代中间写点。原 0／1／2 表示进行／失败／胜利，SDL 0／1／2 表示进行／胜利／失败，映射在来源叶明确保持。
 
 `208cf`／`20aaf` 在没有命中条件时保留旧锁存，胜利可覆盖先前失败；纯 const 图只返回同一最终值，不声称执行了原写序。`20bf5` 不重置锁存：raw20 hidden 写胜，raw0 hidden 写败，raw1 hidden 经 story7 后再写败。原函数只读 hidden／side 的条件不额外加 HP 门。原缺 raw、count0 或不足固定索引的越界域明确拒绝，不能靠模拟原越界求全状态等价。
 
@@ -338,7 +333,7 @@ G5 对六个旧事件提前提交等待后后缀的修复、arrival每帧清键�
 
 ## 14. S3 结果调用者与条件有效域（2026-11-14）
 
-本节补充 S3 正式 consumer 所需的调用域与读点，保留 §12 的 S0 及 §13 的 S2 原完成范围，不重做或改签旧结果／Load 证据。阶段完成和原生代表只查[阶段记录](../plans/stage-log.md)；本文不维护开放批次或另一份优先级。
+本节补充 S3 正式 consumer 所需的调用域与读点，保留 §12 的 S0 及 §13 的 S2 原完成范围，不重做或改签旧结果／Load 证据。阶段完成和原生代表只查[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)；本文不维护开放批次或另一份优先级。
 
 ### 14.1 结果表的五个原调用点
 
@@ -373,14 +368,14 @@ side1 及 side0 两个 pass 中，阵营不符、hidden、acted、状态阻断�
 | 证据 | 当前有限结论 |
 |---|---|
 | [`s3_result_callers.py`](../../tools/ida/s3_result_callers.py)；本地 `build/s3/ida-result-callers/domain.json` | 五个完整函数读集、CFG、五个表 xref 与 strict relocated 原字节一致；`1a30b` 是父级来源读取，不是下行 27 例的执行目标 |
-| [`verify_s2_results.py`](../../tools/ida/verify_s2_results.py)；本地 `build/s3/oracles-candidate09/result916.json` | 候选 09 的 916 条原函数／实际 C 对照，含 84 条条件前缀；18 个结果函数与 2 个 helper 的原 CFG blocks／edges 全到达。结果、写锁存和故事入口前缀按报告分别比较 |
-| [`verify_s3_result_callers.py`](../../tools/ida/verify_s3_result_callers.py)；本地 `build/s3/oracles-candidate09/callers27.json` | 27 个受控原 caller 路径证明五个 CALLsite 的参数、raw 顺序、pending 先后及状态写点；实际 C 的 side0／side1 两条完整 raw 序列匹配。C probe 同时执行真实结果图续点及错误／HOST／重复 ACK／Load 防御回归，不冒称 27 组完整 AI 逐项差分 |
+| [`verify_s2_results.py`](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/tools/ida/verify_s2_results.py)；本地 `build/s3/oracles-candidate09/result916.json` | 候选 09 的 916 条原函数／实际 C 对照，含 84 条条件前缀；18 个结果函数与 2 个 helper 的原 CFG blocks／edges 全到达。结果、写锁存和故事入口前缀按报告分别比较 |
+| [`verify_s3_result_callers.py`](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/tools/ida/verify_s3_result_callers.py)；本地 `build/s3/oracles-candidate09/callers27.json` | 27 个受控原 caller 路径证明五个 CALLsite 的参数、raw 顺序、pending 先后及状态写点；实际 C 的 side0／side1 两条完整 raw 序列匹配。C probe 同时执行真实结果图续点及错误／HOST／重复 ACK／Load 防御回归，不冒称 27 组完整 AI 逐项差分 |
 
 两个候选 09 报告各自记录实际 probe 的执行前后 SHA，均保持不变；原件只留本地，不分发镜像／转储。916 工具沿用 S2 source-candidate 映射，其 `new_runtime_bindings=0` 表示工具不安装玩法绑定，不是当前 S3 产品支持数；同一原表的五个 caller 也不计成五套结果机制。
 
 916 例执行原 `34894`／`33499`，Watcom 栈检查和文本呈现是明确替身；不证明文本内部、输入等待或共享 RNG。27 例执行原 caller 的受控路径，AI／候选、结果叶、输入／呈现／奖励、死亡整理及 `13565` 本体有明确替身；`1a866` 在共享返回 `0x190a7` 处停止，未执行该返回尾，不声称完整 ABI 返回。完整来源读取、局部机器码、实际 C 和原生图形分账，均不据此证明完整 AI、全部输入分支、绝对时序、自然整关或跨平台运行。
 
-S3 继续使用 S2 的唯一来源减法 fade 子图。旧 Scene 的 17 级比例近似仍只归属[总计划 S4](../plans/development.md#s4统一审查全历史回归与精简)，不能借本节结果调用或 S2 新来源证据倒签旧 fade 的中间等级。
+S3 继续使用 S2 的唯一来源减法 fade 子图。旧 Scene 的 17 级比例近似仍只归属[总计划 S4](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md#s4统一审查全历史回归与精简)，不能借本节结果调用或 S2 新来源证据倒签旧 fade 的中间等级。
 
 ## 15. S4 旧调用调色原义（2026-11-14）
 
@@ -390,4 +385,4 @@ S3 继续使用 S2 的唯一来源减法 fade 子图。旧 Scene 的 17 级比�
 
 完整 `24618` 的原尾在 500 ms 后逐次调用 `11df2` 加色 0..62、步长 2，各尾 4 ms，共 32 级，旧「渐暗」概括错误。命名输入只修证据，经 Domain 隔离发布；名称、函数边界、chunk 与原指令保持。局部 CPU 门执行 `24717..2474a` 调色尾和真实 `11df2`，不把前布局／FX 或后 `1d4cb` 的替身当作整函数执行。
 
-实际 C 比较分别覆盖 VGA 原语、旧兼容接口和真实 Scene dispatcher；每级 DAC、等待、fast 和 owner 分列，HOST／错误由独立前缀测试补齐。原码／轨迹、正式 WGC、历史资格和未验范围见 [S4 报告](../plans/s4-unified-review.md)。本节不改签 S2／S3 当时未迁移的旧路径，也不扩张为原版绝对硬件时序或全 renderer 错误保证。
+实际 C 比较分别覆盖 VGA 原语、旧兼容接口和真实 Scene dispatcher；每级 DAC、等待、fast 和 owner 分列，HOST／错误由独立前缀测试补齐。原码／轨迹、正式 WGC、历史资格和未验范围见 [S4 报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/s4-unified-review.md)。本节不改签 S2／S3 当时未迁移的旧路径，也不扩张为原版绝对硬件时序或全 renderer 错误保证。

@@ -18,7 +18,7 @@ import sys
 
 from PIL import Image
 
-from run_graphics_tests import decode_save, terminal_save_fixture
+from fd2_save_checks import decode_save, terminal_save_fixture
 from run_original_comparison import (Capture, TOLERANCE, archive_entry, compare, decode_image,
                                      hashes, running, title_templates)
 from run_original_battle_menu import match_indexed, save_checkpoint, wait_state, wait_title

@@ -289,7 +289,7 @@ Windows本轮永久复现器的12函数／4组CPU及4项来源测试已实际通
 
 本轮从已资格F3 PUB03库复制到隔离目录，经Domain读取全部函数／原型／flags／chunks，复用现命名应用器实际保存七个更名和33个函数注释；全量export／Hex-Rays沿项目工具执行，反编译关闭不保存。before／after／反编译后1312函数的持久类型、边界、flags及严格原字节全同，旧／新伪C去注释后仅有七个已确认标识符替换。registry现为537项；不把G4／F3历史数改写为本轮运行。
 
-新增名称为`field_popup_number_enqueue @1e0db`、`field_popup_miss_enqueue @1e1dc`、四个`4ec7c／4eca4／4ecbf／4ecf0` snapshot／rows helper，以及`field_background_wave_rows_copy @4eee0`。完整源、xref、参数／资源和实际C依据分别见[F4记录](../plans/f4-presentation.md#241-本阶段命名来源的实际发布)。未保存猜测ABI，3702f仍保持中性名且无类型；没有改原EXE、源库、函数字节或全局IDA设置。
+新增名称为`field_popup_number_enqueue @1e0db`、`field_popup_miss_enqueue @1e1dc`、四个`4ec7c／4eca4／4ecbf／4ecf0` snapshot／rows helper，以及`field_background_wave_rows_copy @4eee0`。完整源、xref、参数／资源和实际C依据分别见[F4记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f4-presentation.md#241-本阶段命名来源的实际发布)。未保存猜测ABI，3702f仍保持中性名且无类型；没有改原EXE、源库、函数字节或全局IDA设置。
 
 本地实际入口为`build/f4/ida-presentation-publication01/publication-receipt.json`，SHA256 `33c3d03006de0d429f34d7685f975cb836a058440a5521c002d4d619eca68eb0`；数据库SHA256 `c348f1d8deb811f8955b98362c813055ee2e4ca58b9245ad7bc2546cb21d0a53`仅留本地。11个发布文件在全部写毕后刷新／核对SHA256SUMS，11项发布产物检查实际通过。静态LE／prototype报告明确继承，运行时BSS／原生／全阶段不由本次发布代签；最终源集合确定后另刷新地址审计及最后清单。Linux未执行。
 
@@ -306,4 +306,4 @@ Windows本轮永久复现器的12函数／4组CPU及4项来源测试已实际通
 
 ### F4最终C／H集合补记
 
-PUB05之后，最终源集合包含294个C／H文件、998个规范函数入口；`build/f4/source-address-snapshot-final04.json` SHA256为`39f41d3f5d50fbe37dc9a630953a39e561fabcc7a0c9c218ff0158c1abc83cde`。新增私有quake probe也在该集合，随后只有Python／文档改动，不把旧293文件快照改签。该审计只查地址标记／当前物理身份，不重新确认ABI／语义或原运行；主线构建／集成与继承资格见[F4交付记录](../plans/f4-presentation.md#4-实际检查及阶段完成门)。
+PUB05之后，最终源集合包含294个C／H文件、998个规范函数入口；`build/f4/source-address-snapshot-final04.json` SHA256为`39f41d3f5d50fbe37dc9a630953a39e561fabcc7a0c9c218ff0158c1abc83cde`。新增私有quake probe也在该集合，随后只有Python／文档改动，不把旧293文件快照改签。该审计只查地址标记／当前物理身份，不重新确认ABI／语义或原运行；主线构建／集成与继承资格见[F4交付记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f4-presentation.md#4-实际检查及阶段完成门)。

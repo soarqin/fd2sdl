@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 from fd2_magic_list_oracle import prepare as list_templates,caster_values as detail_templates,healed_recipient_values
 from fd2_item_list_oracle import item_table
 from audit_fdicon_opaque_zero import audit_fdicon
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import Capture,archive_entry,hashes,running,title_templates
 from run_original_battle_menu import match_indexed,wait_state,wait_title
 from run_original_end_turn import META,UNITS,STRIDE,RoundOracle,round_assets,validate_initial

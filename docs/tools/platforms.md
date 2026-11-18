@@ -7,16 +7,16 @@
 | 项目 | Windows（PowerShell） | Linux（Bash） |
 |---|---|---|
 | Python 3 | `python`；先用 `python --version` 确认版本 | `python3` |
-| CMake 构建目录 | `src/build-win` | `src/build` |
-| 主程序 | Visual Studio Debug 为 `./src/build-win/Debug/fd2sdl.exe`，Release 为 `./src/build-win/Release/fd2sdl.exe` | `./src/build/fd2sdl` |
-| Windows Ninja 主程序 | 单配置生成器直接写入 `-B` 目录，例如 `./src/build-ucrt64/fd2sdl.exe` | 不适用 |
+| CMake 构建目录 | `build/windows` | `build/linux` |
+| 主程序 | Visual Studio Debug 为 `./build/windows/Debug/fd2sdl.exe`，Release 为 `./build/windows/Release/fd2sdl.exe` | `./build/linux/fd2sdl` |
+| Windows Ninja 主程序 | 单配置生成器直接写入 `-B` 目录，例如 `./build/ucrt64/fd2sdl.exe` | 不适用 |
 | CTest 配置参数 | Visual Studio 等多配置生成器需 `-C Debug`，与构建配置相同 | 单配置生成器不需要 `-C` |
 | Python 虚拟环境激活 | `./.venv/Scripts/Activate.ps1` | `source .venv/bin/activate` |
 | PATH 中的程序 | `Get-Command cmake, python` | `command -v cmake python3` |
 
 Windows 的 `python3` 可能是 Microsoft Store 执行别名。本文档中的 Bash 示例使用 `python3`；在 PowerShell 中使用实际安装的 Python 3 对应命令 `python`。激活虚拟环境后，两平台也可统一使用 `python`。依赖安装使用同一解释器的 `-m pip`，避免把包装进另一套 Python。
 
-CMake 配置包含编译器、生成器和绝对路径。切换编译器、工具集、生成器或平台时使用新的 `-B` 目录。Visual Studio 构建和 CTest 使用同一配置，例如 `--config Debug` 和 `-C Debug`。每套构建的可执行文件、库、PDB、对象文件和生成的冷定义均保存在自己的构建目录。
+CMake 的源码入口是仓库根目录。旧 `-S src` 的缓存不可复用。CMake 配置包含编译器、生成器和绝对路径。切换编译器、工具集、生成器或平台时使用新的 `-B` 目录。Visual Studio 构建和 CTest 使用同一配置，例如 `--config Debug` 和 `-C Debug`。每套构建的可执行文件、库、PDB、对象文件和生成的冷定义均保存在自己的构建目录。
 
 ### Windows x64 工具链
 
@@ -27,13 +27,13 @@ MSYS2 在两个独立 PowerShell 中分别配置。GCC 使用 UCRT64 的 `gcc`�
 ```powershell
 # GCC（UCRT64）
 $env:Path = "C:\msys64\ucrt64\bin;$env:Path"
-cmake -S src -B src/build-ucrt64 -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_PREFIX_PATH=C:/msys64/ucrt64 -DCMAKE_BUILD_TYPE=Release
-cmake --build src/build-ucrt64 --parallel
+cmake -S . -B build/ucrt64 -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_PREFIX_PATH=C:/msys64/ucrt64 -DCMAKE_BUILD_TYPE=Release
+cmake --build build/ucrt64 --parallel
 
 # Clang（CLANG64，在另一个 PowerShell 中执行）
 $env:Path = "C:\msys64\clang64\bin;$env:Path"
-cmake -S src -B src/build-clang64 -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_PREFIX_PATH=C:/msys64/clang64 -DCMAKE_BUILD_TYPE=Release
-cmake --build src/build-clang64 --parallel
+cmake -S . -B build/clang64 -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_PREFIX_PATH=C:/msys64/clang64 -DCMAKE_BUILD_TYPE=Release
+cmake --build build/clang64 --parallel
 ```
 
 从项目根目录运行程序。链接 MSYS2 的 SDL3 DLL 时，运行环境的 `PATH` 需要包含对应的 `bin` 目录。配置时加 `-DBUILD_TESTING=ON` 可构建无窗口回归。Windows WGC 和进程音频测试工具使用 MSVC 的 Windows SDK。
@@ -70,7 +70,7 @@ $oldAudio = $env:SDL_AUDIODRIVER
 try {
     $env:SDL_VIDEODRIVER = 'dummy'
     $env:SDL_AUDIODRIVER = 'dummy'
-    ./src/build-win/Debug/fd2sdl.exe --field-play-once
+    ./build/windows/Debug/fd2sdl.exe --field-play-once
 } finally {
     $env:SDL_VIDEODRIVER = $oldVideo
     $env:SDL_AUDIODRIVER = $oldAudio
@@ -80,7 +80,7 @@ try {
 Linux（Bash）：
 
 ```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./src/build/fd2sdl --field-play-once
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/linux/fd2sdl --field-play-once
 ```
 
 写存档的检查必须使用独立副本，不把 `FD2SDL_SAVE_PATH` 指向 `original_game/`。
@@ -94,7 +94,7 @@ Copy-Item -LiteralPath original_game/FD2.SAV -Destination (Join-Path $work 'FD2.
 $oldSave = $env:FD2SDL_SAVE_PATH
 try {
     $env:FD2SDL_SAVE_PATH = Join-Path $work 'FD2.SAV'
-    ./src/build-win/Debug/fd2sdl.exe --field-play 0
+    ./build/windows/Debug/fd2sdl.exe --field-play 0
 } finally {
     $env:FD2SDL_SAVE_PATH = $oldSave
 }
@@ -105,7 +105,7 @@ Linux（Bash）：
 ```bash
 work=$(mktemp -d "${TMPDIR:-/tmp}/fd2-check.XXXXXX")
 cp original_game/FD2.SAV "$work/FD2.SAV"
-FD2SDL_SAVE_PATH="$work/FD2.SAV" ./src/build/fd2sdl --field-play 0
+FD2SDL_SAVE_PATH="$work/FD2.SAV" ./build/linux/fd2sdl --field-play 0
 ```
 
 临时目录保留供检查；确认不再需要后，只删除这次创建的目录。历史证据中的 `/tmp/...` 路径是 Linux 当时的产物位置，Windows 重跑应指向新建工作目录，不把旧路径当作仍存在的输入。
@@ -152,4 +152,4 @@ python3 -m unittest discover -s tools/tests -p test_ida_crosscheck.py
 
 开发验收只要求当前执行平台的适用检查通过，其他平台未执行不阻塞当前开发任务。Windows 原生测试结果不能登记成 Linux、WSL 或 macOS 已通过，Linux 历史测试结果也不证明 Windows 已验证。当前平台缺依赖、跳过或未注册的必测项仍不能记为通过；其他平台专用检查注明未执行即可。
 
-ASan／UBSan、X11／XTest 等平台专用检查保留独立名称与运行条件，不要求为当前 Windows 任务另开 Linux 验收。`field_play_result` 的错误出口替身通过测试目标私有的编译宏实现，两平台均可运行，不再依赖 GNU 链接器 `--wrap`。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC；GUI 测试的桌面要求和证据归档见[图形自动化测试](gui-testing.md)。
+X11／XTest、WGC 等平台专用检查有独立运行条件。`field_play_result` 的错误出口替身通过测试目标私有的编译宏实现，两平台均可运行，不再依赖 GNU 链接器 `--wrap`。当前 Windows 的 SDL 与 DOSBox 截图统一使用 WGC；GUI 测试的桌面要求和证据归档见[图形自动化测试](gui-testing.md)。

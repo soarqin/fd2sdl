@@ -1,6 +1,6 @@
 # 数据文件格式规范
 
-本文维护原版二进制布局和已确认的读取语义；实现进度见[总计划](../plans/development.md)。✅ 只表示对应格式或字段已有证据，不代表场景实现与原版验收全部完成；⚠️ 表示仍有待确认项。
+本文维护原版二进制布局和已确认的读取语义；实现进度见[总计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md)。✅ 只表示对应格式或字段已有证据，不代表场景实现与原版验收全部完成；⚠️ 表示仍有待确认项。
 
 部分早期取证保留了历史指令／窗口地址，不能直接当作 canonical VA 查询。函数入口以[规范命名表](../reverse-engineering/function-names.md)为准，换算见[地址映射](../reverse-engineering/address-mapping.md)。
 
@@ -60,7 +60,7 @@ def parse_dat(data):
 - **11 个顶层样本均有 4 字节间隙**：`6 + N*4 + 4 == offsets[0]`；不外推为所有嵌套容器的要求。
 - 偏移为**绝对文件偏移**，严格递增。
 - 末条目大小 = `文件大小 - offsets[-1]`。
-- 实现侧以首条目偏移作为表的读取上界，并保留越界／非递增终止规则；不把顶层四字节间隙作为所有嵌套资源的硬性要求。`src/tests/resource_test.c` 覆盖无间隙合成夹具、11 个原版顶层归档及标题／地形解码兼容性。
+- 实现侧以首条目偏移作为表的读取上界，并保留越界／非递增终止规则；不把顶层四字节间隙作为所有嵌套资源的硬性要求。`tests/resource_test.c` 覆盖无间隙合成夹具、11 个原版顶层归档及标题／地形解码兼容性。
 
 ### 1.4 各文件清单
 
@@ -100,7 +100,7 @@ def parse_dat(data):
 
 SKIP 和 stride-2 未写位置不是强制置零；新建零底图中才自然表现为零。旧摘要将 SKIP 误写为 RUN，会多读一字节并导致后续数据错位，不能继续使用。
 
-SDL 解码器在写入前校验整条指令跨度，拒绝超行、截断和尾随数据；宽高必须为正。实现和损坏资源回归见 `src/image.c`、`src/tests/resource_test.c`。原版 19 张图及 500 张合法合成图的局部机器码差分见 [9.5 报告](../reverse-engineering/ida-bytecheck-9.5.md#rle-原版机器码执行对照)，其范围限于像素解码分支，不代表完整合成或全部 BG 条目等价。
+SDL 解码器在写入前校验整条指令跨度，拒绝超行、截断和尾随数据；宽高必须为正。实现和损坏资源回归见 `src/image.c`、`tests/resource_test.c`。原版 19 张图及 500 张合法合成图的局部机器码差分见 [9.5 报告](../reverse-engineering/ida-bytecheck-9.5.md#rle-原版机器码执行对照)，其范围限于像素解码分支，不代表完整合成或全部 BG 条目等价。
 
 调色板与图像流分离：
 
@@ -312,7 +312,7 @@ SDL 实现位于 `src/field_info.[ch]`，并保持面板在地形、选择框、
 - `field_item_record_get @0x4e8bc`证明完整物品表是 `DS:0x02ad + item_id*0x17` 的23字节记录。连续表canonical VA为 `0x602ad`，file `0x792c1`，共215条；唯一编辑输入为 `data/static/tables/items.json`，`field_item.c` getter、详情及战斗重算共用生成表。旧corrected code0 `0x684c1`是历史视图，不用于新的地址操作。
 - 玩家草药192使用 record `+0x0d=5`、`u16 +0x0e=40`、cast `+0x10=1`、area `+0x12=0`、filter `+0x15=1`；不要把 AI 的 `+0x11` 筛选字段用于玩家。`field_unit_inventory_slot_remove @0x1b8e7`（原 `sub_1B8E7`）对后续 `(7-slot)*2` 字节做 memmove，最后仅 `+0x18=0x80`，保留 `+0x19` 的 stale ID，不按可见项压实。历史 Drop 四场已有完整 SAV／尾槽量测；Use 的画面、原始字节和具体分支分别登记，不能相互代替。
 - `field_unit_inventory_item_append @0x1bb8c`（原 `sub_1BB8C`）查找首个 flag bit80 置位的槽，整 flag 写0，再写 ID；满8槽时失败。Give 的满槽交换是双方各移除后追加，不是原位交换两组字节；只重算送方派生值。返回与外层行动合同见[session 设计](../systems/battle-session.md)。
-- `field_equipment_profile_get @0x4e88e`（原 `sub_4E88E`）读取 canonical `0x6188a..0x61955` 的29×7字节表；`field_unit_can_equip_item @0x1c1c3`（原 `sub_1C1C3`）只比较每行前6字节与物品 record 首字节，第7字节保持未知。`field_unit_equipment_slot_set @0x1c142`（原 `sub_1C142`）按 ID `<128`／`>=128` 分组，清同组已装备槽的整个 flag，再将选中 flag 写40；不能改成按分类分组或仅清 bit40。整表来自严格 LE 原始数据，具体实机场景范围见[阶段记录](../plans/stage-log.md)。
+- `field_equipment_profile_get @0x4e88e`（原 `sub_4E88E`）读取 canonical `0x6188a..0x61955` 的29×7字节表；`field_unit_can_equip_item @0x1c1c3`（原 `sub_1C1C3`）只比较每行前6字节与物品 record 首字节，第7字节保持未知。`field_unit_equipment_slot_set @0x1c142`（原 `sub_1C142`）按 ID `<128`／`>=128` 分组，清同组已装备槽的整个 flag，再将选中 flag 写40；不能改成按分类分组或仅清 bit40。整表来自严格 LE 原始数据，具体实机场景范围见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。
 - `field_equipped_item_slot_find @0x40a51` 在 weapon 模式按槽位顺序查找 flag `0x40` 且 `item_id < 0x80` 的首件装备；`field_unit_item_id_at @0x40936` 返回该槽的 item id。玩家普通攻击读取对应 23 字节 item record 的 `+0x0b/+0x0c` 作为最小／最大范围。
 - `field_reachable_cells_compute @0x4e390` 无MOV0拒绝门，起点node `+7`先写预算（0亦合法）；`field_friendly_destination_block @0x146d1`排除mover自身，`sub_14B16 @0x14b16`按非ff收集，故预算0原点仍能参加`field_ai_physical_candidate_evaluate @0x14237`的武器范围／邻敌判断。不能把“不移动”解释为“不能攻击”；对应回归与实机场景见阶段记录。
 - `field_target_range_build @0x14818` 以 movement profile0 传播普通范围，再按 Manhattan 距离排除小于最小范围的格；max≥16 分支则直接建立半长 `max-16` 的十字，不走地形传播或普通 min 排除。side filter 为 `0→side0`、`1→side!=0`、`2→side1`、`3→side2`；玩家普通攻击传0。收集仅保留未隐藏且匹配 filter 的 actor，单位不阻断范围传播。SDL 普通物理确认额外拒绝 HP0；玩家物品／法术沿各自原版路径保留 HP0 和 acted 目标，不能把物理门推广到共享范围查询。
@@ -496,9 +496,9 @@ camera_y、focus_x、focus_y、focus_x-camera_x、focus_y-camera_y`。`meta[9]`
 确认四个selector均立即对原byte作XOR1，保留非0／1值；第三项仅在command-ID显示条件上反向。第一项控制音乐音量淡入／静音，第二项控制SFX；第三项是原动作FULL／SHORT调用选择，G2已接正式选项与Load。第四项信息板设置仍归G4；具体可见标签及运行覆盖以实际WGC收据为准。其余字节保持不透明。
 SDL活动快照写入session已拥有的metadata来源及当前已知字段、完整`0xa00`持久roster、`meta[0..17]`、当前单位前缀及完整32B cell-state。metadata的shape、事件／action表与模板仍由本关解析结构唯一决定；stage0有效前缀为`0x83+31*26=937`，stage1为`0x83+40*26=1171`。活动Load按`10010@101c3..101cf`恢复整2211B到同一metadata owner，导出先保来源再覆盖当前已知字段，尾不能混用目标容器旧值。active meta[18..]和unit-area非active磁盘尾仍保目标字节；roster未知尾随完整表归session。导入要求shape与目标资源一致，只解析资源已确认的模板数；序列化backing不是第二业务真值。
 
-原版`field_secondary_menu_execute @0x19df7`每次写整2211B metadata。F3完整`res_load @0x111ba`及allocator源已证fresh每条资源独立malloc(N)：普通0..29中仅14／20／26资源为2211B，其余27条的实际payload上界也小于2211B，故该Save拷贝会跨owner。按原memmove方向精确定位首U，不把N即当首U，也不把分配内slack自动判U。活动Load的完整2211B来源则须保留。SDL对短资源保`source_size`及已知字段、余尾保目标，是原首U之后的H安全继续；不猜原heap、不新增Save拒绝，也不声明fresh整2211B等值。方向、有效前缀和来源见[F3报告](../plans/f3-gameplay-lifecycle.md#31-短metadata的第一处越owner读)。B5原stage1尾变化观察保留原有限资格，不扩签。
+原版`field_secondary_menu_execute @0x19df7`每次写整2211B metadata。F3完整`res_load @0x111ba`及allocator源已证fresh每条资源独立malloc(N)：普通0..29中仅14／20／26资源为2211B，其余27条的实际payload上界也小于2211B，故该Save拷贝会跨owner。按原memmove方向精确定位首U，不把N即当首U，也不把分配内slack自动判U。活动Load的完整2211B来源则须保留。SDL对短资源保`source_size`及已知字段、余尾保目标，是原首U之后的H安全继续；不猜原heap、不新增Save拒绝，也不声明fresh整2211B等值。方向、有效前缀和来源见[F3报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f3-gameplay-lifecycle.md#31-短metadata的第一处越owner读)。B5原stage1尾变化观察保留原有限资格，不扩签。
 
-目标文件不存在时，原19df7只初始化四个slot stage哨兵；其余未写位置会被checksum消费。metadata、roster、全部活动记录、cell和已知meta均有合法来源的前提下，正常DF=0的首欠来源byte为`K=0x12a3+80*count`（count<96），96时为`0x30d5`；4df1d读取／4df1e数值使用是未初始化U，位于合法分配内。仅metadata完整不够，fresh人物字段须另核可能更早的欠来源消费。此时wb可能已创建空文件但尚未fwrite。SDL整ff新容器是明确的H初始化策略，不能称原writer整ff。合法旧容器及完整roster／metadata的opaque来源不在该U分类内；完整写集与checksum次序见[F3报告](../plans/f3-gameplay-lifecycle.md#32-新建目标的未初始化输入)。
+目标文件不存在时，原19df7只初始化四个slot stage哨兵；其余未写位置会被checksum消费。metadata、roster、全部活动记录、cell和已知meta均有合法来源的前提下，正常DF=0的首欠来源byte为`K=0x12a3+80*count`（count<96），96时为`0x30d5`；4df1d读取／4df1e数值使用是未初始化U，位于合法分配内。仅metadata完整不够，fresh人物字段须另核可能更早的欠来源消费。此时wb可能已创建空文件但尚未fwrite。SDL整ff新容器是明确的H初始化策略，不能称原writer整ff。合法旧容器及完整roster／metadata的opaque来源不在该U分类内；完整写集与checksum次序见[F3报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f3-gameplay-lifecycle.md#32-新建目标的未初始化输入)。
 
 活动Load按当前cold capability支持stage0..29，人数的minimum／exact门另核，不把有门当全部存取组合已验。先准备目标资源、从原地图重建网格，再按完成位应用`field_completed_chest_tiles_apply @0x12263`，按当前身份顺序恢复cache并同步raw+2，最后整体交接；失败保当前session。已开／未开箱双向恢复，不能在当前地图上重复增量加地形ID。隐藏空部署槽可能经原脚本产生越界byte坐标，格式层保留该记录；可见单位仍要求有效地图坐标。手工Load的cache不写回persistent raw2，不能混用此活动合同。
 
@@ -549,7 +549,7 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 
 标题 `title_action_dispatch @0x25ebb` 的 START0／LOAD1／CONTINUE2 分别是新游戏、四槽持久恢复、活动快照恢复。标题 LOAD 恢复 roster、stage、资源和配置后进入 `sub_26152 @0x26152` 城镇／出阵准备；酒店经 `sub_2670E @0x2670e` selector 0 进入 `field_manual_slot_dispatch @0x29300`，其 selector 1／2 分别调用手工 Save `@0x2968d`／Load `@0x2986f`。这些路径不替换战场 secondary `@0x19df7` 的活动 Save/Load。`@0x29620` 实为持久成员选择／详情循环，旧 `field_manual_slot_save` 误名已由命名输入更正。
 
-手工 Save 无条件复制持久表的完整 `0xa00` 字节，不是当前活动 actor 表或 `roster_count` 条前缀；配置映射由原始 `0x26064..0x26098` 和 `0x29757..0x29791` 确认。B5 候选通过标题 LOAD 与酒店四槽 Save/Load 连接独立的 `fd2_save_manual_state` 准备状态；写回整张持久表与 `meta[0..9]`，保留其他区域及 slot 3 checksum 规则。实际恢复不经过活动快照导入，整体原版验收仍在进行，状态见[战场计划](../plans/battlefield.md#7-b5第一关结算到下一关p1)。
+手工 Save 无条件复制持久表的完整 `0xa00` 字节，不是当前活动 actor 表或 `roster_count` 条前缀；配置映射由原始 `0x26064..0x26098` 和 `0x29757..0x29791` 确认。B5 候选通过标题 LOAD 与酒店四槽 Save/Load 连接独立的 `fd2_save_manual_state` 准备状态；写回整张持久表与 `meta[0..9]`，保留其他区域及 slot 3 checksum 规则。实际恢复不经过活动快照导入，整体原版验收仍在进行，状态见[战场计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/battlefield.md#7-b5第一关结算到下一关p1)。
 
 `field_manual_slot_picker @0x29bcb` 从共享 `53C57` 读取当前选择，调用者首次先置 0；第二参控制规范化等待读键或直接 BIOS 读键，**不是初始槽 index**。SDL 自有 `initial_slot` 参数不表示原版 ABI。`sub_29AB2 @0x29ab2` 按 `y=0x77+index*0x13` 绘制纵向四项：前缀 FDTXT549，空槽514，有效槽 `514+stage` 和地点 `550+stage`；保存／读取成功分别为 FDTXT660／478。
 
@@ -616,11 +616,11 @@ DOSBox历史CPU捕获中unit96 level2为 `(profile,move,hp,mp,base attack,base d
 
 `field_unit_combat_stats_recompute @0x1b750` 的AP／DP状态缩放推翻旧nearest-even结论：按原控制字127f，先将signed基础／装备和乘binary64 `1.15`，PC53舍入后 `__CHP` 临时向0截断，再写WORD。12→13、20→23、100→114，负100→负114；整数 `115*value/100` 也不等价。AC／EV不乘1.15，`0x24`非零只先各加15。`verify_fd2_x87_stat_scale.py` 对两块原指令及原 `__CHP` 各执行全部 `-65536..65535`，实际C的volatile double中间值逐项相同；这是局部机器码验收，不是原版运行验收。
 
-本轮运行证据覆盖受控普通治疗、一次升级学17、AI反击630经验连升六级，以及毒伤和六状态到期；不等于68条成长记录均已逐一实机。详情与最终合法SAV按原始字段验证；共享随机流、完整演出／音画及SDL回合编号横幅没有因此图形对齐，候选来源见[阶段记录](../plans/stage-log.md)。
+本轮运行证据覆盖受控普通治疗、一次升级学17、AI反击630经验连升六级，以及毒伤和六状态到期；不等于68条成长记录均已逐一实机。详情与最终合法SAV按原始字段验证；共享随机流、完整演出／音画及SDL回合编号横幅没有因此图形对齐，候选来源见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。
 
 53EC8是未序列化的全局raw贡献，不是EX字段：物理满足side／敌ID门时逐击MOV覆盖，伤害／恢复／状态效果按其helper在指定写点ADD。恢复的signed实际差可为负，按DWORD回绕；玩家归一／cap99与AI奖励调用不同，不能存一份猜测的RNG或贡献checkpoint到SAV。`field_phase_status_tick @0x1a866` 的毒伤和六状态byte写序、提示前后暂停点及Load规则见session说明。
 
-`field_ai_unit_execute @0x38cb3` 确认模板 byte `0x11` 写入的 record `+0x34` 是 AI behavior selector，低半字节在原版中分派 `0..5、7..11`；模板 byte `0x12/0x13` 对应 record `+0x35/+0x36`，由不同 behavior 作为目标文本编号或坐标等参数读取，不能统一命名。stage 0 初始 group 1/2 的 8 名 side 0 单位均为 behavior 0，两个参数均为 0。AI 查询、提交与自动 phase 的当前范围见[战场计划](../plans/battlefield.md)，不在格式页维护实现进度。
+`field_ai_unit_execute @0x38cb3` 确认模板 byte `0x11` 写入的 record `+0x34` 是 AI behavior selector，低半字节在原版中分派 `0..5、7..11`；模板 byte `0x12/0x13` 对应 record `+0x35/+0x36`，由不同 behavior 作为目标文本编号或坐标等参数读取，不能统一命名。stage 0 初始 group 1/2 的 8 名 side 0 单位均为 behavior 0，两个参数均为 0。AI 查询、提交与自动 phase 的当前范围见[战场计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/battlefield.md)，不在格式页维护实现进度。
 
 `--prologue-preview` 不再从 FD2.SAV 推断 sprite。新游戏流程直接建立 `DAT_00003a45`，稳定标识是 record offset `0x07` 的 unit id；offset `0x02` 只是 FD2.TMP cache slot。
 

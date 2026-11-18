@@ -1,8 +1,9 @@
 # 原版游戏文件由开发者自行复制，禁止提交。
 /original_game/
 
-# 本地构建产物
+# 本地构建树（按平台和工具链分目录）
 /build/
+# 兼容旧版仓库遗留的构建输出。
 /build-a8-sdk/
 /src/build/
 /src/build-*/

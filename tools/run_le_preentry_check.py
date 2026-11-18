@@ -20,7 +20,7 @@ import time
 
 from fd2_dosbox_snapshot import OwnedRPC, parse_selector
 from rebuild_fd2_analysis import parse_le, parse_objects, parse_fixups
-from run_original_battle_animation import owned_job_required
+from fd2_windows_job import owned_job_required
 from run_original_comparison import running
 import original_reference
 

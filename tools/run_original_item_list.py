@@ -39,7 +39,7 @@ from audit_fdicon_opaque_zero import audit_fdicon
 from fd2_item_list_oracle import (AFTER_USE_INVENTORY, PLAIN_SHA256, START_SHA256,
     derive_injured, equipment_rows, inventory_templates, item_table, use_effect_tables, prepare as prepare_templates)
 from fd2_movement_oracle import movement_profile
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import Capture, SIZE, archive_entry, hashes, running, title_templates
 from run_original_battle_menu import MENU_OFFSETS, match_indexed, save_checkpoint, wait_state, wait_title
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle

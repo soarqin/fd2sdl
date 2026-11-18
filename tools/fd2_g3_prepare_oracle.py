@@ -16,7 +16,7 @@ from fd2_transition_oracle import (derive_prepare_fixture,FILE_SIZE,SLOT_BASE,SL
     ROSTER_SIZE,LATE_SAVE_SHA256)
 from fd2_g2_battle_oracle import crypt,EXE_SHA256
 from fd2_reward_oracle import _stat_scale,GROWTH_SHA256
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 
 sys.path.insert(0,str(Path(__file__).resolve().parent/'static_data'))
 from verify_unit_tables import source_range

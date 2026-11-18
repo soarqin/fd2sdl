@@ -1,25 +1,21 @@
 # 文档索引
 
-构建和使用见[项目 README](../README.md)，Agent 约束见 [AGENTS.md](../AGENTS.md)。本目录按用途组织技术资料；计划、原版证据、实现设计和工具操作各自维护，避免复制结论。
+- [项目首页](../README.md)：构建和启动。
+- [使用指南](user-guide.md)：资源文件、键位、存档和兼容范围。
+- [测试与工具](tools/README.md)：跨平台回归、原版对照和数据工具。
+- [历史证据索引](history.md)：已完成阶段、原版差异和历史验证记录。
+- [Agent 开发规则](../AGENTS.md)：实施、逆向和验证约束。
 
-## 开发计划
+## 仓库布局
 
-- [总计划](plans/development.md)：下一执行阶段、**唯一当前待办顺序**、补充阶段、状态依据及测试门。
-- [原版完全对齐审查](plans/full-alignment-audit.md)：495e7d9基线、全量分母、A01—A22差异／证据矩阵和独立基准；Windows终态及保留Nuked声音差异，F1—F6及新增DOS-CLEAN顺序只查总计划。
-- [QK行为收尾专项](plans/qk-behavior-followup.md)：F1未完成性质的实际依赖、正常操作／SAV／WGC补证方案及F6最终门；不阻挡无依赖开发，不改签为已通过。
-- [已完成阶段归档](plans/completed-stages.md)：B／A／R／SD／G／S完成摘要、提交、长历史和收据索引；不维护当前优先级。
-- [通用逻辑完整性审计](plans/common-logic-audit.md)：源码／证据矩阵、通用与关卡边界、缺口分类及S5来源／有限消费者增量；顺序和完成状态仍以总计划为准。
-- [静态数据层与事件流程](plans/static-data.md)：已完成的 SD1—SD3 调研与工作包；覆盖冷定义、可修改的事件分支与编排、提取／验证和存档边界。
-- [关卡批量读取与转换调研](plans/stage-batch.md)：全量来源盘点、真实转换样例、能力上限、可复跑研究；研究候选不等于当前阶段实施，状态只查总计划。
-- [S2共享语义报告](plans/s2-shared-semantics.md)：冻结来源图、有限能力和隔离依赖，保留当时机制证据。
-- [S3批量正式接入报告](plans/s3-batch-integration.md)：实际批次／绑定、共享修正、五层验收与未开放原因；当前状态只查总计划。
-- [S4统一审查报告](plans/s4-unified-review.md)：旧调色调用修正、冻结支持域、全历史门的实际运行／严格继承和残余边界；当前状态只查总计划。
-- [S5隔离闭合与后续批量接入](plans/s5-batch-expansion.md)：stage20—29已证支持域、C22来源／consumer与各候选原生身份；resource30内部、默认255和31／32人数边界分账，提交／集成状态只查总计划与收据。
-- [战场工作包](plans/battlefield.md)：B0～B7 的范围和验收。
-- [音频工作包](plans/audio.md)：A0～A8 已有支持范围和证据边界；后续随通用机制与场景补证。
-
-- [F5音乐／音效与生命周期](plans/f5-audio-device.md)：当前表现层实现及必要验证；[历史证据与硬件研究](plans/f5-source-research-history.md)保留旧来源／失败，纯内部形式不再是产品门。
-- [DOS模拟清理](plans/dos-simulation-cleanup.md)：已落地代码及消费者、实际删减与保留行为、定向检查和F6边界。
+| 路径 | 内容 |
+|---|---|
+| `CMakeLists.txt`、`CMake/` | 根构建入口；SDL3 依赖、平台选项、冷数据生成、程序目标和测试注册 |
+| `src/` | SDL 程序与运行时，第三方源码和对应许可位于 `src/third_party/` |
+| `data/static/` | 运行时冷定义的 JSON 输入 |
+| `tests/` | SDL 回归、平台输入驱动和最小夹具 |
+| `tools/` | 数据生成、逆向、原版对照与发布工具；工具回归位于 `tools/tests/` |
+| `build/` | 各平台的本地构建输出，不入库 |
 
 ## 系统设计
 
@@ -29,7 +25,7 @@
 ## 数据格式
 
 - [数据格式规范](formats/data-formats.md)：归档、RLE、战场、存档、动画、音频及地图帧缓存。
-- [关卡来源账与批量夹具](formats/stage-source-ledger.md)：S1固定schema、S5去向／82分层、C22双TU／CMake编译身份与输入继承；不是App数据、第二份冷定义或玩法完成清单。
+- [历史关卡来源账格式](formats/stage-source-ledger.md)：规范化来源、caller 和批量夹具合同；不是运行时数据。
 - [原版参照身份](formats/original-reference.md)：20个原文件及字库摘要、DOSBox配置与运行资格分账、只读生成／校验和负例；不替代原版运行证据。
 - [文字映射](formats/font-text-mapping.md)：FDTXT token、Unicode 和缺字规则。
 - [字形映射表](formats/font-glyph-map.tsv)：完整映射数据。
@@ -55,6 +51,7 @@
 - [跨平台命令约定](tools/platforms.md)：Windows PowerShell／Linux Bash、构建输出、Python、环境变量和只读二进制检查。
 - [图形自动化测试](tools/gui-testing.md)：SDL 原生窗口、真实按键、截图、退出与隔离存档的验证流程。
 - [IDA Domain API／idalib](tools/ida.md)：环境、只读查询、授权发布流程与陷阱。
+- [Windows Release](tools/windows-release.md)：本地包、实际依赖清单与离线重建。
 - [DOSBox debugger](tools/dosbox-debug.md)：二进制取证、当次运行地址确认，以及独立工作副本中的原版自动操作约束。
 
 ## 生成产物
@@ -70,4 +67,4 @@
 
 ## 维护约定
 
-新文档按上述用途放置；实现进度只更新计划，原版布局放 `formats/`，调用／地址证据放 `reverse-engineering/`，SDL 边界放 `systems/`，命令放 `tools/`。操作命令注明 PowerShell／Bash；通用转换引用跨平台约定。历史 Linux 路径和机器码证据保留原记录，不因宿主迁移改写为 Windows 已验收。已被现行资料覆盖且含错误模型的早期叙述不再另存一份；需要追溯时查 Git 历史，正式证据与命名输入仍保留。
+当前接口和实现边界放在 `systems/`，原版数据布局放在 `formats/`，调用和地址依据放在 `reverse-engineering/`，操作命令放在 `tools/`。历史候选、命令和结果保持原身份，在 [Git 历史](history.md)中查阅，不改写为当前平台或构建已验证。

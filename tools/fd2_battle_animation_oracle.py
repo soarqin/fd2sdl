@@ -12,7 +12,7 @@ from fd2_item_list_oracle import START_SHA256, PLAIN_SHA256, item_table, use_eff
 from fd2_movement_oracle import movement_profile
 from fd2_loot_oracle import cell_contract, CELL_STATE
 from fd2_reward_oracle import derive_fixture as reward_fixture, expected_state, reward_tables
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_comparison import archive_entry
 from run_original_end_turn import META, STRIDE, UNITS
 from run_original_focus import native_focus_reference

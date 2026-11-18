@@ -22,7 +22,7 @@ import sys
 import time
 from types import SimpleNamespace
 
-from run_graphics_tests import check_roster_count, decode_save
+from fd2_save_checks import check_roster_count, decode_save
 from run_original_comparison import Capture, archive_entry, hashes, running, title_templates
 from run_original_battle_menu import match_indexed, wait_state, wait_title
 from run_original_end_turn import (META, STRIDE, UNITS, RoundOracle, browse_anywhere,

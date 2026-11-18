@@ -35,7 +35,7 @@ from run_original_magic_list import actor_focus_resources, detail_close_terrain
 from run_original_item_list import (focus_steps, inventory_detail, measure_inventory_save,
     post_use_navigation_resources, post_use_navigation_state, use_range_probe,
     paired_checkpoint_records, rgb_difference)
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 
 
 def actor_view(original, source, assets, raw):

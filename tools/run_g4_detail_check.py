@@ -28,7 +28,7 @@ from fd2_magic_list_oracle import prepare as magic_templates
 from fd2_opening_oracle import portraits
 from run_g2_battle_check import freeze, unchanged, sha
 from run_g4_runtime_check import encode
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_battle_animation import OwnedHelper, owned_job_required, wait_ready, series_index, latest_series_frame
 from run_original_battle_menu import wait_state, wait_title
 from run_original_comparison import Capture, archive_entry, normalize, running, title_templates

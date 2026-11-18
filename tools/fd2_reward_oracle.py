@@ -21,7 +21,7 @@ from run_original_battle_menu import match_indexed
 from run_original_item_list import drop_derived
 from run_original_player import exact_tile
 from run_original_end_turn import META, STRIDE, UNITS, decode_lmi
-from run_graphics_tests import decode_save
+from fd2_save_checks import decode_save
 from run_original_item_list import derive_active_fixture
 
 GROWTH_VA, GROWTH_SIZE = 0x620a1, 68 * 11

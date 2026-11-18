@@ -1,6 +1,6 @@
 # G1 通用战斗语义取证
 
-2026-11-10。对应[通用审计](../plans/common-logic-audit.md) C03—C12、C24；优先级与阶段完成门仍由[总计划](../plans/development.md#4-新优先级与依赖)维护。本文核实原版静态调用、数据与写集，为 G2／G3 提供实施依据，不开放新能力，不把静态取证计为 DOSBox 运行通过。准备服务完整调用、费用与取消见[准备服务取证](common-preparation-semantics.md)。
+2026-11-10。对应[通用审计](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md) C03—C12、C24；优先级与阶段完成门仍由[总计划](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/development.md#4-新优先级与依赖)维护。本文核实原版静态调用、数据与写集，为 G2／G3 提供实施依据，不开放新能力，不把静态取证计为 DOSBox 运行通过。准备服务完整调用、费用与取消见[准备服务取证](common-preparation-semantics.md)。
 
 ## 1. 来源、方法与可复核证据
 
@@ -250,7 +250,7 @@ G2 的恢复预检不能沿用 B2 的 `HP≤maxHP` 假设：派生负伤害以�
 
 `0x2ce1a` 的 BYTE frame跨全部目标及完整 `0x31266` 九tick过渡延续。首目标60tick从1到61，27次impact，HP分母20；过渡到70。第二目标仍执行命中／伤害核心与贡献，但60tick无impact，HP恢复成旧值后保持。更后目标 BYTE 回绕可再次产生impact。原核心结果与最终 HP 必须分开，不能补写。
 
-FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e712e` 的格式目录含31part，但该条数本身不能判原owner外读取。F4对完整原caller／allocator／decoder及实际资源只读复核：part31的目录读取仍在资源内，得到offset30、xy0／12546和WH43008／107；原首RUN1写点为work+8048320，已超过请求172800及实际allocator payload上界172811。具体证据与有限有效前缀见[F4报告](../plans/f4-presentation.md)。SDL保留此前合法绘制，首owner违例后的省绘仍是公开的宿主安全差异H，继续frame、cue、impact、核心与RNG，不称原像素相同。其它FX、有效part失败仍严格处理；初始像素、正常多目标及非side0 selector另验，不能由此概括全部FULL9域。
+FDOTHER44 SHA256 `455338136fa971c2b61ebc5548a03ecadb77847811db467654682daba14e712e` 的格式目录含31part，但该条数本身不能判原owner外读取。F4对完整原caller／allocator／decoder及实际资源只读复核：part31的目录读取仍在资源内，得到offset30、xy0／12546和WH43008／107；原首RUN1写点为work+8048320，已超过请求172800及实际allocator payload上界172811。具体证据与有限有效前缀见[F4报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f4-presentation.md)。SDL保留此前合法绘制，首owner违例后的省绘仍是公开的宿主安全差异H，继续frame、cue、impact、核心与RNG，不称原像素相同。其它FX、有效part失败仍严格处理；初始像素、正常多目标及非side0 selector另验，不能由此概括全部FULL9域。
 
 `tools/ida/verify_fd2_full9_wrapper.py` 执行未 patch 的原 `0x2ff01` 目标循环、完整 `0x31266`、`0x2ce1a`、`0x1c75e/0x1c81f` 与真实 `0x4ebe3`，只替换绘制、声音、等待和栈探测。17例（目标1／2／5／8×四seed，加双命中 seed9）与真实 `fd2_field_game_commit_ai_magic` 的 FINISH 全80B、每次 RNG 前全部目标HP／MP／贡献、核心结果和impact抖动全等，收据 `build/g2/full9-wrapper-comparison-final.json`。seed9第二目标核心HP4049且贡献非零，最终HP仍5000。另四例95目标只验证 C 容量，不扩大原wrapper局部数组有效域，也不将 stub 绘制称为原版像素／声音或 DOSBox 验收。
 
@@ -290,4 +290,4 @@ Linux 使用本地合法 strict 镜像及 `python3` 执行同参数；本轮未�
 
 ## 11. G5 统一签核索引（2026-11-11）
 
-本页各静态、局部原码和运行证据保留自身有效域；其后 G5 已完成本轮审查和当前 Windows 历史回归，最终 C03—C12／C15／C24 等门见[审计 §13](../plans/common-logic-audit.md)。§10 的正常库存闭包不扩大为任意外部 C0／洞存档；fresh 新建未写9B和 Loaded 本端完整保留仍分开，未确认全游戏读者不称无语义，也不默认转为 S。
+本页各静态、局部原码和运行证据保留自身有效域；其后 G5 已完成本轮审查和当前 Windows 历史回归，最终 C03—C12／C15／C24 等门见[审计 §13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/common-logic-audit.md)。§10 的正常库存闭包不扩大为任意外部 C0／洞存档；fresh 新建未写9B和 Loaded 本端完整保留仍分开，未确认全游戏读者不称无语义，也不默认转为 S。

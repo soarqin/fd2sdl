@@ -199,7 +199,7 @@ L1 则继续运行到由本轮 object base 和 LE header 算出的真实入口�
 Windows PowerShell（实际路径和全新输出目录）：
 
 ```powershell
-$Driver = './src/build-win/Debug/fd2_field_play_input_driver.exe'
+$Driver = './build/windows-test/Debug/fd2_field_play_input_driver.exe'
 $Dosbox = 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe'
 $Bootstrap = 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf'
 & $Driver run-job 240000 python -B tools/run_le_preentry_check.py --original E:/Projects/fd2sdl/original_game --dosbox $Dosbox --driver $Driver --bootstrap-config $Bootstrap --artifacts build/f1/loaded-image-new
@@ -238,7 +238,7 @@ terrain／critical 表和 RNG 初值等历史捕获身份见[地址映射](../re
 
 ```powershell
 $TaskRoot = (Get-Location).Path
-$Driver = Join-Path $TaskRoot 'src/build-win/Debug/fd2_field_play_input_driver.exe'
+$Driver = Join-Path $TaskRoot 'build/windows-test/Debug/fd2_field_play_input_driver.exe'
 & $Driver run-job 240000 python -B tools/run_le_preentry_check.py --original "$TaskRoot/original_game" --dosbox 'C:/Users/Soar/scoop/apps/dosbox-x/2026.10.01/dosbox-x.exe' --driver $Driver --bootstrap-config 'C:/Users/Soar/AppData/Local/DOSBox-X/dosbox-x-2026.10.01.conf' --artifacts build/f1/startup-NEW --startup-trace
 ```
 
@@ -265,4 +265,4 @@ python -B tools/verify_le_startup_writes.py --capture build/f1/startup-NEW/repor
 
 Domain以L0当刻GDT／真实selector取得两段六窗，只在独立产物内建立小型数据库，关闭不保存；原runtime代码／完整RAM／Domain原字节报告都留本地，不提交。分层expected由L0的62B源上下文、原变换／搬运和四条WORD写计算，保全部未写字节及fixup；不是把21个事后差异加入白名单。复跑不沿用旧selector、基址、绝对指针、trace行数或旧Domain收据。
 
-纯数据／拒绝回归为`python -B -m unittest discover -s tools/tests -p test_f1_l1_startup.py`；Linux Bash对应`python3 -B`，Windows junction适用项只在Windows执行。本轮Linux未运行、不声明Linux原生collector资格。当前实跑收据和旧失败分别见[F1报告](../plans/f1-reference-domain.md)，不以离线迁移旧收据代新工具原生资格。
+有源启动写账的纯数据负例、Windows junction 检查及旧失败保留在[F1 历史报告](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f1-reference-domain.md)。该历史测试不属于当前 CTest；不能用旧收据代替新候选的原生资格。

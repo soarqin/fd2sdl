@@ -1,62 +1,49 @@
-# Agent 开发规则
+# Agent Instructions
 
-本项目是基于原版 `FD2.EXE` 逆向的 SDL3 重写。用户构建和使用说明见 [README](README.md)；本文只记录开发纪律，不维护功能进度或工具操作副本。
+This project is a C11 / SDL3 rewrite of Flame Dragon 2: Legend of Golden Castle (炎龙骑士团 2：黄金城传说), based on the original `FD2.EXE`. The music backend uses C++14. [README.md](README.md) is for players and builders; this file is for agents.
 
-## 修改前按需阅读
+## Read before changing code
 
-| 任务 | 必读依据 |
+| Task | Required references |
 |---|---|
-| 开发顺序与支持范围 | [总计划](docs/plans/development.md)，相关战场／音频工作包 |
-| 战场、存档、输入 | [session 与动作提交](docs/systems/battle-session.md)、[输入设计](docs/systems/input.md)、[数据格式](docs/formats/data-formats.md) |
-| 函数、指令、xref 或数据逆向 | [地址映射](docs/reverse-engineering/address-mapping.md)、[IDA 操作](docs/tools/ida.md)、[规范命名表](docs/reverse-engineering/function-names.md) |
-| LE 镜像／fixup 或运行时转储 | [LE 验收要求](docs/reverse-engineering/le-validation.md)、[DOSBox 转储](docs/tools/dosbox-debug.md) |
-| 构建、测试、工具参数 | [工具速查](docs/tools/README.md)、[跨平台约定](docs/tools/platforms.md)、[图形自动化](docs/tools/gui-testing.md)；先查已验证命令，不为回忆语法反复调用 `--help` |
+| Battle, saves, or input | [Battle session](docs/systems/battle-session.md), [input contract](docs/systems/input.md), [data formats](docs/formats/data-formats.md) |
+| Functions, disassembly, xrefs, or data reverse engineering | [Address mapping](docs/reverse-engineering/address-mapping.md), [IDA workflow](docs/tools/ida.md), [canonical names](docs/reverse-engineering/function-names.md) |
+| LE images, fixups, or runtime dumps | [LE acceptance](docs/reverse-engineering/le-validation.md), [DOSBox debugger](docs/tools/dosbox-debug.md) |
+| Build, tests, or tool invocation | [Tool entry points](docs/tools/README.md), [platform conventions](docs/tools/platforms.md), [native graphics tests](docs/tools/gui-testing.md) |
+| Cold definitions or event graphs | [Cold-data workflow](docs/tools/static-data.md) |
 
-## 开发与验证
+Use documented commands first. Do not run `dosbox-debug --help`; it starts the GUI. Completed milestone plans are not active tasks; see the [historical evidence index](docs/history.md) for candidate identities and limits.
 
-- 以 C11、SDL3、CMake 为主，音乐后端含 C++14。沿用现有模块与接口；中文注释、英文标识符，每个源文件头说明逆向依据。
-- 同时维护 Windows 原生与 Linux 的构建／操作说明，分别使用 PowerShell 与 Bash 示例；构建目录不跨平台复用，多配置生成器的构建和 CTest 配置必须一致。历史路径和证据不改写为另一平台已通过。Windows/MSVC 持续迭代使用项目目录或经当前 FileTracker 验证未排除的普通独立目录；不得将 `TEMP` 或 `LOCALAPPDATA` 下的缓存目录视为增量安全。已有全新构建结果保留原身份，具体见跨平台约定。
-- 开发测试只要求当前执行平台的适用检查通过；其他平台保留兼容说明并如实标注未执行，不阻塞当前平台验收。不能因此略过当前平台必需的逻辑、输入、图形或原版对照检查。
-- 以 B3、B4 等同级编号为最小交付与提交单元；阶段内部可以安排实现步骤，但不得逐步骤提交、停下汇报或把局部完成当作整阶段完成。已有历史提交保留，不重写。
-- 阶段内只验证本阶段新增、修改及共享代码直接受影响的路径，包含对应原版实机自动对照；不因微小改动或新二进制而反复执行全部历史实机流程。大阶段完成后统一审查、全面复测历史功能、修复并精简，再验证和提交。具体里程碑见总计划。
-- 原版数据布局和未知字节必须保留；格式结论附反编译函数、数据或实机证据。不得用 stage 0 捕获值充当通用默认值，不猜测未确认的玩法。
-- 逻辑与呈现分离，遵守 session 的状态／资源 owner、RNG 和提交边界。修复或新增非平凡逻辑时补回归，覆盖错误／取消和无副作用路径。
-- 报告分别列出 SDL 自动测试、局部机器码对照和原版运行验收的范围；原版允许自动取证和比较，但缺少对应运行证据时仍标为「待原版对照」，不得用 SDL 自测代替。
-- SDL 重写程序的原生窗口、真实输入、截图和退出流程允许自动验证，写入使用隔离副本；Windows 交互桌面与 Linux X11／Xvfb 的结果分别登记。不得因图形测试未注册、依赖缺失或被跳过而宣称完整通过。
-- 当前 Windows 截图统一使用 Windows Graphics Capture 的 HWND 单窗口接口，SDL 与 DOSBox 均遵循此规范；禁止读取全屏／桌面 DC 后裁切，失败不得改用其他捕获方式冒充通过。尺寸、内容和检查点必须校验，具体见[图形测试规范](docs/tools/gui-testing.md)。
-- Windows 连续帧验收须确认活动桌面、console／session 显示 ON 及实际 WGC 可用。2026-11-09 用户授权：需要保持显示点亮时可主动唤醒、申请临时显示需求，必要时临时修改电源计划／相关超时；不得仅因 OFF 要求用户手动点亮。修改前记录原活动计划及实际改动项，采用最小必要改动，成功／失败／取消均在 owned 清理及来源核验后恢复设置，并由原线程释放显示需求、记录恢复结果；异常中断后先核实和恢复遗留设置。不周期轮询／循环唤醒，不改无关系统设置或用户混音器；唤醒请求成功不代表桌面或采集可用。实际 API、竞态与恢复规范见图形测试规范。
-- Windows 自动输入绑定本轮拥有的 PID／HWND，使用经原版与 SDL 失焦实测验证的后台投递；不抢前台、不点击标题栏激活，也不以全局 `SendInput` 回退。用户聊天或通过 Input Director 切换电脑不得成为测试依赖；输入投递与业务响应分别留证。
-- 图形测试串行启动；成功、失败和超时都必须清理自身窗口及子进程，先正常关闭并等待，必要时再强制终止。只按本轮所有的 PID 清理，禁止按进程名批量关闭用户窗口。
+## Implementation and verification
 
-## 逆向纪律
+- Follow existing interfaces. Use English identifiers and Chinese comments in game source; put the reverse-engineering basis in each source file header. For example: `/* ANI/AFM：复现 animation_play @0x20421（原登记 FUN_0001db69）。 */`
+- Keep logic separate from presentation. Preserve the existing state/resource owners, RNG order and commit boundaries. Retain unknown original bytes. Cite decompilation, original data or observed behavior for format conclusions. Do not turn a stage 0 capture into a general default or guess game rules.
+- Add a focused regression for nontrivial changes, including failure, cancellation and no-side-effect paths where relevant. Prefer tests of the shipping path over milestone-only aliases or instrumented replicas.
+- For phased work, treat a full numbered phase as the delivery unit, not separate internal steps. Test the changed paths and directly affected shared behavior, including original-game comparisons where applicable. Run the complete retained regression at milestone closeout rather than after every intermediate binary. Do not rewrite history or claim an intermediate result as phase completion.
+- Verify applicable checks on the current platform. Keep PowerShell and Bash commands usable; use separate build trees and match the build and CTest configuration with multi-config generators. For MSVC incremental builds, use the repo or a normal path validated against the current FileTracker. `TEMP` and `LOCALAPPDATA` are not safe incremental build roots. Preserve historical results under their actual candidate and platform.
+- Report SDL automated tests, local machine-code comparisons and DOSBox/original runtime verification separately. If there is no corresponding runtime evidence, mark the affected original comparison as pending. Missing dependencies, skipped tests and unregistered graphical tests do not count as passing.
 
-- 当前权威伪 C 为 [`docs/generated/ida-canonical/fd2-ida-decomp-all.c`](docs/generated/ida-canonical/fd2-ida-decomp-all.c)。旧 Ghidra 伪 C 不作开发参考；伪 C 本身也不等于原始源码或已确认 ABI。
-- 必须先读取并使用 `ida-domain-api` skill；编写／执行脚本同时使用 `ida-domain-scripting` skill。优先 Domain API，通过 `idalib` 无界面执行；API 缺能力时才局部使用低层 IDAPython，并说明原因。
-- 优先复用已有数据库；当前项目开发所需的建库、标注、保存、导出及更新数据库可通过 IDA Domain API／idalib 自主执行，不再逐次请求授权。使用隔离工作目录保留来源及前后证据，不保存 Hex-Rays 猜测类型；禁止使用 GUI `ida` 或 `idat` 自动化，不修改应用全局权限配置。
-- `llvm-objdump`、`objdump`、r2 和 Ghidra 仅在 IDA 能力不足或确需独立验证时按需使用并说明原因，不作为日常前置。任何地址操作先确认 file offset、code0、canonical VA 与 runtime 视图。
-- 函数以 **canonical relbase VA** 为主键，object1 的 `OFF = VA - 0x10000`；不再用旧 dual／Ghidra 窗口地址。FLIRT runtime 符号优先于手工猜名。
-- 每确认一个函数语义，必须同时更新实现注释和命名输入：注释保留规范 VA、语义名与原登记名；在 `function-names-legacy.md` 追加登记，或修正 `tools/ida/build_fd2_name_registry.py` 的 `CORRECTIONS`，再按 IDA 流程生成命名表与伪 C。**不得手改生成文件。**
-- 确认语义须有反编译逻辑与 xref、数据格式或原版对照证据；禁止仅按大小、调用次数或地址邻近命名。Watcom 的 10 字节 `push imm32; call watcom_stack_check` 是函数序言，旧 `*_entry/core/runtime` 拆分不是独立函数；`0x3702f` 不得改名为 `__chkstk`／`alloca` 或写入猜测原型。
+## Original game and native testing
 
-源码注释示例：
+- Treat `original_game/` and existing saves, captures and dumps as read-only. Test writes go to isolated copies. Check resolved paths, not just lexical names, when rejecting artifact output within the original-game tree.
+- DOSBox is allowed to automate menus, stages, deployment, attacks, spells, items and scenes in an isolated copy. Establish scenario prerequisites and success criteria from evidence before running. Retain screenshots, saves, input logs and any necessary traces. A process that simply ran or exited is not behavioral, visual or audio evidence.
+- Start graphical cases serially. Bind input and cleanup to this run's owned PID(s) and window(s). Request normal close and wait before forced termination. Clean up on success, failure and timeout; never close windows by a global process-name match.
+- On Windows, use Windows Graphics Capture for the target HWND, for both SDL and DOSBox. Verify dimensions, content and each required checkpoint. No screen/DC capture and crop, and no alternate capture method if WGC fails. Use the verified background PID/HWND message route; do not activate the window or fall back to global `SendInput`. Log actual game response separately from successful message delivery.
+- For Windows continuous capture, verify the active desktop, console/session display ON and usable WGC. The user authorized a recorded wake attempt and a temporary display requirement on 2026-11-09; make only the minimum necessary temporary power-plan or timeout changes, recording originals and changed values. After owned cleanup and evidence checks, restore settings and release the display requirement on the same thread even on failure or cancellation. On interruption, check for leftover changes before another run. Do not repeatedly poll/wake or alter the user's mixer. A wake request is not proof of usable desktop capture. Follow the [graphics protocol](docs/tools/gui-testing.md).
 
-```c
-/* ANI/AFM：复现 animation_play @0x20421（原登记 FUN_0001db69）。 */
-```
+## Reverse-engineering rules
 
-## 镜像、DOSBox 与外部依据
+- Read and use the `ida-domain-api` skill before IDA work, and also `ida-domain-scripting` when writing or running scripts. Prefer Domain API through headless `idalib`. Use low-level IDAPython narrowly when Domain API lacks the operation, and record why. Do not automate GUI `ida` or `idat`, or change application-wide privilege settings.
+- Reuse existing databases when possible. Database creation, annotation, save and export needed for project work are authorized through Domain API / `idalib`. Keep isolated work directories and before/after evidence. Never persist speculative Hex-Rays types. Use `llvm-objdump`, `objdump`, r2 or Ghidra only where IDA is insufficient or an independent check is needed; record why.
+- The authoritative pseudocode is [`fd2-ida-decomp-all.c`](docs/generated/ida-canonical/fd2-ida-decomp-all.c). It is not original source or a confirmed ABI. Old Ghidra pseudocode is not a development reference. Resolve file offset, code0, canonical VA and runtime view before acting on an address. The key is canonical relbase VA; for object 1, `OFF = VA - 0x10000`. Prefer FLIRT runtime names to guesses.
+- Confirm function semantics from logic and xrefs, data format or original runtime evidence, not size, call count or proximity. Update the implementation comment with canonical VA, new semantic name and original registered name. Add an entry to `function-names-legacy.md` or correct `CORRECTIONS` in `tools/ida/build_fd2_name_registry.py`, then regenerate the name table and pseudocode via IDA. Never hand-edit generated files.
+- The Watcom 10-byte `push imm32; call watcom_stack_check` is a prologue. The old `*_entry/core/runtime` fragments are not separate functions. Do not rename `0x3702f` to `__chkstk` / `alloca` or assign it a speculative prototype.
+- Keep raw-unrelocated and loader-relocated images separate. Patch only validated relocation sources in a separate output and with a manifest; all strict LE checks must pass before promoting evidence. IDA static fixup cross-check is already complete. Strict runtime BSS and actual game behavior have separate acceptance records. Reacquire selectors, object bases and relocation deltas on every DOSBox debug run.
+- For external specs use `ketch` first, then Pi Web Search if the first fails. If neither is available, use independently reproducible local tools or sources and report the limitation. A failed search is not a format conclusion or a substitute for original evidence.
 
-- raw-unrelocated 与 loader-relocated 镜像分开保存；禁止无 manifest 的 patch，合法 relocation 也只能写独立输出中经验证的 source。修改流程须满足 [LE 严格验收](docs/reverse-engineering/le-validation.md)的全部条件；任一差异或缺失步骤均报告未通过，不得声称完全正确或提升为权威基线。
-- IDA 静态 fixup 复核已经通过，不因普通功能开发重新开启该类疑虑；严格运行时 BSS 验收与游戏行为验收仍分别登记。
-- `dosbox-debug` 用于已加载可执行对象／运行时二进制证据转储，**禁止运行 `dosbox-debug --help`**，它会启动界面。每次重新取得 selector、object base 和 relocation delta，不复用历史绝对地址。
-- 允许在独立工作副本中自动操作 DOSBox 菜单、关卡、布阵、攻击、法术、物品和剧情。先依据逆向结果确认步骤、场景前置状态和通过判据，再执行自动化；保留原版截图、存档、输入记录和必要 trace，并与 SDL 对应场景比较。无人值守运行或单纯未崩溃不等于行为、视觉或声音对照通过；缺证据时报告未覆盖项。
-- 外部规范优先 `ketch`；失败后必须改用可用的 Pi Web Search；会话未提供时才转可独立复核的本地工具／源码并记录限制。搜索失败不是格式结论，外部资料不替代原版与完整验证。
+## Data, artifacts and Git
 
-## 文件与提交
-
-- 已迁移冷表与事件图以 `data/static/` 为唯一编辑输入，经构建期生成；不得修改 `.inc` 或把冷定义写回业务模块。事件条件、分支、等待、取消和顺序同属冷数据，不能用整段 native handler 隐藏编排。代码只提供有限领域操作和原 owner／提交边界；库存、完成位、选择、执行游标仍归现有热状态，不写入新平行状态系统。新增定义须补来源、消费契约及已解码引用校验；独立原字节对照与生成器自检分开，见[冷定义工具](docs/tools/static-data.md)。新增已知事件组合应优先改定义／绑定，不新增逐关 C 分支；未解码项明确失败，不因结构提取成功自动开放玩法。
-
-- `original_game/` 中的游戏、截图、存档和 dump 是本地只读证据，不修改、不提交。写入验证使用独立副本。
-- 不提交构建输出、`src/fd2sdl`／`src/fd2sdl.exe`／`src/Debug/`／`src/Release/`、图形测试截图与报告、`tools/*.bin`、`tools/ida-out/`、IDA 数据库、大型中间导出，以及 `.omo/`、`.pi-subagents/`、`.codegraph/`。可再生产物提交脚本，不提交镜像。
-- 发布的 IDA 证据由生成器写入 `docs/generated/ida-canonical/`；所有产物写完后最后刷新并校验 `SHA256SUMS`。刷新清单不等于重新验证语义。
-- 不分发原版资源；保留第三方版权和许可文件。未经明确要求，不自动暂存、提交或推送。
+- Edit cold tables and event graphs only in `data/static/`. The build generates `.inc` files. Leave conditions, branches, waits, cancellation and ordering in the graph; use C for bounded domain operations at the existing owner/commit boundary. Inventory, flags, selection and execution cursors stay with existing runtime owners. Add source and consumer contracts and validate decoded references. Independently compare original bytes; generator self-checks do not establish provenance. Prefer definitions/bindings for new combinations and reject undecoded cases.
+- Keep proprietary original resources out of releases and Git. Preserve third-party notices and license files. Do not commit build output, test captures/reports, local LE images, `tools/ida-out/`, IDA databases, large intermediate exports or agent/cache directories. Commit reproducible generators instead of generated images.
+- Publish IDA evidence under `docs/generated/ida-canonical/` via the documented generators. Update and verify `SHA256SUMS` after all output has been written. A new checksum is not a new semantic verification.
+- Do not stage, commit, push or publish unless explicitly requested.

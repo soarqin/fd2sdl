@@ -31,7 +31,7 @@ SD1 起 App 构建还需要 Python 3.9+ 标准库；`data/static/` 中的 JSON �
 1. 在构建前用 `record_windows_release.py snapshot` 冻结 App 源码清单，再完成独立的 Windows x64 **Release** 构建。源码变化时先保留旧记录，再按新候选重新构建与记录，不把 Debug 库或旧程序冒作该候选。
 2. 从该次实际链接的 SDL 构建安装开发 SDK 到独立目录。使用同一配置的 `cmake --install ... --config Release --prefix ...`，不是复制仍引用构建机绝对路径的 build-tree CMake config。SDK 安装由构建流程负责，打包器不构建或安装 SDL。
 3. 用实际 CMake target JSON 和 `inspect_windows_release.cmake` 的 `file(GET_RUNTIME_DEPENDENCIES)` 结果生成输入 JSON，并绑定当前 EXE 的路径与 SHA256。保留直接 import 名；只有实际 System32 文件、明确支持且有 ucrtbase.dll 依据的 UCRT API 合约及已识别的 VC++ 运行库才列为平台前置，未知／未解决项不得忽略。不得手填「一定静态」或假定需要 `SDL3.dll`。
-4. `record_windows_release.py inputs` 复核构建前源码、实际 SDK／target、依赖报告，再写完整输入清单。源码范围是 `src/` 顶层运行源码／CMake、`src/third_party/`、可选 `src/cmake/`、根 README／LICENSE／通知；重建使用 `-DBUILD_TESTING=OFF`，不需要原游戏资源。冻结后任一源文件或 SDK 文件改动都使记录／打包失败，须先重新确认构建来源。
+4. `record_windows_release.py inputs` 复核构建前源码、实际 SDK／target、依赖报告，再写完整输入清单。源码范围是 根 `CMakeLists.txt`、`CMake/` 中构建 App 的模块、`src/` 运行源码、`src/third_party/`、冷定义及生成器、根 README／LICENSE／通知；重建使用 `-DBUILD_TESTING=OFF`，不需要原游戏资源。冻结后任一源文件或 SDK 文件改动都使记录／打包失败，须先重新确认构建来源。
 
 输入 schema 为 `fd2-windows-release-inputs-v1`：
 
@@ -55,7 +55,7 @@ SD1 起 App 构建还需要 Python 3.9+ 标准库；`data/static/` 中的 JSON �
 
 以下从项目根目录的 Visual Studio x64 Developer PowerShell 执行，需要 CMake 3.24+、Python 3.9+ 和 `dumpbin.exe`。先安装本次实际使用的 Release SDL 开发 SDK，记录源码实际 Git commit／tag 及安装库摘要。SDK 必须由对应源码／构建的 `cmake --install ... --config Release --prefix ...` 生成，不能用现成 Debug 库替代。将下面 SDL 源码／构建路径换成实际值，保留其构建、安装命令和摘要。
 
-2026-11-09 的 SD3 离线重建核实：本地 SDL 源码缓存目录名为 `2813f2630904ea29806fcfaeeb3287ed555e42e2`，实际 Git HEAD 为 `5ac37a8ffcf89da390404c1016833d56e2d67ae4`，对应 tag `release-3.2.12`。前者只是缓存目录名，不能作为 Git 来源身份。本次核查不倒推确认旧 R1 当时未查证的 Git HEAD；旧 R1 的实际 SDK／库摘要、包和验收范围继续以原收据为准，不改写历史身份。本次仅完成当前源码的本地离线重建，未生成新发布包或完成其原生运行验收，详见[阶段记录](../plans/stage-log.md)。
+2026-11-09 的 SD3 离线重建核实：本地 SDL 源码缓存目录名为 `2813f2630904ea29806fcfaeeb3287ed555e42e2`，实际 Git HEAD 为 `5ac37a8ffcf89da390404c1016833d56e2d67ae4`，对应 tag `release-3.2.12`。前者只是缓存目录名，不能作为 Git 来源身份。本次核查不倒推确认旧 R1 当时未查证的 Git HEAD；旧 R1 的实际 SDK／库摘要、包和验收范围继续以原收据为准，不改写历史身份。本次仅完成当前源码的本地离线重建，未生成新发布包或完成其原生运行验收，详见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。
 
 `build/release-facts-c1` 与包输出必须为新目录。所有输出父目录须存在，且不能位于实际原资源目录（包括 junction 别名）或 SDK 内。任一步失败都停止，不继续使用旧 JSON。PowerShell：
 
@@ -75,7 +75,7 @@ New-Item -ItemType Directory -Path $facts | Out-Null
 
 python tools/record_windows_release.py snapshot --source-root "$source" --output "$facts/source-before.json"
 if ($LASTEXITCODE) { throw '源码快照失败' }
-cmake -S src -B "$build" -G 'Visual Studio 18 2026' -A x64 -DBUILD_TESTING=OFF -DFD2SDL_USE_SYSTEM_SDL3=ON "-DSDL3_DIR=$($sdlConfig[0].DirectoryName)"
+cmake -S . -B "$build" -G 'Visual Studio 18 2026' -A x64 -DBUILD_TESTING=OFF -DFD2SDL_USE_SYSTEM_SDL3=ON "-DSDL3_DIR=$($sdlConfig[0].DirectoryName)"
 if ($LASTEXITCODE) { throw 'Release 配置失败' }
 cmake --build "$build" --config Release --target fd2sdl --parallel 4 -- /nodeReuse:false
 if ($LASTEXITCODE) { throw 'Release 构建失败' }
@@ -109,6 +109,6 @@ Python 工具可在其它平台检查合成输入，但这不是 Linux／macOS �
 - 在另一个独立目录解开／复制本地包，在禁止外部下载的条件下运行 `rebuild.ps1`。确认使用随包 SDK 和 `BUILD_TESTING=OFF`，新程序输出到 `rebuild/Release/fd2sdl.exe`。保留实际命令、退出码、源码／SDK／输出 SHA256。
 - 确认可修改并替换随包 Nuked 源码后再次构建／重链接。不得添加限制调试修改库的条款；完整源码与许可持续随包提供。
 - 缺少用户自有资源、非法资源位置、无音频等正式入口，按 R1 的实际原生路径单独验收；这些输入不由本工具伪造。未执行的平台、物理设备和完整音画范围继续如实登记。
-- 本轮五项永久音频入口与正式 startup／Release 运行按实际候选定向验证，命令见[工具速查](README.md#a7-事件voice与配置回归)。B0—B7 已有历史统一回归，核心玩法未在 R1 改写，不为打包重新执行全部旧 GUI；新增路径仍须有本轮实际证据。
+- 对修改过的启动、安装和运行路径补定向验证，不用历史 GUI 结果代替当次执行。
 
-2026-11-07 已按本流程生成241项载荷文件及包清单，在独立副本完成 App 源码／SDK重建和仅修改 Nuked 后的重新链接；还完成五项音频双端场景及包内程序的正式 CONTINUE／无音频窗口操作。实际候选、退出码、审查修复和未覆盖范围见[阶段记录](../plans/stage-log.md#r1windows-本地交付许可与常规音频回归)。打包器自身仍只报告复制完成，外部验证收据不会改写包内的 `offline_rebuild_verified_by_packager=false`。本地 ZIP 不含原版资源，未上传或对外发布。
+2026-11-07 已按本流程生成241项载荷文件及包清单，在独立副本完成 App 源码／SDK重建和仅修改 Nuked 后的重新链接；还完成五项音频双端场景及包内程序的正式 CONTINUE／无音频窗口操作。实际候选、退出码、审查修复和未覆盖范围见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md#r1windows-本地交付许可与常规音频回归)。打包器自身仍只报告复制完成，外部验证收据不会改写包内的 `offline_rebuild_verified_by_packager=false`。本地 ZIP 不含原版资源，未上传或对外发布。

@@ -10,7 +10,7 @@
 2. 需要具体按键的 UI 调用 BIOS `INT 16h, AH=0x10`，取得并消费一项扫描码和 ASCII 值。
 3. 对话逐字阶段只调用 `input_check`；页面等待 helper 才执行实际读取。
 
-G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2_vga.input` 唯一 owner 保存为有序有限队列，不进入 Game、SAV 或独立事件系统。同 owner 的FIFO、peek／读一／clear、正式caller和早键路径已有直接与定向原生证据；G5统一历史回归及原范围签核已完成，不扩为全键值／typematic／全轨迹证明，新目标见[对齐矩阵A10—A13](../plans/full-alignment-audit.md#4-差异与证据矩阵)。旧策略由 `0516c01` 引入，没有可追溯的用户豁免原话；跨帧丢键会影响后续等待与 blink RNG，不能归为显示精度。
+G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2_vga.input` 唯一 owner 保存为有序有限队列，不进入 Game、SAV 或独立事件系统。同 owner 的FIFO、peek／读一／clear、正式caller和早键路径已有直接与定向原生证据；G5统一历史回归及原范围签核已完成，不扩为全键值／typematic／全轨迹证明，新目标见[对齐矩阵A10—A13](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/full-alignment-audit.md#4-差异与证据矩阵)。旧策略由 `0516c01` 引入，没有可追溯的用户豁免原话；跨帧丢键会影响后续等待与 blink RNG，不能归为显示精度。
 
 - 现有宿主 poll 按 SDL 事件到达顺序收首按，keyup 不删除已接受项；两次 present 之间完整 DOWN／UP 也保留。
 - F2候选按固定DOSBox-X `b6abbd5` 默认 `500 ms`／`33 ms` 推进唯一last-key repeat，忽略SDL自带repeat。modifier／锁键的make也能夺取owner；松开最后一键不恢复此前held的重复。到期项按时间顺序补入，受15项FIFO上限约束，满队丢新。
@@ -18,7 +18,7 @@ G5 已按原版业务边界修订旧逐帧丢弃策略：普通键由现有 `fd2
 - 原 `bios_keyboard_buffer_clear @0x4e381` 调用点显式清队，保物理 held、repeat deadline 与宿主 quit；不能将所有旧 `drain` 一律升级为全清。
 - delay 泵送同一个 owner 的宿主事件；has／take 不 pump。明确 clear 只泵一次后清截至该点已收到项，不声称与硬件中断原子同步。
 
-原有 `500 ms`／`92 ms` 近似已在F2候选替换。`500 ms`／`33 ms` 来自固定DOSBox-X的keyboard reset／AL00设置，属于参照设备配置，不是FD2游戏常量；整数1ms键盘服务与BIOS PIT时钟分开。长按投递时长、目标实际生成项及UI最终状态分别记证，不能由其中一个推出另两个。候选及动态未验边界见[F2证据](../plans/f2-time-input-rng.md)。
+原有 `500 ms`／`92 ms` 近似已在F2候选替换。`500 ms`／`33 ms` 来自固定DOSBox-X的keyboard reset／AL00设置，属于参照设备配置，不是FD2游戏常量；整数1ms键盘服务与BIOS PIT时钟分开。长按投递时长、目标实际生成项及UI最终状态分别记证，不能由其中一个推出另两个。候选及动态未验边界见[F2证据](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/f2-time-input-rng.md)。
 
 PrintScreen的make和break均取消当时的last-key重复，包括已经由另一键接管的情形；已入FIFO的普通键仍保留。固定参照在无物理Alt／Ctrl／Shift时还分别发送fake LShift make／break，按每次当时的物理修饰位选择，不强制配对清理。候选沿现 `previous_down` 区分物理位与BIOS flags，不新建第二owner。上游同commit的内置US437子表及hook已静态核无scan2a映射，aa超出映射范围；这不代签运行中实际布局、foreign／外部布局或硬件全状态。来源与回归见F2报告。
 

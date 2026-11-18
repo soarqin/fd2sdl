@@ -22,7 +22,7 @@ import time
 
 from PIL import Image
 
-from run_graphics_tests import check_roster_count, decode_save
+from fd2_save_checks import check_roster_count, decode_save
 from run_original_comparison import Capture, archive_entry, decode_image, hashes, running, title_templates
 from run_original_battle_menu import (MENU_OFFSETS, Oracle, match_indexed,
                                       resource_templates,

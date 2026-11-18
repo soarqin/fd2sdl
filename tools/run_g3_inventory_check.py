@@ -20,8 +20,8 @@ from fd2_item_list_oracle import inventory_templates
 from fd2_display_requirement import windows_display_requirement
 import run_g3_prepare_check as base
 from run_g2_battle_check import freeze,unchanged,sha,fingerprint
-from run_graphics_tests import decode_save
-from run_original_battle_animation import owned_job_required
+from fd2_save_checks import decode_save
+from fd2_windows_job import owned_job_required
 from run_original_comparison import Capture,running
 from run_original_item_list import inventory_detail
 

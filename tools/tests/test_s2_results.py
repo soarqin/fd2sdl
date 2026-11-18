@@ -102,13 +102,24 @@ class ResultSourceTests(unittest.TestCase):
         for va in source.TARGETS:
             domain, identity = source.source_flow(va)
             self.assertEqual(sum(f["id"] == identity for f in docs[domain]["flows"]), 1)
+        pure_stages = set(range(2, 28)) - {12, 16, 19}
+        effect_stages = {12, 16, 19, 28, 29}
         for stage in range(2, 30):
             self.assertFalse(any(f["id"] == f"stage.result.{stage:03d}" for f in docs["stage"]["flows"]))
-            domain,identity=source.source_flow(source.SLOTS[stage])
-            pure=docs['stage'].get('bindings',{}).get(f'stage.result.{stage:03d}')
-            effect=docs['common_event'].get('bindings',{}).get(f'stage.{stage:03d}.result')
-            if pure is not None:self.assertTrue(2<=stage<=20 and domain=='stage' and pure==identity)
-            if effect is not None:self.assertTrue(2<=stage<=19 and domain=='common_event' and effect==identity)
+            domain, identity = source.source_flow(source.SLOTS[stage])
+            pure = docs["stage"]["bindings"].get(f"stage.result.{stage:03d}")
+            effect = docs["common_event"]["bindings"].get(f"stage.{stage:03d}.result")
+            with self.subTest(stage=stage):
+                if stage in pure_stages:
+                    self.assertEqual(domain, "stage")
+                    self.assertEqual(pure, identity)
+                    self.assertIsNone(effect)
+                elif stage in effect_stages:
+                    self.assertEqual(domain, "common_event")
+                    self.assertEqual(effect, identity)
+                    self.assertIsNone(pure)
+                else:
+                    self.fail("stage has no expected shipping domain")
         for name in docs:
             for flow in docs[name]["flows"]:
                 if ".result.source_" not in flow["id"]: continue

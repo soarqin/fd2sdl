@@ -351,10 +351,13 @@ static int test_full_roster_deployment_projection(void) {
         }
         fd2_field_placements_close(&placements);fd2_field_metadata_close(&metadata);fd2_field_map_close(&map);
     }
-    /* 准备就绪不生成未知entry/capability，也不打开stage27整关。 */
+    /* 已发布的27关保留准备能力；未知入口仍须拒绝并清理。 */
     state.stage_id=27;fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
     CHECK(fd2_field_game_validate_manual_state(&state)==0);
-    CHECK(!fd2_field_stage_is_supported(27) && !fd2_field_stage_battle_is_supported(27));
+    CHECK(fd2_field_stage_is_supported(27) && fd2_field_stage_battle_is_supported(27));
+    state.stage_id=255;
+    CHECK(!fd2_field_stage_is_supported(state.stage_id) &&
+          !fd2_field_stage_battle_is_supported(state.stage_id));
     CHECK(fd2_field_game_prepare_stage(game,&other,&state)==-1 && !game->ready && !game->map.cells);
     free(game);fd2_archive_close(&other);fd2_archive_close(&fields);return 0;
 }

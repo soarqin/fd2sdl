@@ -123,9 +123,11 @@ class ReadySeriesTest(unittest.TestCase):
     def test_helper_ending_after_a_match_still_refuses_ack(self):
         with tempfile.TemporaryDirectory() as folder:
             capture,collector,record,rows,predicate,keys=self.fixture(folder)
-            statuses=iter((None,0));collector.helpers[0].process.poll=lambda:next(statuses)
+            # 模拟检查点已发布后退出，保持帧处理过程中任意次数的活性检查。
+            collector.helpers[0].process.poll=lambda:0 if record['checkpoints'] else None
             with self.assertRaisesRegex(RuntimeError,'提前退出'):
                 runner.wait_ready_series(capture,runner.ready_wait_scope(collector),'promotion-no-candidates-real-wait',predicate,record['checkpoints'],timeout=1)
+            self.assertEqual(len(record['checkpoints']),1)
             self.assertEqual(keys,[]);self.assertIn('first_failure',record)
 
     def test_final_closed_series_cannot_lose_or_change_successful_witness(self):

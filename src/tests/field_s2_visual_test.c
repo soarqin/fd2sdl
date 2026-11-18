@@ -17,6 +17,7 @@ static unsigned ms_mode,ms_now,ms_requests[16],ms_request_count;
 static unsigned poll_sleeps,timed_presents;
 static fd2_vga *waiting_vga;
 static uint64_t ns_clocks[16];
+static uint64_t previous_script_tick;
 static unsigned exact_ns_mode;
 static uint32_t count_rng(void *userdata) { (*(unsigned *)userdata)++;return 7; }
 static uint64_t test_ticks(void) {
@@ -72,6 +73,7 @@ static void reset_clock(uint16_t start,const uint16_t *polls,unsigned count,uint
     memset(clocks,0,sizeof(clocks));clocks[0]=start;
     memcpy(clocks+1,polls,count*sizeof(*polls));clocks[count+1]=tail;
     clock_count=count+2;clock_at=frames=uploads=quit_frame=exhausted=poll_sleeps=exact_ns_mode=0;
+    previous_script_tick=0;
     fd2_bios_clock_reset(0,0); /* 测试只改自身clock；生产common不重置App时钟。 */
 }
 
@@ -318,5 +320,9 @@ uint64_t test_ticks_ns(void) {
         if(clock_at>=clock_count){exhausted=1;return ns_clocks[clock_count?clock_count-1:0];}
         return ns_clocks[clock_at++];
     }
-    return fd2_bios_tick_start_ns(test_ticks()/55u);
+    /* 用单调宿主时间重现脚本的低 WORD 回绕。 */
+    uint64_t tick=(previous_script_tick & ~UINT64_C(0xffff)) + test_ticks()/55u;
+    if(tick<previous_script_tick)tick+=UINT64_C(0x10000);
+    previous_script_tick=tick;
+    return fd2_bios_tick_start_ns(tick);
 }

@@ -8,6 +8,8 @@ enum { FD2_BIOS_PIT_RATE = 1193182 };
 extern "C" {
 #endif
 uint64_t fd2_bios_ticks_from_ns(uint64_t elapsed_ns);
+/* 给定游戏 tick 的首个整数纳秒，超出范围返回 UINT64_MAX。 */
+uint64_t fd2_bios_tick_start_ns(uint64_t tick);
 /* 正式init只建立一次epoch；START/Load/换曲不重置。
  * reset只供新离线scope/确定性测试显式输入，不另建wall clock。 */
 int fd2_bios_clock_init(void);

@@ -44,7 +44,7 @@ uint64_t fd2_bios_ticks_from_ns(uint64_t ns) {
         (ns%UINT64_C(1000000000))*PIT_RATE;
     return cycles/PIT_DIVISOR+fraction/(UINT64_C(1000000000)*PIT_DIVISOR);
 }
-static uint64_t fd2_bios_tick_start_ns(uint64_t tick) {
+uint64_t fd2_bios_tick_start_ns(uint64_t tick) {
     if(tick>UINT64_MAX/PIT_DIVISOR)return UINT64_MAX;
     uint64_t cycles=tick*PIT_DIVISOR,seconds=cycles/PIT_RATE;
     uint64_t fraction=((cycles%PIT_RATE)*UINT64_C(1000000000)+PIT_RATE-1u)/PIT_RATE;

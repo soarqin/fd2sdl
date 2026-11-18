@@ -21,6 +21,7 @@ from fd2_battle_animation_frames import figani_parts
 class LateNative(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        (ROOT/'build/s5').mkdir(parents=True,exist_ok=True)
         cls.p26=runner.prepare(ROOT,fixture.SCENARIOS[0]);cls.p29=runner.prepare(ROOT,fixture.SCENARIOS[1])
         cls.original=decode_save(ROOT/'original_game/FD2.SAV')
 

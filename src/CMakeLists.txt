@@ -850,15 +850,16 @@ if(BUILD_TESTING)
     target_include_directories(fd2_field_page_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     add_test(NAME field_page COMMAND fd2_field_page_test)
 
-    add_executable(fd2_field_render_scope_test tests/field_render_scope_test.c field_page.c)
+    add_executable(fd2_field_render_scope_test tests/field_render_scope_test.c
+        field_page.c vga.c input.c)
     target_include_directories(fd2_field_render_scope_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(fd2_field_render_scope_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    target_link_libraries(fd2_field_render_scope_test PRIVATE fd2_clock)
     add_test(NAME field_render_scope COMMAND fd2_field_render_scope_test)
 
     add_executable(fd2_field_background_test tests/field_background_test.c
-        field_background.c field_page.c archive.c image.c  )
+        field_background.c field_page.c archive.c image.c vga.c input.c)
     target_include_directories(fd2_field_background_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(fd2_field_background_test PRIVATE ${FD2SDL_SDL3_TARGET})
+    target_link_libraries(fd2_field_background_test PRIVATE fd2_clock)
     add_test(NAME field_background COMMAND fd2_field_background_test)
     set_tests_properties(field_background PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
@@ -901,6 +902,7 @@ if(BUILD_TESTING)
         tile.c
         field_page.c
         field_path.c
+        vga.c
     )
     target_include_directories(fd2_field_visual_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -910,9 +912,7 @@ if(BUILD_TESTING)
     else()
         target_compile_options(fd2_field_visual_test PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-    target_link_libraries(fd2_field_visual_test PRIVATE
-        ${FD2SDL_SDL3_TARGET}
-    )
+    target_link_libraries(fd2_field_visual_test PRIVATE fd2_clock)
     add_test(NAME field_visual COMMAND fd2_field_visual_test)
 
     add_executable(fd2_field_info_test

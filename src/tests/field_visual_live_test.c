@@ -108,12 +108,14 @@ static void test_tiles_reads(void) {
     CLOCK(10,11);observe_read=terrain_before_anchor;
     CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,7)==1 && clock_at==2);
     CHECK(visual.terrain_tick==11 && visual.terrain_phase==1 && visual.range_phase==7 && !visual.range_tick);
-    memset(&visual,0,sizeof(visual));visual.terrain_tick=10;CLOCK(10,3,4);observe_read=range_before_anchor;
+    memset(&visual,0,sizeof(visual));visual.terrain_tick=3;CLOCK(3,3,4);observe_read=range_before_anchor;
     CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==1 && clock_at==3);
     CHECK(visual.range_phase==1 && visual.range_tick==4);
-    CLOCK(10,6,6);CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==0 && clock_at==3);
+    visual.terrain_tick=6;CLOCK(6,6,6);
+    CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==0 && clock_at==3);
     CHECK(visual.range_phase==1 && visual.range_tick==4);
-    visual.range_tick=32767;visual.range_phase=19;CLOCK(10,32767,32768,32769);
+    visual.terrain_tick=10;visual.range_tick=32767;visual.range_phase=19;
+    CLOCK(10,32767,32768,32769);
     CHECK(fd2_field_visual_tiles_step_live(&live_output_owner,&visual,-1)==1 && clock_at==4);
     CHECK(!visual.range_phase && visual.range_tick==0xffff8001u);
     /* 分离叶供真实11eee夹入背景，不读写另一门或actor/cursor owner。 */

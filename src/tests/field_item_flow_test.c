@@ -175,18 +175,19 @@ static void invalidate(fd2_field_game *g, unsigned which) {
         case 8: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_HIDDEN; break;
         case 9: g->units.items[0].flags |= FD2_FIELD_UNIT_FLAG_ACTED; break;
         case 10: g->units.items[0].hp = 0; break;
-        case 11: g->stage = 20; break; /* S3只发布入场，不允许战斗ITEM。 */
+        case 11: g->stage = 30; break; /* 尾声资源不是可操作战场。 */
         case 12: for (unsigned i = 0; i < 8; i++) slot(&g->units.items[0], i, 0x80, 0xff); break;
         case 13: slot(&g->units.items[0], 1, 0x80, 0xff); break;
         case 14: slot(&g->units.items[0], 2, 0, 255); break;
-        case 15: g->stage = 21; break;
+        case 15: g->stage = 255; break;
     }
 }
 
 static int test_rejections_have_no_write_set(void) {
     CHECK(fd2_field_stage_battle_is_supported(2));
-    CHECK(fd2_field_stage_is_supported(20) && !fd2_field_stage_battle_is_supported(20));
-    CHECK(!fd2_field_stage_is_supported(21));
+    CHECK(fd2_field_stage_is_supported(20) && fd2_field_stage_battle_is_supported(20));
+    CHECK(fd2_field_stage_is_supported(21) && fd2_field_stage_battle_is_supported(21));
+    CHECK(!fd2_field_stage_battle_is_supported(30) && !fd2_field_stage_is_supported(255));
     CHECK(fd2_field_game_begin_item_menu(NULL) == -1);
     CHECK(fd2_field_game_confirm_item_menu(NULL) == -1);
     CHECK(fd2_field_game_item_list_step(NULL, FD2_FIELD_ITEM_LIST_KEY_CANCEL) == -2);
@@ -260,6 +261,9 @@ static int test_load_and_snapshot_owner_boundaries(void) {
     CHECK(g->interaction == FD2_FIELD_INTERACTION_BROWSE && g->selected_unit == -1 && g->item_list_selected == 0);
     CHECK(g->command_selected == -1 && g->move_path_length == 0 && !g->move_range.nodes && !g->pending_cell_event.valid);
     CHECK(!g->item_transfer_committed && !g->item_give_recipient && !g->item_give_selected);
+    /* 活动档导入只重建两种不同人物的缓存类，其余单位字节不变。 */
+    before.units.items[0].sprite_cache_class = 0;
+    before.units.items[1].sprite_cache_class = 1;
     CHECK(!memcmp(g->units.items, before.units.items, sizeof(g->units.items)) && f.rng_calls == 0);
     close_fixture(&f);
     return 0;

@@ -15,7 +15,9 @@ from native import s5_entry29_fixture as fixture
 
 class Entry29Native(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.p=runner.prepare(ROOT)
+    def setUpClass(cls):
+        (ROOT/'build/s5').mkdir(parents=True,exist_ok=True)
+        cls.p=runner.prepare(ROOT)
 
     def test_original_ABI_seven_calls_reuses_raw24_and_rejects_changed_complete_source(self):
         calls=self.p['manifest']['teleport_calls']

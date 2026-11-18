@@ -12,11 +12,6 @@ static uint64_t tick_ns(uint64_t tick) {
     return (tick*65536u*UINT64_C(1000000000)+1193181u)/1193182u;
 }
 
-/* tile.c 的测试链接只需要清屏 primitive，不创建 SDL window。 */
-void fd2_vga_clear(fd2_vga *vga, uint8_t color) {
-    if (vga) memset(vga->framebuffer, color, sizeof(vga->framebuffer));
-}
-
 #define CHECK(expr) do { \
     if (!(expr)) { \
         fprintf(stderr, "CHECK failed at %s:%d: %s\n", \

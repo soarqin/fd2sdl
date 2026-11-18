@@ -84,7 +84,10 @@ class PreparationFlowsTest(unittest.TestCase):
         with self.assertRaises(ValueError):generate.validate_flows(broken)
 
     def test_equipment_loop_and_entry_music_order_are_cold(self):
-        trace=self.walk('services','equip.member',{'equipment_compatible':['yes'],'pick_equipment_slot':['slot','cancel'],'pick_member':['slot','cancel']},'service.return')
+        trace=self.walk('services','equip.member',{
+            'inventory_empty':['no'],'equipment_compatible':['yes'],
+            'pick_equipment_slot':['slot','cancel'],'pick_member':['slot','cancel'],
+        },'service.return')
         self.assertEqual([n['op'] for n in trace if n['op'] in ('equipment_set','recompute','equipment_redraw','equipment_close')],
                          ['equipment_set','recompute','equipment_redraw','equipment_close'])
         self.assertEqual(next(n['args'] for n in trace if n['op']=='equipment_set'),[1])
@@ -99,12 +102,14 @@ class PreparationFlowsTest(unittest.TestCase):
                 pc=node['on'][port]
             self.assertEqual([n['args'] for n in trace if n['op']=='music'],[[-1,0],[track,0]])
             self.assertEqual([n['args'] for n in trace if n['op']=='sfx'],[[1,3]])
-            ops=[n['op'] for n in trace]
-            self.assertLess(ops.index('service_resources'),ops.index('sfx'))
-            self.assertLess(ops.index('sfx'),ops.index('music'))
-            self.assertLess(ops.index('service_resources'),ops.index('service_transition'))
-            self.assertLess(ops.index('service_transition'),len(ops)-1)
-            self.assertEqual(ops[-1],'service_enter')
+            branch='church' if selector==4 else 'drug' if selector==3 else 'other'
+            route=['open','entry.sfx','entry.stop','entry.transition','entry.church']
+            if selector!=4:route.append('entry.drug')
+            route.extend([f'entry.music.{branch}','entry.present'])
+            self.assertEqual([n['id'] for n in trace],route)
+            self.assertEqual([n['op'] for n in trace[:4]],
+                             ['service_resources','sfx','music','service_transition'])
+            self.assertEqual(trace[-1]['op'],'service_enter')
 
     def test_sfx_known_bank_bounds_and_deployment_no_entry_cue(self):
         services=self.document['flows'][0]

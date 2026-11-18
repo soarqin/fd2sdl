@@ -10,13 +10,11 @@
 static int gain_valid(int32_t value) {
     return value >= 0 && value <= FD2_SB_CHANNEL_GAIN_MAX;
 }
-static int rate_valid(uint32_t rate) {return rate==11025u||rate==22050u||rate==44100u;}
-static uint32_t alpha_for(uint32_t hz) {return hz==5512u?27467u:hz==11025u?38711u:hz==22050u?48672u:0u;}
 static int valid(const fd2_sb_channel *ch) {
-    return ch && ch->window && rate_valid(ch->rate) && alpha_for(ch->lowpass_hz)==ch->alpha && ch->alpha && ch->written <= FD2_SB_CHANNEL_WINDOW &&
+    return ch && ch->window && ch->written <= FD2_SB_CHANNEL_WINDOW &&
         ch->read <= ch->written && ch->rendered <= FD2_SB_CHANNEL_MS_FRAMES &&
-        ch->freq_f <= FD2_SB_CHANNEL_HOST_RATE + 44100u &&
-        ch->freq_fslew <= FD2_SB_CHANNEL_HOST_RATE + 44100u &&
+        ch->freq_f <= FD2_SB_CHANNEL_HOST_RATE + FD2_SB_CHANNEL_RATE &&
+        ch->freq_fslew <= FD2_SB_CHANNEL_HOST_RATE + FD2_SB_CHANNEL_RATE &&
         ch->last >= -32768 && ch->last <= 32512 &&
         ch->current >= -32768 && ch->current <= 32512 &&
         (int64_t)ch->delta == (int64_t)ch->current - ch->last &&
@@ -28,28 +26,14 @@ int fd2_sb_channel_init(fd2_sb_channel *ch,
     if (!ch || !window || !gain_valid(left) || !gain_valid(right)) return -1;
     memset(ch, 0, sizeof(*ch));
     ch->window = window; ch->gain[0] = left; ch->gain[1] = right;
-    ch->rate=22050u;ch->lowpass_hz=11025u;ch->alpha=38711u;
-    return 0;
-}
-int fd2_sb_channel_set_gain(fd2_sb_channel *ch, int32_t left, int32_t right) {
-    if (!valid(ch) || !gain_valid(left) || !gain_valid(right)) return -1;
-    ch->gain[0] = left; ch->gain[1] = right; return 0;
-}
-int fd2_sb_channel_enable(fd2_sb_channel *ch, int enabled) {
-    if (!valid(ch)) return -1;
-    enabled = enabled != 0;
-    if (enabled != ch->enabled) {
-        ch->enabled = enabled;
-        if (!enabled) ch->freq_f = 0;
-    }
     return 0;
 }
 int fd2_sb_channel_input_needed(const fd2_sb_channel *ch, size_t whole,
                                 size_t *bytes) {
     if (!valid(ch) || !bytes || whole > FD2_SB_CHANNEL_MS_FRAMES) return -1;
     size_t needed = 0;
-    if (ch->enabled && whole > ch->rendered && whole > ch->written) {
-        uint64_t span = (uint64_t)(whole - ch->written) * ch->rate + ch->freq_f;
+    if (whole > ch->rendered && whole > ch->written) {
+        uint64_t span = (uint64_t)(whole - ch->written) * FD2_SB_CHANNEL_RATE + ch->freq_f;
         needed = (size_t)((span + FD2_SB_CHANNEL_HOST_RATE - 1u) / FD2_SB_CHANNEL_HOST_RATE);
         if (!ch->current_loaded) needed++;
     }
@@ -72,13 +56,13 @@ static void interpolate_to(fd2_sb_channel *ch, size_t bound) {
         int64_t numerator = (int64_t)ch->delta * ch->freq_fslew;
         int32_t value = ch->last + (int32_t)(numerator / FD2_SB_CHANNEL_HOST_RATE);
         append_scaled(ch, value);
-        ch->freq_f += ch->rate;
-        ch->freq_fslew += ch->rate;
+        ch->freq_f += FD2_SB_CHANNEL_RATE;
+        ch->freq_fslew += FD2_SB_CHANNEL_RATE;
     }
     /* current=last+delta在本固定无slew-clamp域恒成立，无须改写第二份值。 */
     while (ch->written < bound && ch->freq_f < FD2_SB_CHANNEL_HOST_RATE) {
         append_scaled(ch, ch->current);
-        ch->freq_f += ch->rate;
+        ch->freq_f += FD2_SB_CHANNEL_RATE;
     }
 }
 int fd2_sb_channel_add_u8(fd2_sb_channel *ch, const uint8_t *bytes,
@@ -109,19 +93,6 @@ int fd2_sb_channel_add_u8(fd2_sb_channel *ch, const uint8_t *bytes,
     *loaded_bytes = loaded;
     return loaded < count ? FD2_SB_CHANNEL_FULL : FD2_SB_CHANNEL_OK;
 }
-int fd2_sb_channel_set_rate(fd2_sb_channel *ch,uint32_t rate) {
-    if(!valid(ch)||!rate_valid(rate))return -1;
-    /* den remains1: SetFreq leaves both phase cursors and all samples intact. */
-    ch->rate=rate;return 0;
-}
-int fd2_sb_channel_set_lowpass(fd2_sb_channel *ch,uint32_t hz) {
-    uint32_t alpha=alpha_for(hz);if(!valid(ch)||!alpha)return -1;
-    ch->lowpass_hz=hz;ch->alpha=alpha;return 0;
-}
-int fd2_sb_channel_configure_22050(fd2_sb_channel *ch) {
-    if(!valid(ch))return -1;
-    ch->rate=22050u;ch->lowpass_hz=11025u;ch->alpha=38711u;return 0;
-}
 static int32_t floor_shift16(int64_t value) {
     int64_t quotient = value / 65536;
     return (int32_t)(quotient - (value % 65536 < 0));
@@ -131,7 +102,6 @@ int fd2_sb_channel_render_until(fd2_sb_channel *ch, int32_t (*out)[2],
     if (!valid(ch) || whole > FD2_SB_CHANNEL_MS_FRAMES ||
         out_frames < whole || (whole && !out)) return -1;
     if (whole <= ch->rendered) return 0;
-    if (!ch->enabled) { ch->rendered = whole; return 0; }
     if (ch->written < whole) {
         if (ch->current_loaded) interpolate_to(ch, whole);
         if (ch->written < whole) {
@@ -146,8 +116,8 @@ int fd2_sb_channel_render_until(fd2_sb_channel *ch, int32_t (*out)[2],
     }
     while (ch->rendered < whole && ch->read < whole) {
         for (size_t side = 0; side < 2; side++) {
-            int64_t blended = (int64_t)ch->window[ch->read][side] * ch->alpha +
-                (int64_t)ch->lowpass[side] * (65536 - ch->alpha);
+            int64_t blended = (int64_t)ch->window[ch->read][side] * FD2_SB_CHANNEL_ALPHA +
+                (int64_t)ch->lowpass[side] * (65536 - FD2_SB_CHANNEL_ALPHA);
             int32_t value = floor_shift16(blended);
             ch->window[ch->read][side] = ch->lowpass[side] = value;
             out[ch->rendered][side] = value;

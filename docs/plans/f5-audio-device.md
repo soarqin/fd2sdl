@@ -1,5 +1,7 @@
 # F5：音乐、音效与 Windows 音频生命周期
 
+2026-11-18 后继实现说明：F5交付后独立[DOS-CLEAN](dos-simulation-cleanup.md)已移除两服务外的通用调度、BGM资格／地址诊断、ACK及未用DSP／重复采样配置；F5以下来源和运行身份保留。音乐内容／节奏、PCM、暂停恢复及关闭行为继续按真实消费者验收。
+
 本阶段实现、实质审查和直接检查已完成；实际提交／本地集成及当前程序身份以两树 `build/f5/subject-delivery-20261118/local-integration.json` 为准。范围为 A17—A19、A22；Windows 为最终平台，保留并披露 `EX-AUDIO-NUKED`。2026-11-18 用户明确以游戏表现一致为目标，纯 DOS 硬件／驱动形式等价不再是本阶段或 F6 的必需门。当前执行顺序仅由 [总计划](development.md)维护。
 
 ## 1. 保留的实际修复

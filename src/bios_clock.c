@@ -1,4 +1,4 @@
-/* 游戏BIOS时间与AIL服务：原3ea8e/3ec17/3ebb4，固定PIT整数换算。
+/* 游戏BIOS时间与音乐／音效服务：原3ea8e/3ec17/3ebb4的整数节奏。
  * 单App epoch/BDA/timer，供游戏等待、RNG与音频输出共用；非DOS硬件模拟。 */
 #include "bios_clock.h"
 #include <SDL3/SDL.h>
@@ -33,21 +33,6 @@ static int pit_add(pit_point at, uint32_t cycles, pit_point *out) {
         (whole==UINT64_MAX-at.ns && fraction!=0u))return -1;
     out->ns=at.ns+whole;out->fraction=fraction;return 0;
 }
-static uint32_t pit_count(uint32_t raw) {
-    uint32_t word=raw&UINT32_C(0xffff);
-    /* 固定DOSBox-X mode3：低WORD0=65536，1=65537；不把rawDWORD当count。 */
-    return word==0u?65536u:word==1u?65537u:word;
-}
-static void clock_program(fd2_ail_timer *timer,uint32_t raw,void *user) {
-    (void)timer;(void)user;
-    if(clock_ail_active && pit_add(clock_cursor,pit_count(raw),&clock_next_irq)!=0)
-        clock_error=1;
-}
-static void clock_bios_chain(fd2_ail_timer *timer,void *user) {
-    (void)timer;(void)user;
-    /* 原3eb87..3ebad：普通callback之后、busy清回后的旧BIOS链。 */
-    clock_bda=clock_bda+1u==BIOS_DAY_TICKS?0u:clock_bda+1u;
-}
 static int clock_owner_now(uint64_t now_ns) {
     return clock_initialized && SDL_GetCurrentThreadID()==clock_thread &&
         now_ns>=clock_last_ns && (clock_external_input || now_ns<=SDL_GetTicksNS());
@@ -59,11 +44,7 @@ uint64_t fd2_bios_ticks_from_ns(uint64_t ns) {
         (ns%UINT64_C(1000000000))*PIT_RATE;
     return cycles/PIT_DIVISOR+fraction/(UINT64_C(1000000000)*PIT_DIVISOR);
 }
-uint64_t fd2_bios_ticks_from_ms(uint64_t ms) {
-    const uint64_t denominator=UINT64_C(1000)*PIT_DIVISOR;
-    return (ms/denominator)*PIT_RATE+(ms%denominator)*PIT_RATE/denominator;
-}
-uint64_t fd2_bios_tick_start_ns(uint64_t tick) {
+static uint64_t fd2_bios_tick_start_ns(uint64_t tick) {
     if(tick>UINT64_MAX/PIT_DIVISOR)return UINT64_MAX;
     uint64_t cycles=tick*PIT_DIVISOR,seconds=cycles/PIT_RATE;
     uint64_t fraction=((cycles%PIT_RATE)*UINT64_C(1000000000)+PIT_RATE-1u)/PIT_RATE;
@@ -121,10 +102,12 @@ int fd2_bios_clock_advance(uint64_t now_ns) {
     while(clock_ail_active && pit_ceil_ns(clock_next_irq)<=now_ns) {
         int result,schedule_error;
         if(clock_audio_prefix)clock_audio_prefix(clock_audio_user,clock_next_irq.ns,clock_next_irq.fraction);
-        /* 先消费当前edge；callback可在当前精确PIT点重新program替换next。 */
+        /* 先关闭到当前边界的输出，再执行同一轮音乐／音效服务。 */
         clock_cursor=clock_next_irq;
-        schedule_error=pit_add(clock_cursor,pit_count(clock_timer.pit_divisor),&clock_next_irq);
-        result=fd2_ail_timer_irq(&clock_timer);
+        schedule_error=pit_add(clock_cursor,clock_timer.interval_count,&clock_next_irq);
+        result=fd2_ail_timer_step(&clock_timer);
+        /* 游戏tick在本轮音乐／音效回调之后提交，保原等待与RNG读点。 */
+        if(result>0)clock_bda=clock_bda+1u==BIOS_DAY_TICKS?0u:clock_bda+1u;
         if(result<0 || schedule_error || clock_error) {
             clock_error=1;break;
         }
@@ -146,10 +129,6 @@ int fd2_bios_clock_set_audio_prefix(fd2_bios_audio_prefix callback,void *user) {
     return 0;
 }
 
-uint64_t fd2_bios_clock_observe_ns(uint64_t now_ns) {
-    uint64_t actual;
-    return fd2_bios_clock_observe_checked(now_ns,&actual)<0?UINT64_MAX:actual;
-}
 int fd2_bios_clock_observe_checked(uint64_t now_ns,uint64_t *actual_ns) {
     if(!actual_ns)return -1;
     /* 未初始化的独立数学向量不建立App owner；正式Main已显式init。 */
@@ -169,7 +148,6 @@ int fd2_bios_clock_close(void) {
 }
 
 int fd2_bios_clock_ail_attach(uint64_t now_ns,uint32_t first_irq_cycles) {
-    fd2_ail_timer_hooks hooks={0};
     pit_point first,at;
     uint32_t bda;
     if(clock_closed || clock_ail_active || clock_servicing || !clock_owner_now(now_ns) ||
@@ -177,9 +155,7 @@ int fd2_bios_clock_ail_attach(uint64_t now_ns,uint32_t first_irq_cycles) {
     at.ns=now_ns;at.fraction=0u;
     if(pit_add(at,first_irq_cycles,&first)!=0)return -1;
     bda=fd2_bios_clock_ticks(now_ns);
-    hooks.program_pit=clock_program;hooks.bios_chain=clock_bios_chain;
-    /* fresh init内部program0不推定外部phase；调用者显式first替代它。 */
-    fd2_ail_timer_fresh_init(&clock_timer,&hooks);
+    fd2_ail_timer_fresh_init(&clock_timer);
     clock_cursor=at;clock_next_irq=first;clock_bda=bda;
     clock_last_ns=now_ns;clock_error=0;clock_ail_active=1;
     return 0;
@@ -192,27 +168,22 @@ fd2_ail_timer *fd2_bios_clock_ail_owner_after_irqs(uint64_t now_ns) {
 const fd2_ail_timer *fd2_bios_clock_ail_state(void) {
     return clock_ail_active?&clock_timer:NULL;
 }
-static uint32_t install_service(uint64_t now_ns,fd2_ail_timer_callback callback,
-                                void *user,uint32_t hz) {
-    fd2_ail_timer *timer;
-    uint32_t handle;
+static uint32_t install_service(uint64_t now_ns,uint32_t service,
+                                fd2_ail_timer_callback callback,void *user) {
     if(!callback)return FD2_AIL_TIMER_INVALID;
-    timer=fd2_bios_clock_ail_owner_after_irqs(now_ns);
+    fd2_ail_timer *timer=fd2_bios_clock_ail_owner_after_irqs(now_ns);
     if(!timer)return FD2_AIL_TIMER_INVALID;
-    handle=fd2_ail_timer_register(timer,callback);
-    if(handle==FD2_AIL_TIMER_INVALID)return handle;
-    (void)fd2_ail_timer_set_user(timer,handle,user,NULL);
-    (void)fd2_ail_timer_set_frequency(timer,handle,hz);
-    (void)fd2_ail_timer_start(timer,handle);
-    return clock_error?FD2_AIL_TIMER_INVALID:handle;
+    uint32_t old_base=timer->base_us;
+    if(fd2_ail_timer_install(timer,service,callback,user)<0)return FD2_AIL_TIMER_INVALID;
+    if(timer->base_us!=old_base &&
+       pit_add(clock_cursor,timer->interval_count,&clock_next_irq)!=0)clock_error=1;
+    return clock_error?FD2_AIL_TIMER_INVALID:service;
 }
 uint32_t fd2_bios_clock_install_dig(uint64_t now_ns,
                                   fd2_ail_timer_callback callback,void *user) {
-    /* 完整40cf0：412a3 pref0/412ae 3f3c8，hz200；不是host设备创建顺序。 */
-    return install_service(now_ns,callback,user,200u);
+    return install_service(now_ns,FD2_AIL_TIMER_DIG,callback,user);
 }
 uint32_t fd2_bios_clock_install_mdi(uint64_t now_ns,
                                   fd2_ail_timer_callback callback,void *user) {
-    /* 完整43ad0：4414a pref10/44155 3f3c8，hz120。 */
-    return install_service(now_ns,callback,user,120u);
+    return install_service(now_ns,FD2_AIL_TIMER_MDI,callback,user);
 }

@@ -27,10 +27,6 @@ static int fill(void *user) {
     if (sb->global_fill_up(sb->global_user) < 0) return fail(sb, -4);
     return sb->first_error;
 }
-static int channel_rate(void *user,uint32_t rate) {return fd2_sb_channel_set_rate(&((fd2_audio_sb*)user)->channel,rate);}
-static int configure(void *user) {
-    return fd2_sb_channel_configure_22050(&((fd2_audio_sb *)user)->channel);
-}
 static int enter_control(fd2_audio_sb *sb) {
     if (!ready(sb)) return -1;
     if (sb->first_error) return sb->first_error;
@@ -63,27 +59,18 @@ static int driver_pause(void *user) {
     if (result < 0) return result;
     return leave_control(sb, fd2_sb_dma_request_pause(&sb->dma));
 }
-int fd2_audio_sb_init(fd2_audio_sb *sb, fd2_audio_dig *dig,
-    const fd2_sb_point *point, int require_ack, int32_t left, int32_t right,
-    int (*global_fill_up)(void *), void *user) {
-    if(!dig)return -1;
-    int result=fd2_audio_sb_construct(sb,point,require_ack,left,right,global_fill_up,user);
-    return result<0?result:fd2_audio_sb_bind_dig(sb,dig);
-}
 int fd2_audio_sb_construct(fd2_audio_sb *sb,const fd2_sb_point *point,
-    int require_ack,int32_t left,int32_t right,int (*global_fill_up)(void *),void *user) {
+    int32_t left,int32_t right,int (*global_fill_up)(void *),void *user) {
     if (!sb || !point || !global_fill_up ||
-        (require_ack != 0 && require_ack != 1) || left < 0 || right < 0 ||
+        left < 0 || right < 0 ||
         left > FD2_SB_CHANNEL_GAIN_MAX || right > FD2_SB_CHANNEL_GAIN_MAX) return -1;
     memset(sb, 0, sizeof(*sb));
     sb->point = point;
     sb->global_fill_up = global_fill_up; sb->global_user = user;
     (void)fd2_sb_channel_init(&sb->channel, sb->window, left, right);
-    (void)fd2_sb_channel_enable(&sb->channel, 1);
-    int result=fd2_sb_dma_init(&sb->dma, require_ack, sb, sink, fill);
+    int result=fd2_sb_dma_init(&sb->dma, sb, sink, fill);
     if(result<0)return result;
-    sb->dma.configure_22050=configure;
-    return fd2_sb_dma_bind_rate(&sb->dma,channel_rate);
+    return 0;
 }
 int fd2_audio_sb_bind_dig(fd2_audio_sb *sb,fd2_audio_dig *dig) {
     if(!ready(sb)||!dig||sb->dig||sb->first_error||sb->in_mix||sb->in_control)return -1;
@@ -124,19 +111,10 @@ int fd2_audio_sb_dispatch_end(fd2_audio_sb *sb, uint64_t serial) {
     if (result < 0) return result;
     return leave_control(sb, fd2_sb_dma_dispatch_end(&sb->dma, serial));
 }
-int fd2_audio_sb_deliver_irq(fd2_audio_sb *sb) {
+int fd2_audio_sb_complete_block(fd2_audio_sb *sb) {
     int result = enter_control(sb);
     if (result < 0) return result;
-    return leave_control(sb, fd2_sb_dma_deliver_irq(&sb->dma));
-}
-int fd2_audio_sb_set_gain(fd2_audio_sb *sb, int32_t left, int32_t right) {
-    if (left < 0 || right < 0 || left > FD2_SB_CHANNEL_GAIN_MAX ||
-        right > FD2_SB_CHANNEL_GAIN_MAX) return -1;
-    int result = enter_control(sb);
-    if (result < 0) return result;
-    result = fill(sb);
-    if (result >= 0) result = fd2_sb_channel_set_gain(&sb->channel, left, right);
-    return leave_control(sb, result);
+    return leave_control(sb, fd2_sb_dma_complete_block(&sb->dma));
 }
 int fd2_audio_sb_close(fd2_audio_sb *sb) {
     if (!sb) return -1;
@@ -147,7 +125,3 @@ int fd2_audio_sb_close(fd2_audio_sb *sb) {
     sb->global_user = NULL; sb->global_fill_up = NULL;
     return 0;
 }
-
-int fd2_audio_sb_halt(fd2_audio_sb *sb){int r=enter_control(sb);return r<0?r:leave_control(sb,fd2_sb_dma_halt(&sb->dma));}
-int fd2_audio_sb_resume(fd2_audio_sb *sb){int r=enter_control(sb);return r<0?r:leave_control(sb,fd2_sb_dma_resume(&sb->dma,sb->point));}
-int fd2_audio_sb_set_output_rate(fd2_audio_sb *sb,uint32_t rate){int r=enter_control(sb);return r<0?r:leave_control(sb,fd2_sb_dma_set_output_rate(&sb->dma,rate));}

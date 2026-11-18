@@ -75,7 +75,7 @@ int main(void) {
      * 17aa9入口必须先取当前BDA=1，不能用旧0在首poll后立即结束。 */
     reset(0,0);CHECK(fd2_bios_clock_ail_attach(0,65536u)==0);
     CHECK(fd2_bios_clock_install_mdi(0,no_service,NULL)==0u);
-    CHECK(fd2_bios_clock_install_dig(0,no_service,NULL)==4u);
+    CHECK(fd2_bios_clock_install_dig(0,no_service,NULL)==FD2_AIL_TIMER_DIG);
     now_ns=UINT64_C(55000830);CHECK(fd2_bios_clock_ticks(now_ns)==0u);
     fd2_wait_ticks(1);CHECK(now_ns==UINT64_C(110001660) && fd2_bios_clock_ticks(now_ns)==2u);
     CHECK(!memcmp(&input,&before,sizeof(input)));

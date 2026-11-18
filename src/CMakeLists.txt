@@ -1852,7 +1852,7 @@ if(BUILD_TESTING)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/.. TIMEOUT 30)
 
     # 独立源公式生成合成向量；不读取原资源或执行待测C生成expected。
-    set(fd2_native_vector_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/native_audio")
+    set(fd2_native_vector_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/native_audio_game")
     set(fd2_sb_channel_vectors "${fd2_native_vector_dir}/sb_channel_vectors.h")
     add_custom_command(OUTPUT "${fd2_sb_channel_vectors}"
         COMMAND ${Python3_EXECUTABLE} -B "${FD2_STATIC_ROOT}/tools/testing/sb_channel_vectors.py"
@@ -2088,7 +2088,7 @@ if(BUILD_TESTING)
         -s "${FD2_STATIC_ROOT}/tools/tests" -p test_g2_composite_frames.py)
 endif()
 
-# owner-aware新故障族；旧golden与SOURCE故障测试保持各自命令身份。
+# owner错误与普通失败回归；历史硬件研究不在默认目标内。
 if(BUILD_TESTING)
     foreach(lane visual prepare play scene battle)
         add_test(NAME clock_output_owner_${lane}
@@ -2100,12 +2100,4 @@ if(BUILD_TESTING)
         COMMAND fd2_field_detail_flow_test --output-errors)
     set_tests_properties(clock_output_owner_game PROPERTIES
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.." TIMEOUT 30 LABELS "clock;unit")
-    if(TARGET fd2_vga_scanout_sdl_test)
-        add_test(NAME vga_output_owner_waits
-            COMMAND fd2_vga_scanout_sdl_test --owner-waits)
-        add_test(NAME vga_output_owner_scope
-            COMMAND fd2_vga_scanout_sdl_test --scope-owner)
-        set_tests_properties(vga_output_owner_waits vga_output_owner_scope
-            PROPERTIES TIMEOUT 15 LABELS "clock;unit")
-    endif()
 endif()

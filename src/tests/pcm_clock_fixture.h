@@ -28,7 +28,7 @@ static int fd2_pcm_test_open(fd2_pcm_test_fixture *f) {
        fd2_pcm_driver_init(&f->driver,f->audio)!=0 ||
        fd2_pcm_player_init_shared(&f->primary,&f->driver,0u,11025)!=0 ||
        fd2_pcm_player_init_shared(&f->secondary,&f->driver,1u,11025)!=0)return -1;
-    if(f->driver.dig.timer_handle!=4u ||
+    if(f->driver.dig.timer_handle!=FD2_AIL_TIMER_DIG ||
        f->driver.dig.timer->slots[0].period_us!=8333u ||
        f->driver.dig.timer->slots[1].period_us!=5000u)return -1;
     return 0;

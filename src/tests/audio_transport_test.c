@@ -236,7 +236,7 @@ static int test_null_logic_and_irq(void) {
     unsigned midi = 0, digital = 0;
     CHECK(fd2_bios_clock_ail_attach(0, 65536) == 0);
     CHECK(fd2_bios_clock_install_mdi(0, irq_count, &midi) == 0);
-    CHECK(fd2_bios_clock_install_dig(0, irq_count, &digital) == 4);
+    CHECK(fd2_bios_clock_install_dig(0, irq_count, &digital) ==FD2_AIL_TIMER_DIG);
     host_ns = 100000000; CHECK(fd2_audio_sync(audio) == 0);
     /* Fraction(100ms*1193182/(5966*1e9)) floor=19 IRQ；floor(19*5000/8333)=11。 */
     CHECK(s.frames == 4800 && midi == 11 && digital == 19 && clock_bda == 1 && device.puts == 0);
@@ -263,7 +263,7 @@ static int test_put_prefix_capture_and_close(void) {
     unsigned midi = 0, digital = 0;
     CHECK(fd2_bios_clock_ail_attach(host_ns, 65536) == 0);
     CHECK(fd2_bios_clock_install_mdi(host_ns, irq_count, &midi) == 0);
-    CHECK(fd2_bios_clock_install_dig(host_ns, irq_count, &digital) == 4);
+    CHECK(fd2_bios_clock_install_dig(host_ns, irq_count, &digital) ==FD2_AIL_TIMER_DIG);
     host_ns = 100000000; CHECK(fd2_audio_sync(audio) == 0);
     /* 仅21ms之后挂接：79ms含15IRQ，floor(15*5000/8333)=9。 */
     CHECK(s.frames == 4800 && midi == 9 && digital == 15 && clock_bda == 1);
@@ -303,7 +303,7 @@ static int test_irq_prefix_order(void) {
     CHECK(reset_test()); fd2_audio *audio = make_audio(48000, 0, 1); CHECK(audio);
     source s = {0}; CHECK(fd2_audio_play_music_source(audio, make_source(&s), 1) == 0);
     CHECK(fd2_bios_clock_ail_attach(0, 65536) == 0);
-    CHECK(fd2_bios_clock_install_dig(0, step_source, &s) == 0);
+    CHECK(fd2_bios_clock_install_dig(0, step_source, &s) == FD2_AIL_TIMER_DIG);
     float output[4800 * 2]; host_reads = 0;
     CHECK(fd2_audio_render_offline(audio, output, 4800) == 4800 && s.frames == 4800 && host_reads == 0);
     for (uint64_t i = 0; i < 4800; i++) {

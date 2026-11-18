@@ -27,10 +27,9 @@ static bool startup_owner_checks() {
         fd2_audio *audio=fd2_audio_create(&ac);CHECK(audio);
         CHECK(fd2_test_audio_clock_prepare(audio)==0);
         if(mode==3) {
-            fd2_ail_timer *timer=fd2_bios_clock_ail_owner_after_irqs(fd2_audio_now_ns(audio));
-            CHECK(timer);
-            for(unsigned slot=0;slot<FD2_AIL_TIMER_CALLBACK_SLOTS;slot++)
-                CHECK(fd2_ail_timer_register(timer,fd2_test_idle_dig)==slot*4u);
+            /* 预占同一MDI角色，构造必须失败并撤销刚安装的Audio借用。 */
+            CHECK(fd2_bios_clock_install_mdi(fd2_audio_now_ns(audio),
+                fd2_test_idle_dig,nullptr)==FD2_AIL_TIMER_MDI);
         }
         fd2_bgm_config config{};config.fdmus_path="original_game/FDMUS.DAT";
         config.ail_bank_path="original_game/SAMPLE.AD";config.sample_rate=48000;

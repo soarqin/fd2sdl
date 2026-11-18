@@ -44,8 +44,8 @@ static uint64_t window_fnv(const int32_t (*data)[2]) {
 static int compare_state(const fd2_sb_channel *ch,const sb_vector *expected) {
     const int64_t actual[]={ (int64_t)ch->written,(int64_t)ch->read,(int64_t)ch->rendered,
         ch->last,ch->current,ch->delta,ch->freq_f,ch->freq_fslew,
-        ch->gain[0],ch->gain[1],ch->lowpass[0],ch->lowpass[1],ch->current_loaded,ch->enabled };
-    for(size_t i=0;i<14;i++)if(actual[i]!=expected->state[i]) {
+        ch->gain[0],ch->gain[1],ch->lowpass[0],ch->lowpass[1],ch->current_loaded };
+    for(size_t i=0;i<13;i++)if(actual[i]!=expected->state[i]) {
         fprintf(stderr,"%s: state[%zu] actual=%lld expected=%lld\n",expected->label,i,
             (long long)actual[i],(long long)expected->state[i]);return 0;
     }
@@ -64,8 +64,6 @@ static int test_source_vectors(void) {
         case V_INIT:
             fixture(&window,&out);memset(&channel,0xb5,sizeof(channel));
             status=fd2_sb_channel_init(&channel,window.data,v->a,v->b);cases++;break;
-        case V_ENABLE:status=fd2_sb_channel_enable(&channel,v->a);break;
-        case V_GAIN:status=fd2_sb_channel_set_gain(&channel,v->a,v->b);break;
         case V_ADD:
             CHECK(v->offset<=sizeof(sb_input)&&v->count<=sizeof(sb_input)-v->offset);
             status=fd2_sb_channel_add_u8(&channel,sb_input+v->offset,v->count,&loaded);
@@ -95,7 +93,7 @@ static int test_source_vectors(void) {
                 }
         }
     }
-    CHECK(cases==15);
+    CHECK(cases==12);
     printf("sb_channel: %u source families / %zu checkpoints, full48 output+state+window hash PASS\n",
         cases,sizeof(sb_vectors)/sizeof(sb_vectors[0]));
     return 1;
@@ -106,7 +104,6 @@ static int test_host_failures_do_not_touch_owners(void) {
     fd2_sb_channel channel;
     fixture(&window,&out);
     CHECK(fd2_sb_channel_init(&channel,window.data,8192,8192)==0);
-    CHECK(fd2_sb_channel_enable(&channel,1)==0);
     fd2_sb_channel before;
     guarded_window saved_window;
     guarded_output saved_out;
@@ -119,9 +116,6 @@ static int test_host_failures_do_not_touch_owners(void) {
     CHECK(fd2_sb_channel_init(&channel,NULL,8192,8192)==-1);
     CHECK(fd2_sb_channel_init(&channel,window.data,-1,8192)==-1);
     CHECK(fd2_sb_channel_init(&channel,window.data,8192,32769)==-1);
-    CHECK(fd2_sb_channel_set_gain(&channel,-1,8192)==-1);
-    CHECK(fd2_sb_channel_set_gain(&channel,8192,32769)==-1);
-    CHECK(fd2_sb_channel_enable(NULL,1)==-1);
     CHECK(fd2_sb_channel_input_needed(&channel,49,&marker)==-1&&marker==SIZE_MAX);
     CHECK(fd2_sb_channel_input_needed(&channel,48,NULL)==-1);
     CHECK(fd2_sb_channel_add_u8(&channel,NULL,1,&marker)==-1&&marker==SIZE_MAX);

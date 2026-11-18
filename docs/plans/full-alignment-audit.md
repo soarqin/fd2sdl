@@ -1,6 +1,6 @@
 # 游戏表现对齐审查与差异矩阵
 
-2026-11-18 顺序补充：用户新增独立 **DOS-CLEAN**，在F5完成提交／集成／汇报后执行，清理已落地模拟与真实消费者，独立审查／提交／集成／汇报后再进F6。A10／A13／A17—A19相关内部实现随实际依赖清理，A21最终合签须先完成此阶段；22项ID不变，顺序仅查[总计划](development.md)。
+2026-11-18 DOS-CLEAN交付补记：F5之后独立清理已落地模拟及实际消费者，16槽改两服务，删BGM资格／PC、ACK／未用DSP控制／重复配置和内部形式专用测试；保真实输入、等待／RNG节奏、PCM、尾音及关闭。A10／A13／A17—A19的消费者账与实际检查见[清理报告](dos-simulation-cleanup.md)，A21接回F6正常联合；22项ID不变，顺序仅查[总计划](development.md)。
 
 2026-11-18 终态纠偏：用户明确目标是复刻游戏的表现，不是实现 DOS 模拟器。本文历史审查事实、失败和来源身份保留；所有旧硬件／驱动内部形式门由本段和下列当前条目取代。只要会改变正常游戏操作、结果、存档或可见可听输出，仍须验证／修复；纯 CPU 周期、IRQ／PIT／PIC、驱动 ABI、原栈布局及全内存／设备字节等价标为「不再要求」，不改签通过，也不转为 F6 强制门。当前顺序见 [总计划](development.md)。
 
@@ -290,7 +290,7 @@ F2候选更新：已逐族核原23个静态caller与当前C owner，修复16c57�
 
 定位：`bios_clock.c`、`field_visual.c`、`dialog_flow.h`、`scene.c`、`vga.c`、`field_game.c`及`field_play.c`。F2已修55／110ms换算、移动tick-edge、FIFO clear、无源150／16ms等待、Scene时间单位及正式读点。F5保单epoch／数值音乐与PCM调度、音频前缀和真实输出错误，删除Main不使用的SOURCE时钟／CPU／端口／IRQ运输。
 
-当前必需门是正常等待、确认／取消／跨框输入、动画和音乐节奏、暂停恢复及音画同步。独立来源为原调用顺序／等待含义、正常原版操作及对应画面／音频。跨端比较区分业务时间与采集时间，测量误差单列，不任意加宽判据。实际证据与剩余正常轨迹见[F2](f2-time-input-rng.md)、[F5](f5-audio-device.md)。
+DOS-CLEAN已把通用16槽及硬件hooks缩为两服务，保持8333／5000／54925累计和MDI→DIG→游戏tick。当前必需门是正常等待、确认／取消／跨框输入、动画和音乐节奏、暂停恢复及音画同步。独立来源为原调用顺序／等待含义、正常原版操作及对应画面／音频。跨端比较区分业务时间与采集时间，测量误差单列，不任意加宽判据。实际证据与剩余正常轨迹见[F2](f2-time-input-rng.md)、[F5](f5-audio-device.md)。
 
 纯CPU绘制成本、首FS／GS／EBP、PIC／PIT／IRQ／端口序列、扫描线日历及绝对首phase不再是产品门。旧3599点RED、给定400行WGC和局部源证明均按原身份保[研究历史](f5-source-research-history.md)，没有改签通过，也不要求F6补成硬件等价。某内部比较若实际改变正常循环或输出，直接核其游戏结果。
 
@@ -340,7 +340,7 @@ F5修两处漏stop：19df7@1a2e7确认text416完成后／200ms前；3231b@327bb�
 
 必需验收是全曲／正式请求的内容、节奏、事件次数／顺序、切换、loop／fade／stop及音画同步；错误／取消／切景／关闭保持owner。源score与正常原版录音／事件结果互补，旧原始相位与采集量化分别说明。Nuked只豁免已选音色／响度。
 
-严格PIC／寄存器绝对时刻RED保留历史，不再是产品门；SOURCE工厂、FILE／堆／DPMI／逐头收费不再要求接Main。当前交付、分轮检查／正常录音及F6联合边界见[F5当前说明](f5-audio-device.md)，详细来源和失败见[历史](f5-source-research-history.md)。
+DOS-CLEAN已删除BGM资格／PC诊断，保有效score及空资源重播、loop／fade／消息内容；直接音乐检查通过。严格PIC／寄存器绝对时刻RED保留历史，不再是产品门；SOURCE工厂、FILE／堆／DPMI／逐头收费不再要求接Main。当前交付、分轮检查／正常录音及F6联合边界见[F5当前说明](f5-audio-device.md)，详细来源和失败见[历史](f5-source-research-history.md)。
 
 <a id="a18完整pcmcue和混音"></a>
 
@@ -348,7 +348,7 @@ F5修两处漏stop：19df7@1a2e7确认text416完成后／200ms前；3231b@327bb�
 
 定位：`audio_pcm.c`、`audio.c`、`audio_dig.c`、`audio_sb.c`、`sb_channel.c`、`mixdown_dc.c`及所有正式cue。原40240音量表、49690的16.16采样／半相位和原样本独立字节是数值依据；同一handle重播会replace，两个P可叠加。源分母为26bank／111绑定、78唯一payload；110有限源绑定＋51/3一项源参数排除，不能删资源或把未引用声称全部正常播放。
 
-F5已修持续线性插值差异，保Q13混合、gain／pan、双声部夹幅、stop／replace和尾音；v3采集无损保存S16载体。独立226历史／2013packet是有限参数证据。正常原版32768双声道帧与同次WAV及C SRC核验、正常SFX重新开启双端各保原候选范围，详见[F5](f5-audio-device.md)。
+F5已修持续线性插值差异，保Q13混合、gain／pan、双声部夹幅、stop／replace和尾音；DOS-CLEAN进一步删除ACK／未用DSP与重复配置，普通110ms独立PCM前后相同、真实consumer检查分轮通过；v3采集无损保存S16载体。独立226历史／2013packet是有限参数证据。正常原版32768双声道帧与同次WAV及C SRC核验、正常SFX重新开启双端各保原候选范围，详见[F5](f5-audio-device.md)。
 
 必需门是全部正常cue的触发／次数／顺序、重复／叠加、pitch／duration／volume／pan、起停／切景和声音与画面的对应。源公式／原资源／正常录音共同验证，不由生成器自证。Nuked叠加影响单列，不能包庇PCM错误；不要求整个设备输出逐字节相同。
 

@@ -1,5 +1,5 @@
-/* 独立源literal/商余数：3ea8e/3ec17/3ebb4及main MDI->DIG。
- * 有界完成调用时序；mock SDL只给host输入，不是原版/PIC/CPU实测。 */
+/* 普通游戏的共享调度：既有独立商余数与MDI→DIG节奏向量。
+ * 只替换宿主时间；核音乐／音效／BDA与输出前缀，不维护硬件内部等价门。 */
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,7 +28,6 @@ typedef struct trace {
     uint32_t last_bda;
     unsigned reenter, reenter_rejected;
     fd2_ail_timer *timer;
-    unsigned rebase;
 } trace;
 static void dig(void *user) {
     trace *t=(trace *)user;
@@ -39,8 +38,6 @@ static void dig(void *user) {
         if(fd2_bios_clock_advance(host_now)==-1 &&
            fd2_bios_clock_ail_owner_after_irqs(host_now)==NULL)t->reenter_rejected++;
     }
-    if(t->rebase && t->dig==1u)
-        (void)fd2_ail_timer_set_period(t->timer,4u,10000u);
 }
 static void mdi(void *user) {((trace *)user)->mdi++;}
 static int start(trace *t,uint32_t initial) {
@@ -48,9 +45,9 @@ static int start(trace *t,uint32_t initial) {
     fd2_bios_clock_reset(initial,0);
     CHECK(fd2_bios_clock_ail_attach(0,65536u)==0);
     CHECK(fd2_bios_clock_install_mdi(0,mdi,t)==0u);
-    CHECK(fd2_bios_clock_install_dig(0,dig,t)==4u);
+    CHECK(fd2_bios_clock_install_dig(0,dig,t)==FD2_AIL_TIMER_DIG);
     t->timer=fd2_bios_clock_ail_owner_after_irqs(0);
-    CHECK(t->timer && t->timer->base_us==5000u && t->timer->pit_divisor==5966u);
+    CHECK(t->timer && t->timer->base_us==5000u && t->timer->interval_count==5966u);
     CHECK(t->timer->slots[1].period_us==5000u && t->timer->slots[0].period_us==8333u);
     return 1;
 }
@@ -88,7 +85,7 @@ static int reentrant_and_main_thread_guards(void) {
     CHECK(fd2_bios_clock_init()==0 && !clock_external_input);rtc_ok=0;
     CHECK(fd2_bios_clock_ail_attach(0,65536)==0);
     CHECK(fd2_bios_clock_install_mdi(0,mdi,&t)==0);
-    CHECK(fd2_bios_clock_install_dig(0,dig,&t)==4);
+    CHECK(fd2_bios_clock_install_dig(0,dig,&t)==FD2_AIL_TIMER_DIG);
     host_now=edges[1]-1;
     CHECK(fd2_bios_clock_advance(edges[1])==-1 && !t.dig && !t.mdi);
     CHECK(fd2_bios_clock_ticks(UINT64_MAX)==0);
@@ -105,66 +102,29 @@ static int external_input_can_advance_without_wall(void) {
     CHECK(memcmp(&before,t.timer,sizeof(before))==0 && host_now==0 && clock_epoch_ns==0);
     return 1;
 }
-static int defer_bios_and_release_pending(void) {
-    trace t;CHECK(start(&t,0));fd2_ail_timer_defer_enter(t.timer);
-    host_now=edges[11];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.dig==0 && t.mdi==0 && fd2_bios_clock_ticks(host_now)==1);
-    CHECK(t.timer->slots[1].pending==11 && t.timer->slots[0].pending==6);
-    fd2_ail_timer_slot retained=t.timer->slots[1];
-    CHECK(fd2_ail_timer_release(t.timer,4)==0);
-    CHECK(t.timer->slots[1].status==0 && t.timer->slots[1].pending==retained.pending);
-    CHECK(t.timer->slots[1].callback==retained.callback && t.timer->slots[1].user==retained.user);
-    CHECK(t.timer->base_us==5000 && t.timer->pit_divisor==5966);
-    fd2_ail_timer_defer_leave(t.timer);
-    host_now=edges[12];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.dig==11 && t.mdi==7 && !t.timer->slots[1].pending);
-    CHECK(fd2_bios_clock_ticks(host_now)==1);
-    return 1;
-}
-static int busy_irq_does_not_accumulate(void) {
-    trace t;CHECK(start(&t,0));
-    t.timer->busy=1;
-    host_now=edges[1];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.dig==0 && t.mdi==0 && !t.timer->slots[15].accumulator_us && t.timer->busy==1);
-    t.timer->busy=0;
-    host_now=edges[11];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.dig==10 && t.mdi==6 && fd2_bios_clock_ticks(host_now)==0);
-    host_now=edges[12];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.dig==11 && t.mdi==6 && fd2_bios_clock_ticks(host_now)==1);
-    return 1;
-}
-static int reprogram_at_control_boundary(void) {
+static int install_at_control_boundary(void) {
     trace t={0};host_thread=1;host_now=0;fd2_bios_clock_reset(0,0);
     CHECK(fd2_bios_clock_ail_attach(0,65536)==0);
     host_now=1000000;
-    CHECK(fd2_bios_clock_install_mdi(host_now,mdi,&t)==0);
+    CHECK(fd2_bios_clock_install_mdi(host_now,mdi,&t)==FD2_AIL_TIMER_MDI);
     CHECK(fd2_bios_clock_deadline_ns(host_now,1)==9333180);
     host_now=2000000;
-    CHECK(fd2_bios_clock_install_dig(host_now,dig,&t)==4);
+    CHECK(fd2_bios_clock_install_dig(host_now,dig,&t)==FD2_AIL_TIMER_DIG);
     CHECK(fd2_bios_clock_deadline_ns(host_now,1)==7000076);
     t.timer=fd2_bios_clock_ail_owner_after_irqs(host_now);
-    CHECK(fd2_ail_timer_set_period(t.timer,4,20000)==0);
-    CHECK(t.timer->base_us==8333 && t.timer->pit_divisor==9943);
-    CHECK(fd2_bios_clock_deadline_ns(host_now,1)==10333180);
+    CHECK(t.timer && !t.timer->slots[0].accumulator_us && !t.timer->slots[1].accumulator_us && !t.timer->bios_accumulator_us);
+    fd2_ail_timer before=*t.timer;
+    CHECK(fd2_bios_clock_install_dig(host_now,dig,&t)==FD2_AIL_TIMER_INVALID);
+    CHECK(!memcmp(&before,t.timer,sizeof before));
     CHECK(fd2_bios_clock_ticks(host_now)==0 && clock_epoch_ns==0);
     return 1;
 }
-static int callback_reprogram_keeps_fraction(void) {
-    trace t;CHECK(start(&t,0));t.rebase=1;
-    host_now=edges[1];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(t.timer->base_us==8333 && t.timer->pit_divisor==9943);
-    /* ceil((5966+9943)*1e9/rate)，不能round(firstIRQ)后再加而漂1ns。 */
-    CHECK(fd2_bios_clock_deadline_ns(host_now,1)==13333256);
-    CHECK(!t.timer->slots[0].accumulator_us && !t.timer->slots[1].accumulator_us);
-    host_now=13333255;CHECK(fd2_bios_clock_advance(host_now)==0 && t.dig==1 && t.mdi==0);
-    host_now=13333256;CHECK(fd2_bios_clock_advance(host_now)==0 && t.dig==1 && t.mdi==1);
-    return 1;
-}
-static int explicit_same_time_irq_first(void) {
+
+static int same_time_release_after_completed_callback(void) {
     trace t;CHECK(start(&t,0));host_now=edges[1];
     t.timer=fd2_bios_clock_ail_owner_after_irqs(host_now);
     CHECK(t.timer && t.dig==1); /* API名所声明政策，不称原实测tie */
-    CHECK(fd2_ail_timer_stop(t.timer,4)==0);
+    CHECK(fd2_ail_timer_release(t.timer,FD2_AIL_TIMER_DIG)==0);
     host_now=edges[2];CHECK(fd2_bios_clock_advance(host_now)==0);
     CHECK(t.dig==1 && t.mdi==1 && t.timer->base_us==5000);
     return 1;
@@ -176,29 +136,6 @@ static int day_and_signed_word_wrap(void) {
     CHECK(fd2_bios_clock_advance(host_now)==0 && fd2_bios_tick_signed_ns(host_now)==-32768);
     CHECK(start(&t,0xffffu));host_now=edges[11];
     CHECK(fd2_bios_clock_advance(host_now)==0 && fd2_bios_tick_low_ns(host_now)==0);
-    return 1;
-}
-static int lowword_zero_and_one(void) {
-    trace t={0};fd2_ail_timer *timer;uint32_t h;
-    host_now=0;host_thread=1;fd2_bios_clock_reset(0,0);
-    CHECK(fd2_bios_clock_ail_attach(0,65536)==0);
-    CHECK(fd2_bios_clock_deadline_ns(0,1)==54925402);
-    host_now=54925402;CHECK(fd2_bios_clock_advance(host_now)==0 && fd2_bios_clock_ticks(host_now)==1);
-    for(unsigned i=0;i<2;i++) {
-        host_now=0;fd2_bios_clock_reset(0,0);memset(&t,0,sizeof(t));
-        CHECK(fd2_bios_clock_ail_attach(0,65536)==0);
-        timer=fd2_bios_clock_ail_owner_after_irqs(0);
-        h=fd2_ail_timer_register(timer,dig);CHECK(h==0);
-        CHECK(fd2_ail_timer_set_user(timer,h,&t,NULL)==0);
-        CHECK(fd2_ail_timer_set_period(timer,h,i?1u:54920u)==0);
-        CHECK(fd2_ail_timer_start(timer,h)==0);
-        CHECK(timer->pit_divisor==(i?1u:65536u)); /* raw高位仍保留 */
-        uint64_t edge=i?54926240:54925402;
-        CHECK(fd2_bios_clock_deadline_ns(0,1)==edge);
-        host_now=edge-1;CHECK(fd2_bios_clock_advance(host_now)==0 && !t.dig);
-        host_now=edge;CHECK(fd2_bios_clock_advance(host_now)==0 && t.dig==1);
-        CHECK(fd2_bios_clock_ticks(host_now)==0);
-    }
     return 1;
 }
 static int default_mode_epoch_and_attach_guards(void) {
@@ -252,8 +189,6 @@ static int audio_prefix_is_before_irq_and_not_clock_authority(void) {
     CHECK(fd2_bios_clock_advance(host_now)==0 && p.count==12u); /* 新owner不借旧user。 */
     CHECK(start(&t,0));memset(&p,0,sizeof(p));
     CHECK(fd2_bios_clock_set_audio_prefix(audio_prefix,&p)==0);
-    t.timer->busy=1u;host_now=edges[1];CHECK(fd2_bios_clock_advance(host_now)==0);
-    CHECK(p.count==2u && p.edges[0]==edges[1] && p.edges[1]==edges[1] && !t.dig && !p.bad);
     CHECK(fd2_bios_clock_set_audio_prefix(NULL,NULL)==0);
     return 1;
 }
@@ -278,28 +213,28 @@ static int audio_prefix_keeps_sub_ns_sample_boundary(void) {
     }
     return 1;
 }
-static int h_error_preserves_arrived_prefix(void) {
-    trace t;CHECK(start(&t,0));
-    /* 坏callback是H安全输入，不执行原坏CALL；已扣pending/acc留原前缀。 */
-    t.timer->slots[1].callback=NULL;
-    host_now=edges[1];CHECK(fd2_bios_clock_advance(host_now)==-1);
-    CHECK(!t.timer->busy && !t.timer->slots[1].pending && t.timer->slots[15].accumulator_us==5000);
-    CHECK(fd2_bios_clock_ticks(UINT64_MAX)==0 && fd2_bios_clock_deadline_ns(host_now,1)==UINT64_MAX);
-    fd2_ail_timer before=*t.timer;
-    host_now=edges[12];CHECK(fd2_bios_clock_advance(host_now)==-1);
-    CHECK(memcmp(&before,t.timer,sizeof(before))==0);
-    uint64_t actual=77;
-    CHECK(fd2_bios_clock_error()<0 && fd2_bios_clock_observe_checked(host_now,&actual)<0);
-    CHECK(actual==77 && memcmp(&before,t.timer,sizeof(before))==0);
+static int error_preserves_arrived_prefix(void) {
+    trace t={0};host_thread=1;
+    const uint64_t epoch=UINT64_MAX-UINT64_C(6000000);
+    host_now=epoch;fd2_bios_clock_reset(3,epoch);
+    CHECK(fd2_bios_clock_ail_attach(epoch,1)==0);
+    CHECK(fd2_bios_clock_install_dig(epoch,dig,&t)==FD2_AIL_TIMER_DIG);
+    t.timer=fd2_bios_clock_ail_owner_after_irqs(epoch);CHECK(t.timer);
+    /* 首个有效5ms点已服务；下一边界数值溢出时不回滚已到的callback。 */
+    host_now=epoch+edges[1];CHECK(fd2_bios_clock_advance(host_now)==-1 && t.dig==1);
+    CHECK(fd2_bios_clock_ticks(0)==3 && fd2_bios_clock_error()<0);
+    fd2_ail_timer before=*t.timer;uint64_t actual=77;
+    CHECK(fd2_bios_clock_observe_checked(host_now,&actual)<0 && actual==77);
+    CHECK(!memcmp(&before,t.timer,sizeof before) && t.dig==1);
     host_now=UINT64_MAX;fd2_bios_clock_reset(3,UINT64_MAX);
     CHECK(fd2_bios_clock_ail_attach(host_now,1)==-1 && !clock_ail_active);
     return 1;
 }
-static int app_close_preserves_pending_and_ends_borrow(void) {
+
+static int app_close_ends_borrow(void) {
     trace t;prefix_trace p={0};CHECK(start(&t,4));
     CHECK(fd2_bios_clock_set_audio_prefix(audio_prefix,&p)==0);
     host_now=edges[1];CHECK(fd2_bios_clock_advance(host_now)==0 && t.dig==1u);
-    t.timer->slots[0].pending=2u;
     fd2_ail_timer before=*t.timer;unsigned count=p.count;
     host_thread=2;CHECK(fd2_bios_clock_close()==-1);host_thread=1;
     CHECK(fd2_bios_clock_close()==0 && fd2_bios_clock_close()==0);
@@ -316,29 +251,25 @@ static int app_close_preserves_pending_and_ends_borrow(void) {
 static int observed_read_commits_only_the_supplied_now(void) {
     trace t;CHECK(start(&t,0));
     host_now=edges[11];CHECK(fd2_bios_clock_ticks(host_now)==0u && !t.dig);
-    CHECK(fd2_bios_clock_observe_ns(host_now)==host_now);
-    CHECK(fd2_bios_tick_low_ns(host_now)==1u && t.dig==11u);
     uint64_t actual=77;
-    CHECK(!fd2_bios_clock_error() && fd2_bios_clock_observe_checked(host_now,&actual)==0);
-    CHECK(actual==host_now && t.dig==11u);
+    CHECK(fd2_bios_clock_observe_checked(host_now,&actual)==0 && actual==host_now);
+    CHECK(fd2_bios_tick_low_ns(host_now)==1u && t.dig==11u);
     fd2_ail_timer before=*t.timer;
-    CHECK(fd2_bios_clock_ticks(UINT64_MAX)==1u && memcmp(&before,t.timer,sizeof(before))==0);
-    CHECK(fd2_bios_clock_observe_ns(host_now)==host_now && t.dig==11u);
-    CHECK(fd2_bios_clock_close()==0);
-    CHECK(fd2_bios_clock_observe_ns(UINT64_MAX)==UINT64_MAX && t.dig==11u);
+    CHECK(fd2_bios_clock_ticks(UINT64_MAX)==1u && !memcmp(&before,t.timer,sizeof before));
+    CHECK(fd2_bios_clock_observe_checked(host_now,&actual)==0 && t.dig==11u);
+    CHECK(fd2_bios_clock_close()==0);actual=77;
+    CHECK(fd2_bios_clock_observe_checked(UINT64_MAX,&actual)<0 && actual==77 && t.dig==11u);
     return 1;
 }
+
 int main(void) {
     static int (*const tests[])(void)={eleven_irqs_and_read_deadline,
         reentrant_and_main_thread_guards,external_input_can_advance_without_wall,
-        defer_bios_and_release_pending,
-        busy_irq_does_not_accumulate,reprogram_at_control_boundary,
-        callback_reprogram_keeps_fraction,explicit_same_time_irq_first,
-        day_and_signed_word_wrap,lowword_zero_and_one,
-        default_mode_epoch_and_attach_guards,h_error_preserves_arrived_prefix,
+        install_at_control_boundary,same_time_release_after_completed_callback,
+        day_and_signed_word_wrap,default_mode_epoch_and_attach_guards,
         audio_prefix_is_before_irq_and_not_clock_authority,audio_prefix_keeps_sub_ns_sample_boundary,
-        app_close_preserves_pending_and_ends_borrow,observed_read_commits_only_the_supplied_now};
+        error_preserves_arrived_prefix,app_close_ends_borrow,observed_read_commits_only_the_supplied_now};
     for(size_t i=0;i<sizeof(tests)/sizeof(tests[0]);i++)if(!tests[i]())return 1;
-    puts("bios_clock_ail: 16 scheduling/owner boundary groups passed; no emulator/runtime equivalence claim");
+    puts("bios_clock_ail: 12 shared cadence/output/owner boundary groups passed");
     return 0;
 }

@@ -31,13 +31,13 @@ def build(leaf,bridge):
                 pcm.append(max(-32768,min(32767,value*8192//67108864)))
         model.end()
         if model.pending:
-            model.fill_whole=0;model.irq()
-        rows.append(dict(ms=ms,state=model.state()[:37],dc=dc[:],
+            model.fill_whole=0;model.complete_block()
+        rows.append(dict(ms=ms,state=model.state()[:35],dc=dc[:],
             dma_fnv=bridge.fnv(model.ring),build_fnv=bridge.fnv(bridge.wordbytes(model.build)),
             window_fnv=leaf.fnv_words(model.ch.window)))
     # Closed lattice prefix: first physicalblockends in ms93, no ideal92.8798 IRQ.
-    assert rows[91]['state'][35]==2031 and rows[92]['state'][35]==2053
-    assert len(pcm)==110*48*2 and rows[-1]['state'][36]==1
+    assert rows[91]['state'][33]==2031 and rows[92]['state'][33]==2053
+    assert len(pcm)==110*48*2 and rows[-1]['state'][34]==1
     partial=[];partial_dc=[0,0]
     for raw in [8192]*24+[16384]*24:
         for side in range(2):
@@ -50,7 +50,7 @@ def header(result):
     lines=['/* Independent given-phase/source/CPU-policy expected, not a game recording. */',
         'static const int16_t original_expected_pcm[] = {']
     for at in range(0,len(result['pcm']),24):lines.append(','.join(map(str,result['pcm'][at:at+24]))+',')
-    lines+=['};','typedef struct { int64_t state[37]; int32_t dc[2]; uint64_t dma,build,window; } original_checkpoint;',
+    lines+=['};','typedef struct { int64_t state[35]; int32_t dc[2]; uint64_t dma,build,window; } original_checkpoint;',
         'static const original_checkpoint original_checkpoints[] = {']
     for r in result['rows']:
         lines.append('{{'+','.join(map(str,r['state']))+'},{'+','.join(map(str,r['dc']))+'},'+

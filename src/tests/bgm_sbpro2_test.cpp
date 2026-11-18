@@ -5,10 +5,8 @@
 #include <cstdint>
 static void observed_native(void *, uint8_t, uint8_t, uint8_t);
 static void observed_message_batch(void *,const uint8_t *,uint32_t,uint32_t);
-static void observed_request_prefix(void *,uint32_t);
 static void observed_startup_owner(void *,unsigned);
 #define FD2_BGM_STARTUP_OWNER_TRACE(d,p) observed_startup_owner(d,p)
-#define FD2_BGM_REQUEST_PREFIX_TRACE(p,pc) observed_request_prefix(p,pc)
 #define FD2_BGM_MESSAGE_BATCH_TRACE(d,b,u,c) observed_message_batch(d,b,u,c)
 #define FD2_BGM_NATIVE_TRACE(voice,status,a,b) observed_native(voice,status,a,b)
 #include "../bgm.cpp"
@@ -423,21 +421,21 @@ static bool default_capacity_playback() {
 int main(int argc,char **argv){
     if(argc==2 && !std::strcmp(argv[1],"--startup-owner")) {
         if(!startup_owner_checks())return 1;
-        std::puts("bgm startup source: pre-writer render, failed-install release, full-slot drop PASS");return 0;
+        std::puts("bgm startup: pre-writer render, failed-install release, duplicate-role rejection PASS");return 0;
     }
     if(argc==2 && !std::strcmp(argv[1],"--sentinel-prefix")) {
-        if(!source_single_sentinel_checks())return 1;
-        std::puts("bgm single-S: 5 source-prefix/qualification families PASS; no GUI/device");return 0;
+        if(!single_sentinel_checks())return 1;
+        std::puts("bgm empty resources: previous-score replay, idle/recovery and error prefixes PASS; no GUI/device");return 0;
     }
     if(argc!=1)return 2;
     if(!instrument_cache_checks())return 1;
     if(!startup_owner_checks())return 1;
-    if(!source_single_sentinel_checks())return 1;
+    if(!single_sentinel_checks())return 1;
     if(!source_message_queue_checks())return 1;
     if(!pan_regression() || !pedal_regression() || !fair_regression())return 1;
     if(!allocator_vectors() || !sustain_reset_and_reuse() || !fixed_note_reentry() ||
        !selective_controls() || !ignored_controller120() || !pitch_static_vectors() || !actual_four_tracks() || !sequence_cache_and_retirement() ||
        !audio_handoff_and_invalid_submission() || !closed_owner_rejects_without_driver_writes() || !chip_outlives_sequence() ||
        !create_rejects_synchronously_dropped_chip() || !default_capacity_playback())return 1;
-    std::puts("bgm_sbpro2_test: 16 legacy + 7 source queue groups (no device/capture/runtime comparison)");return 0;
+    std::puts("bgm_sbpro2_test: driver/cache/queue/replay/owner regressions passed (no device/capture)");return 0;
 }

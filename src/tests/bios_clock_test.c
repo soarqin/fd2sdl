@@ -21,16 +21,14 @@ int main(void) {
         {1,54925402},{2,109850803},{3,164776204},{18,988657221},
         {32767,1799740619621},{32768,1799795545022},
         {65535,3599536164643},{65536,3599591090044},{1573040,86399853031642}};
-    CHECK(fd2_bios_ticks_from_ns(0)==0 && fd2_bios_ticks_from_ms(0)==0);
+    CHECK(fd2_bios_ticks_from_ns(0)==0);
     for(size_t i=0;i<sizeof(edges)/sizeof(edges[0]);i++) {
         CHECK(fd2_bios_tick_start_ns(edges[i].tick)==edges[i].ns);
         CHECK(fd2_bios_ticks_from_ns(edges[i].ns-1)==edges[i].tick-1);
         CHECK(fd2_bios_ticks_from_ns(edges[i].ns)==edges[i].tick);
     }
     CHECK(fd2_bios_ticks_from_ns(UINT64_MAX)==UINT64_C(335850875661));
-    CHECK(fd2_bios_ticks_from_ms(UINT64_MAX)==UINT64_C(335850875661573947));
     CHECK(fd2_bios_tick_start_ns(UINT64_MAX)==UINT64_MAX);
-    CHECK(fd2_bios_ticks_from_ms(3600000)==65543); /* /55仅65454，不能当精确源。 */
     fail_time=1;CHECK(fd2_bios_clock_init()==-1 && !clock_initialized);
     fail_time=0;fail_local=1;CHECK(fd2_bios_clock_init()==-1 && !clock_initialized);
     fail_local=0;CHECK(fd2_bios_clock_init()==0 && clock_initialized);

@@ -11,8 +11,8 @@ static void original_deliver_after_call(fd2_audio *audio) {
     /* 一次Mix/END完成后推进缓冲交接；只服务已生成的音频。
      * provider控制的嵌套FillUp不重入它，pending保留到下一完成边界。 */
     if (audio->original_bound && !audio->original_quiesced &&
-        !audio->original_sb.in_control && !audio->original_quiescing && audio->original_sb.dma.irq_pending &&
-        fd2_audio_sb_deliver_irq(&audio->original_sb) < 0)
+        !audio->original_sb.in_control && !audio->original_quiescing && audio->original_sb.dma.block_ready &&
+        fd2_audio_sb_complete_block(&audio->original_sb) < 0)
         record_first_error(audio, FD2_AUDIO_ERROR_SOURCE);
 }
 static int original_global_fill(void *user) {
@@ -108,22 +108,22 @@ static void original_prefix(fd2_audio *audio,uint64_t whole,uint32_t fraction) {
             (event_tick==limit_tick && event_index<=limit_index));
         /* 同刻先关闭1ms音频窗，再处理短尾；不重放已提交样本。 */
         if(due && event_tick<audio->original_ticks+1u) {
-            audio->original_point=(fd2_sb_point){event_tick,event_index,event_index,1};
+            audio->original_point=(fd2_sb_point){event_tick,event_index};
             if(fd2_audio_sb_dispatch_end(&audio->original_sb,audio->original_sb.dma.end.serial)<0) {
                 record_first_error(audio,FD2_AUDIO_ERROR_SOURCE);
                 audio->original_sb.dma.end.pending=0;
             }
             original_deliver_after_call(audio);
         } else if(audio->original_ticks<limit_tick) {
-            audio->original_point=(fd2_sb_point){audio->original_ticks,1.0,1.0,0};
+            audio->original_point=(fd2_sb_point){audio->original_ticks,1.0};
             (void)original_mix_until(audio,48);
             audio->original_ticks++;
             audio->original_rendered=0;
             memset(audio->original_sb_work,0,sizeof(audio->original_sb_work));
-            audio->original_point=(fd2_sb_point){audio->original_ticks,0,0,0};
+            audio->original_point=(fd2_sb_point){audio->original_ticks,0};
             original_deliver_after_call(audio);
         } else if(due) {
-            audio->original_point=(fd2_sb_point){event_tick,event_index,event_index,1};
+            audio->original_point=(fd2_sb_point){event_tick,event_index};
             if(fd2_audio_sb_dispatch_end(&audio->original_sb,audio->original_sb.dma.end.serial)<0) {
                 record_first_error(audio,FD2_AUDIO_ERROR_SOURCE);
                 audio->original_sb.dma.end.pending=0;
@@ -131,7 +131,7 @@ static void original_prefix(fd2_audio *audio,uint64_t whole,uint32_t fraction) {
             original_deliver_after_call(audio);
         } else break;
     }
-    audio->original_point=(fd2_sb_point){audio->original_ticks,limit_index,limit_index,0};
+    audio->original_point=(fd2_sb_point){audio->original_ticks,limit_index};
 }
 int fd2_audio_is_original_mixer(const fd2_audio *audio) {
     return audio && audio->original_mixer;
@@ -159,9 +159,9 @@ int fd2_audio_quiesce_dig(fd2_audio *audio) {
     if(audio->original_mixer) {
         fd2_sb_dma_provider *sb=&audio->original_sb.dma;
         /* 关闭旧声音前缀后停缓冲和短尾；不回写P位置或取消另一handle。 */
-        sb->irq_pending=0;
+        sb->block_ready=0;
         if(sb->mode!=FD2_SB_NONE && original_global_fill(audio)<0)result=-1;
-        sb->mode=FD2_SB_NONE;sb->left=sb->total=0;sb->end.pending=0;sb->irq_pending=0;
+        sb->mode=FD2_SB_NONE;sb->left=sb->total=0;sb->end.pending=0;sb->block_ready=0;
     }
     /* 停止后继混音借用，随后可关闭clock并释放资源。 */
     audio->original_quiesced=1;audio->original_quiescing=0;

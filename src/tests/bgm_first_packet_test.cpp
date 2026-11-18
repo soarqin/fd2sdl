@@ -49,7 +49,7 @@ int main() {
     fd2_bgm_player *player=okay?fd2_bgm_create(audio,&bc):nullptr;
     fd2_pcm_driver dig{};
     okay=okay && player && fd2_pcm_driver_init(&dig,audio)==0;
-    okay=okay && dig.dig.timer_handle==4u && fd2_bgm_play(player,18,0)==0;
+    okay=okay && dig.dig.timer_handle==FD2_AIL_TIMER_DIG && fd2_bgm_play(player,18,0)==0;
     expected_chip=player?&player->driver.opl:nullptr;
     armed=okay;
     unsigned milliseconds=0;

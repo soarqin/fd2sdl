@@ -46,9 +46,9 @@ static int setup(fd2_pcm_driver *d,fd2_pcm_player *p,fd2_pcm_player *q,struct fd
     CHECK(fd2_bios_clock_install_mdi(0,mdi,&mdi_calls)==0);
     fd2_dig_external_sb16 provider={s,start,read_half,pause_next_irq};
     CHECK(fd2_pcm_driver_init_external(d,a,&provider)==0);
-    CHECK(d->dig.timer_handle==4);
-    CHECK(d->dig.timer->slots[0].period_us==8333 && d->dig.timer->slots[1].period_us==5000);
-    CHECK(d->dig.timer->slots[1].user==&d->dig);
+    CHECK(d->dig.timer_handle==FD2_AIL_TIMER_DIG);
+    CHECK(d->dig.timer->slots[FD2_AIL_TIMER_MDI].period_us==8333 && d->dig.timer->slots[FD2_AIL_TIMER_DIG].period_us==5000);
+    CHECK(d->dig.timer->slots[FD2_AIL_TIMER_DIG].user==&d->dig);
     CHECK(fd2_pcm_player_init_shared(p,d,0,11025)==0);
     CHECK(fd2_pcm_player_init_shared(q,d,1,11025)==0);
     return 1;

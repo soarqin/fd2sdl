@@ -96,22 +96,18 @@ struct NativeSequence {
     std::array<DurationSlot, 32> pending{};
     uint8_t status = 2; /* 原2 ended、4 playing、8 stopped。 */
     bool queue_overflow = false;
-    const uint8_t *rbrn_chunk = nullptr; /* 原S+0c，只借同resource。 */
-    const uint8_t *timbre_chunk = nullptr;size_t timbre_available=0;
     const uint8_t *timbre_pairs = nullptr; /* 借同一immutable FDMUS，不另复制资源。 */
     uint16_t timbre_count = 0;
     bool install_timbres = false; /* 443d0非空TIMB在503前先flush同driver旧消息。 */
 };
 struct NativeEvent {
     uint8_t status = 0, a = 0, b = 0, meta = 0;
-    uint32_t duration = 0,meta_size=0;
-    unsigned duration_vlq_bytes=0,length_vlq_bytes=0;
+    uint32_t duration = 0;
     size_t next = 0;
     uint32_t meta_value = 0; /* 51h原BE24；58h复用a/b的BYTE参数。 */
 };
 
 struct BgmVoice;
-struct fd2_bgm_player_impl;
 
 /* 唯一MDI runtime：App线程按共享AIL IRQ服务、渲染及退休。
  * SDL设备只消费已生成PCM；sequence预检失败不写driver。 */
@@ -160,14 +156,6 @@ struct AilDriver {
 };
 
 struct BgmVoice {
-    /* 原53ED0唯一S；host诊断属于同owner，不是第二cache／sequencer。 */
-    fd2_bgm_player_impl *owner = nullptr;
-    fd2_bgm_event_state event_state = FD2_BGM_EVENTS_NO_VALID_INIT;
-    bool event_field_produced = false, resource_present = false, barrier_reached = false;
-    fd2_bgm_gap_reason first_gap_reason = FD2_BGM_GAP_NONE;
-    int first_gap_track = -1, first_event_track = -1;
-    uint32_t first_gap_pc = 0;
-    bool first_event_read_blocked = false;
     AilDriver *driver = nullptr; /* 借用 player；audio 先销毁。 */
     NativeSequence sequence;
     std::array<int16_t, kMidiChannels> pedal_cache{};
@@ -229,7 +217,7 @@ static bool find_evnt(const uint8_t *data, size_t begin, size_t end,
             if (size >= 2 && rd16(data + at + 8) != 0) {
                 const uint16_t count=rd16(data+at+8);
                 if(out.install_timbres || size-2u < size_t(count)*2u)return false;
-                out.install_timbres=true;out.timbre_chunk=data+at;out.timbre_available=end-at;
+                out.install_timbres=true;
                 out.timbre_pairs=data+at+10;out.timbre_count=count;
             }
         } else if (!std::memcmp(data + at, "FORM", 4) || !std::memcmp(data + at, "CAT ", 4) ||
@@ -243,12 +231,12 @@ static bool find_evnt(const uint8_t *data, size_t begin, size_t end,
 }
 /* ail_xmidi_vlq_read @0x424b0（原登记 sub_424B0）的原VLQ。当前资源至多四字节；
  * 更长编码主线程明确拒绝，不猜回绕后继续。 */
-static bool native_vlq(const uint8_t *data, size_t size, size_t &at, uint32_t &value,unsigned *bytes=nullptr) {
+static bool native_vlq(const uint8_t *data, size_t size, size_t &at, uint32_t &value) {
     value = 0;
     for (unsigned i = 0; i < 4; ++i) {
         if (at >= size) return false;
         uint8_t byte = data[at++]; value = (value << 7) | (byte & 127u);
-        if (!(byte & 128u)) {if(bytes)*bytes=i+1;return true;}
+        if (!(byte & 128u)) return true;
     }
     return false;
 }
@@ -261,20 +249,20 @@ static bool decode_native_event(const NativeSequence &seq, size_t at, NativeEven
         if (seq.size - at < 2) return false;
         e.a = seq.evnt[at++]; e.b = seq.evnt[at++];
         if (e.a >= 128 || e.b >= 128) return false;
-        if (kind == 9 && !native_vlq(seq.evnt, seq.size, at, e.duration,&e.duration_vlq_bytes)) return false;
+        if (kind == 9 && !native_vlq(seq.evnt, seq.size, at, e.duration)) return false;
         if (kind == 11 && e.a != 1 && e.a != 7 && e.a != 64) return false;
     } else if (kind == 12) {
         if (at == seq.size || (e.a = seq.evnt[at++]) >= 128) return false;
     } else if (e.status == 0xff) {
         if (at == seq.size) return false;
         e.meta = seq.evnt[at++]; uint32_t size = 0;
-        if (!native_vlq(seq.evnt, seq.size, at, size,&e.length_vlq_bytes) || size > seq.size - at) return false;
+        if (!native_vlq(seq.evnt, seq.size, at, size) || size > seq.size - at) return false;
         if ((e.meta == 0x51 && size < 3) || (e.meta == 0x58 && size < 2) ||
             (e.meta == 0x2f && size != 0)) return false;
         if(e.meta==0x51)e.meta_value=(uint32_t(seq.evnt[at])<<16) |
             (uint32_t(seq.evnt[at+1])<<8) | seq.evnt[at+2];
         if(e.meta==0x58){e.a=seq.evnt[at];e.b=seq.evnt[at+1];}
-        e.meta_size=size;at += size; /* 唯一parser另给栈上原VLQ字节数，不重解析。 */
+        at += size;
     } else return false; /* 未证语法不落BW fallback。 */
     e.next = at; out = e; return true;
 }
@@ -914,7 +902,7 @@ static void reset_driver(AilDriver *voice) { reset_driver_state(voice);initializ
 
 /* ail_sequence_event_state_reset @43160（原sub_43160）：只写原reset字段。
  * S+10 EVNT指针、+14 cursor、+34/+38 volume以及note/remaining不在此写集。
- * beat按原写序重置，tempo字段不在reset写集；loop-stack／全对象布局另有资格门。 */
+ * beat按原写序重置，tempo字段不在reset写集。 */
 static void reset_sequence_event_state(BgmVoice *voice) {
     voice->pedal_cache.fill(-1);voice->priority_cache.fill(-1);voice->volume_cache.fill(-1);
     for(size_t i=0;i<kMidiChannels;i++)voice->channel_map[i]=static_cast<uint8_t>(i);
@@ -925,9 +913,8 @@ static void reset_sequence_event_state(BgmVoice *voice) {
     voice->beat_increment=0;voice->beats_per_measure=4;voice->beat_denominator=8000000;
     voice->timer_ticks=0;
 }
-/* 443d0成功init的已证producer：volume/target与fade初态另写，再共用43160。
- * 调用者须提供已验证EVNT；纯领域夹具也以此显式建立给定source资格。
- * failed-format绝不调用它，不把C nullptr或旧size当原合法界。 */
+/* 443d0成功init：volume/target与fade初态另写，再共用43160。
+ * 调用者提供已验证EVNT；空条目保留已有score，不调用成功初始化。 */
 static void prepare_sequence(BgmVoice *voice,bool start_fade=false) {
     voice->sequence.status=2;voice->sequence.cursor=0;
     voice->sequence_volume=voice->target_volume=127;
@@ -935,8 +922,6 @@ static void prepare_sequence(BgmVoice *voice,bool start_fade=false) {
     reset_sequence_event_state(voice);
     voice->tempo_percent=100;voice->target_tempo=100;
     voice->tempo_fade_interval_us=0;voice->tempo_fade_accumulator_us=0;voice->tempo_accumulator=0;
-    voice->event_state=FD2_BGM_EVENTS_QUALIFIED;voice->event_field_produced=true;
-    voice->barrier_reached=false;
 }
 
 static void set_sequence_volume(BgmVoice *voice, int value, uint32_t milliseconds);
@@ -1206,18 +1191,13 @@ static void advance_sequence_tempo_fade(BgmVoice *voice) {
             signed_sequence_word(voice->tempo_percent)?1u:UINT32_MAX;
     }
 }
-static bool sequence_events_playable(const BgmVoice *voice) {
-    return voice->event_state==FD2_BGM_EVENTS_QUALIFIED ||
-        voice->event_state==FD2_BGM_EVENTS_COMPAT_REPLAY;
-}
-
 /* ail_mdi_sequences_timer_service @0x43270（原登记sub_43270）：callback计数一次，
  * tempo accumulator每满100执行duration->delay/EVNT->beat；末尾非EOT才volume->tempo fade。
  * 正常15曲tempo默认100，meta51只改变beat denominator；不是新的音频时间真值。 */
 static bool advance_native_sequence(BgmVoice *voice) {
     NativeSequence &seq=voice->sequence;
-    if(voice->barrier_reached && !sequence_events_playable(voice))return false;
     if(seq.status!=4)return true;
+    if(!seq.evnt || !seq.size)return false; /* 首次空条目没有score，保UI与常驻chip。 */
     ++voice->timer_ticks;voice->tempo_accumulator+=voice->tempo_percent;
     bool eot=false;
     while(signed_sequence_word(voice->tempo_accumulator)>=100) {
@@ -1232,14 +1212,6 @@ static bool advance_native_sequence(BgmVoice *voice) {
         }
         --seq.delay;
         if(signed_sequence_word(seq.delay)<=0 && !eot) {
-            if(!sequence_events_playable(voice)) {
-                voice->barrier_reached=true;
-                if(!voice->first_event_read_blocked) {
-                    voice->first_event_read_blocked=true;
-                    voice->first_event_track=voice->owner?voice->owner->current_track:-1;
-                }
-                return false; /* unknown不读旧size，不到43946共同tail */
-            }
             while(seq.cursor<seq.size) {
                 NativeEvent event;
                 if(!decode_native_event(seq,seq.cursor,event)) {
@@ -1257,7 +1229,7 @@ static bool advance_native_sequence(BgmVoice *voice) {
                         }
                         /* 原43490回433b0会peek一BYTE，但433c9/437e3由EOT门截断，
                          * 不消费新头meta/MIDI或delay；C只投影状态，不额外读未知尾。
-                         * 原peek实际读资格和分支成本另账，不签全对象或strict PIC。 */
+                         * 不读取EOT之后的资源尾字节。 */
                         break;
                     }
                     if(event.meta==0x51)voice->beat_denominator=event.meta_value<<4;
@@ -1285,7 +1257,7 @@ static bool advance_native_sequence(BgmVoice *voice) {
 
 /* 一次完整43270服务：早退/EOT也到共同tail；不是每个逻辑消息即时OUT。 */
 static bool native_sequence_tick(BgmVoice *voice) {
-    if(!advance_native_sequence(voice))return false; /* unknown不是43946共同tail */
+    if(!advance_native_sequence(voice))return false; /* 没有score时不推进事件。 */
     flush_driver_messages(voice->driver);return true;
 }
 static void mdi_timer_service(void *user) {
@@ -1324,26 +1296,6 @@ static void chip_retire(void *userdata, fd2_audio_retire_reason reason) {
     driver->source_live=false;
     if(driver->active_sequence)bgm_retire(driver->active_sequence,reason);
 }
-#ifndef FD2_BGM_REQUEST_PREFIX_TRACE
-#define FD2_BGM_REQUEST_PREFIX_TRACE(player,pc) ((void)0)
-#endif
-static void record_event_source_gap(BgmVoice *voice) {
-    /* music_track_play @0x25977（原FUN_0004ab8b）/
-     * ail_sequence_playback_start @0x44790（原sub_44790）：
-     * 3B空条目初始化失败后，原caller仍reset并从旧score开头开始。
-     * 2026-11-18给定Music1 Town G1/G2录音确认重现旧乐句。C沿同player长期持有
-     * 的整DAT安全重播已解码score；这是表现兼容，不冒原free后owner等价。 */
-    const bool replay=voice->event_field_produced && voice->sequence.evnt && voice->sequence.size;
-    voice->event_state=replay?FD2_BGM_EVENTS_COMPAT_REPLAY:FD2_BGM_EVENTS_SOURCE_UNQUALIFIED;
-    voice->barrier_reached=!replay;
-    if(voice->first_gap_reason==FD2_BGM_GAP_NONE) {
-        voice->first_gap_reason=voice->event_field_produced?
-            FD2_BGM_GAP_EVNT_OWNER_AFTER_RESOURCE_REPLACE:FD2_BGM_GAP_INITIAL_EVNT_FIELD_PRODUCER_UNPROVEN;
-        voice->first_gap_track=voice->owner?voice->owner->current_track:-1;
-        voice->first_gap_pc=0x447ae;
-    }
-}
-
 } // namespace
 
 struct fd2_bgm_player : fd2_bgm_player_impl {};
@@ -1373,7 +1325,7 @@ fd2_bgm_player *fd2_bgm_create(fd2_audio *audio,
                         ? std::min<size_t>(kChannels,
                               static_cast<size_t>(config->voice_count))
                         : kChannels;
-    player->sequence.driver=&player->driver;player->sequence.owner=player;
+    player->sequence.driver=&player->driver;
     reset_driver_state(&player->driver);
     /* 同chip在OPL_Reset后、首个初始化写入前即由Audio借用；
      * 换曲或sequence结束只更新事件，不退休合成器及其尾音。 */
@@ -1418,43 +1370,32 @@ int fd2_bgm_play(fd2_bgm_player *player, size_t track, int loop_count) {
     if(!recognized_failure && !prepare_native_sequence(prepared,data,size))return -1;
     /* 25997缓存先于device/stop/res_load；host真错负返但不回滚已达cache。
      * 非recognized坏格式/参数是此接口H预检，不借本族把全部失败吞成0。 */
-    player->current_track=static_cast<int>(track);FD2_BGM_REQUEST_PREFIX_TRACE(player,0x25997);
+    player->current_track=static_cast<int>(track);
     if(fd2_audio_sync(player->audio)!=0 || fd2_audio_original_fill_up(player->audio)<0)return -1;
     BgmVoice *voice=&player->sequence;
-    if(voice->resource_present) {
-        FD2_BGM_REQUEST_PREFIX_TRACE(player,0x259d8);end_sequence(voice);
-    }
-    /* C整DAT由同player持有；空条目保留旧score，原内部owner差异另记诊断。 */
-    voice->resource_present=true;voice->sequence.status=2;
-    if(recognized_failure)record_event_source_gap(voice);
-    FD2_BGM_REQUEST_PREFIX_TRACE(player,0x443ef);
+    end_sequence(voice); /* 未播放时是空操作；已播放时先释放旧音符。 */
+    /* music_track_play @0x25977（原FUN_0004ab8b）：空条目从旧score开头重播。
+     * 2026-11-18 Town G1/G2录音支持此表现；整DAT由同player持有。 */
+    voice->sequence.status=2;
     if(!recognized_failure) {
         voice->sequence.evnt=prepared.evnt;voice->sequence.size=prepared.size;
-        voice->sequence.install_timbres=prepared.install_timbres;
-        voice->sequence.timbre_chunk=prepared.timbre_chunk;voice->sequence.timbre_available=prepared.timbre_available;
-        voice->sequence.timbre_pairs=prepared.timbre_pairs;voice->sequence.timbre_count=prepared.timbre_count;
         prepare_sequence(voice,track!=16 && track!=17);
-        FD2_BGM_REQUEST_PREFIX_TRACE(player,0x44550);
         if(prepared.install_timbres&&!install_sequence_timbres(&player->driver,prepared))return -1;
     }
     /* 447a0再次stop在status2无写；447a9仅43160 reset，失败init保volume旧值。 */
-    reset_sequence_event_state(voice);FD2_BGM_REQUEST_PREFIX_TRACE(player,0x447a9);
-    FD2_BGM_REQUEST_PREFIX_TRACE(player,0x447ae);
+    reset_sequence_event_state(voice);
     voice->music_enabled=player->music_enabled;
     voice->start_fade=track!=16 && track!=17;
     voice->sequence.cursor=0; /* 原447be从score开头；首次空条目没有score时不读事件。 */
     if(!begin_sequence(voice,false))return -1;
-    FD2_BGM_REQUEST_PREFIX_TRACE(player,voice->event_field_produced?0x447be:0);
     if(player->music_enabled) {
         if(voice->start_fade) {
-            set_sequence_volume(voice,0,0);FD2_BGM_REQUEST_PREFIX_TRACE(player,0x25a5b);
+            set_sequence_volume(voice,0,0);
             set_sequence_volume(voice,127,2000);
         } else set_sequence_volume(voice,127,0);
     } else set_sequence_volume(voice,0,0);
-    FD2_BGM_REQUEST_PREFIX_TRACE(player,0x25a7a);
     voice->sequence.loop_remaining=static_cast<uint32_t>(loop_count);
-    FD2_BGM_REQUEST_PREFIX_TRACE(player,0x25a8c);
-    return 0; /* 空条目重播资格见COMPAT_REPLAY；首次无score仍保UI与明确缺口。 */
+    return 0;
 }
 
 /* field_options_menu_execute @0x1728c（原同名登记）：只在真实toggle时请求1秒渐变。
@@ -1482,14 +1423,6 @@ int fd2_bgm_stop(fd2_bgm_player *player) {
     return 0;
 }
 
-int fd2_bgm_get_qualification(const fd2_bgm_player *player,fd2_bgm_qualification *out) {
-    if(!player || !out)return -1;
-    const BgmVoice &s=player->sequence;
-    *out=fd2_bgm_qualification{s.event_state,player->current_track,s.barrier_reached?1:0,
-        s.first_gap_reason,s.first_gap_track,s.first_gap_pc,s.first_event_read_blocked?1:0,
-        s.first_event_track,s.first_event_read_blocked?0x433b0u:0u};
-    return 0; /* 纯同owner读取；不采clock、不读Audio/EVNT、不清历史。 */
-}
 int fd2_bgm_current_track(const fd2_bgm_player *player) {
     return player ? player->current_track : -1;
 }

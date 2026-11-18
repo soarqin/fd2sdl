@@ -2020,3 +2020,12 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 现有隔离IDA库同步21真实命名／22注释，1312函数／573登记；边界／类型／flags／chunks／字节不变，C tokens仅登记名映射，11SHA／14交叉检查／1001规范入口已核。原严格端口时刻RED仅研究；不重开硬件／原loader疑虑。Windows平台与EX-AUDIO-NUKED保持，物理扬声器／真实拔插仍未验。
 
 实际完整提交／本地快进、物理文件及换行资格、主线Debug构建／定向集成和用户SAV保护，以两树`build/f5/subject-delivery-20261118/local-integration.json`为准。阶段交付不是全部A01—A22已通过；正常输入／RNG／QK及FX／cue联合、无skip Title时长仍归F6表现门，纯形式不再要求。向主对话汇报后直接执行独立DOS-CLEAN，不远程push／发布。
+
+
+## DOS-CLEAN独立清理交付（2026-11-18）
+
+在F5 `b6462edf`之上核正式consumer，16槽／4字节句柄改为MDI／DIG两服务和必要游戏tick；删pending／busy／defer／EOI及program hooks、BGM资格／PC／gap和未读投影、buffer ACK／未用DSP／rate／filter／重复相位／始终enabled状态，保真实整数节奏、消息／loop／fade、采样／滤波／双声部／短尾及关闭前缀。35代码／构建／测试文件净减565行；14产品C／H净减358行。输入、SAV、工作页、cold预算及来源工具依据实际消费者保留，未改原资源／用户档／混音器，未追加硬件研究。
+
+普通110ms独立模型前后5280双声道帧完全相同，不读C生成期望。21目标构建、21CTest首轮20过，余一DIG旧编号断言FAIL；修替身／编号及固定rate上界后仅四项通过。删人工未读block_ready迟交付族，改真实quiesce取消；03关闭后sync旧期望FAIL、04局部补丁误匹配相邻行FAIL保原件，05仅audio_original修正通过，生产合同不改。三共享机制交叉复审及外围调用盘点无生产must-fix；全部候选和运行／静态／继承边界见[清理报告](dos-simulation-cleanup.md)。
+
+本轮不重跑原G／LEAVE或历史GUI，按score／cue／stop不变、数值／consumer检查继承有限资格，不声称新PE原生。实际独立提交、本地快进、物理源、主线重建／定向执行及保护记录只认两树`build/dos-clean/subject-delivery-20261118/local-integration.json`。按用户新增顺序独立汇报后直接F6，纯硬件形式退出，QK等真实游戏未知继续保门；不远程push／发布。

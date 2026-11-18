@@ -11,6 +11,6 @@ static int fd2_test_audio_clock_prepare(fd2_audio *audio) {
 }
 static int fd2_test_audio_clock_after_mdi(fd2_audio *audio) {
     return audio && fd2_bios_clock_install_dig(fd2_audio_now_ns(audio),
-        fd2_test_idle_dig, NULL) == 4u ? 0 : -1;
+        fd2_test_idle_dig, NULL) == FD2_AIL_TIMER_DIG ? 0 : -1;
 }
 #endif

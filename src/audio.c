@@ -298,7 +298,7 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
     }
     /* channel属于Audio lifetime，未绑定音效时也保留持续混音窗口。 */
     if(original && fd2_audio_sb_construct(&audio->original_sb,&audio->original_point,
-        1,8192,8192,original_global_fill,audio)<0)goto failed;
+        8192,8192,original_global_fill,audio)<0)goto failed;
     if (audio->offline) fd2_bios_clock_reset(0, 0);
     audio->now_ns = audio->origin_ns = audio->edge_ns = audio->offline ? 0 : SDL_GetTicksNS();
     /* Main线程关闭已到时刻的声音前缀；设备只消费Stream，不推进游戏。 */

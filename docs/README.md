@@ -19,6 +19,7 @@
 - [音频工作包](plans/audio.md)：A0～A8 已有支持范围和证据边界；后续随通用机制与场景补证。
 
 - [F5音乐／音效与生命周期](plans/f5-audio-device.md)：当前表现层实现及必要验证；[历史证据与硬件研究](plans/f5-source-research-history.md)保留旧来源／失败，纯内部形式不再是产品门。
+- [DOS模拟清理](plans/dos-simulation-cleanup.md)：已落地代码及消费者、实际删减与保留行为、定向检查和F6边界。
 
 ## 系统设计
 

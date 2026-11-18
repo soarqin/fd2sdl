@@ -39,6 +39,7 @@
 | S4 | 旧 Scene／App／准备调色和调试转场尾修复、审计信任边界、全历史有限资格及统一回归／精简 | `0cca15f`；`build/s4/local-integration.json` | [S4报告](s4-unified-review.md)、[S4记录](stage-log.md#s4-统一审查全历史回归与精简2026-11-14) | 同C01的120项CTest、1661工具项／0skip，当前原码／C及6组fresh pair；历史30组／146登记有限资格，不称全fresh。13／14隔离和450拒绝不解除，原精度／平台边界保留 |
 | S5 | 原13槽／14依赖闭合；stage20—25与26—29两批战斗／交接／结局、有限Scene能力及正式恢复 | 本阶段完整提交；`build/s5/local-integration.json` | [S5报告](s5-batch-expansion.md)、[S5记录](stage-log.md#s5-隔离语义闭合与后续批量接入2026-11-14)、[研究历史](s5-investigation-history.md) | C22 18项CTest含124工具项；source／参数／资源全账、有限原码／C、分候选原生及严格资格分账。450拒绝、外来32 credits及原精度／平台边界保留；不称全游戏所有状态或一次全fresh |
 | F5 | 音乐／PCM／传输、两处stop、G2重播及失败／关闭前缀 | 完整阶段提交／本地集成见`build/f5/subject-delivery-20261118/local-integration.json` | [F5报告](f5-audio-device.md)、[阶段记录](stage-log.md#f5音乐音效与生命周期交付2026-11-18) | Windows；Nuked有意差异；分候选证据分别保身份。正常联合与Title无skip时长留F6，随后先独立DOS-CLEAN |
+| DOS-CLEAN | 两服务调度、BGM／缓冲／采样冗余及内部形式测试清理 | 整阶段身份见`build/dos-clean/subject-delivery-20261118/local-integration.json` | [清理报告](dos-simulation-cleanup.md) | 保游戏节奏／PCM／owner，F6继续真实表现联合；纯硬件形式不再要求 |
 
 ## 2. 长历史与实际收据
 

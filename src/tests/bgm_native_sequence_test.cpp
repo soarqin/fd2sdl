@@ -210,7 +210,7 @@ static bool shared_irq_is_only_sequence_service() {
     voice.sequence.evnt=data.data();voice.sequence.size=data.size();CHECK(begin_sequence(&voice));
     fd2_bios_clock_reset(0,0);CHECK(fd2_bios_clock_ail_attach(0,65536u)==0);
     CHECK(fd2_bios_clock_install_mdi(0,mdi_timer_service,&driver)==0u);
-    CHECK(fd2_bios_clock_install_dig(0,idle_dig_service,nullptr)==4u);
+    CHECK(fd2_bios_clock_install_dig(0,idle_dig_service,nullptr)==FD2_AIL_TIMER_DIG);
     fd2_ail_timer before=*fd2_bios_clock_ail_state();float future[1024];
     render_opl_frames(voice.driver,future,512);
     CHECK(voice.timer_ticks==0u && fd2_bios_clock_ticks(UINT64_MAX)==0u);

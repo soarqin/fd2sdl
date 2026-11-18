@@ -167,14 +167,14 @@ static int prepare_driver(fd2_audio *audio,fd2_pcm_driver *d) {
     CHECK(fd2_bios_clock_ail_attach(fd2_audio_now_ns(audio),65536)==0);
     CHECK(fd2_bios_clock_install_mdi(fd2_audio_now_ns(audio),idle_mdi,NULL)==0);
     CHECK(fd2_pcm_driver_init(d,audio)==0);
-    CHECK(d->dig.timer_handle==4 && d->dig.timer->slots[1].period_us==5000);
+    CHECK(d->dig.timer_handle==FD2_AIL_TIMER_DIG && d->dig.timer->slots[FD2_AIL_TIMER_DIG].period_us==5000);
     return 1;
 }
 static int shutdown_driver(fd2_audio *audio,fd2_pcm_driver *d) {
     CHECK(fd2_pcm_driver_quiesce(d)==0);
     CHECK(audio->original_quiesced && audio->original_sb.dma.mode==FD2_SB_NONE);
     CHECK(audio->original_sb.dma.left==0 && audio->original_sb.dma.total==0);
-    CHECK(!audio->original_sb.dma.irq_pending && !audio->original_sb.dma.end.pending);
+    CHECK(!audio->original_sb.dma.block_ready && !audio->original_sb.dma.end.pending);
     CHECK(fd2_bios_clock_close()==0);
     fd2_audio_destroy(audio);fd2_pcm_driver_close(d);
     CHECK(fd2_bios_clock_advance(host_ns+1000000)<0);
@@ -214,13 +214,13 @@ static int original_shared_clock_tape(void) {
         fd2_sb_dma_provider *s=&audio->original_sb.dma;
         const int64_t state[]={(int64_t)c->written,(int64_t)c->read,(int64_t)c->rendered,
             c->last,c->current,c->delta,c->freq_f,c->freq_fslew,c->gain[0],c->gain[1],
-            c->lowpass[0],c->lowpass[1],c->current_loaded,c->enabled,
+            c->lowpass[0],c->lowpass[1],c->current_loaded,
             g->playing,g->empty_services,g->entered_active,g->last_half,
             g->samples[0].length,g->samples[0].position,g->samples[0].loop_count,g->samples[0].status,
             g->samples[1].length,g->samples[1].position,g->samples[1].loop_count,g->samples[1].status,
-            (int64_t)s->cursor,s->left,s->total,s->mode,s->irq_pending,s->require_ack,
+            (int64_t)s->cursor,s->left,s->total,s->mode,s->block_ready,
             s->driver_half,s->saved_next_half,s->driver_state,(int64_t)s->dma_reads,(int64_t)s->block_ends};
-        for(size_t i=0;i<37;i++)if(state[i]!=v->state[i]) {
+        for(size_t i=0;i<35;i++)if(state[i]!=v->state[i]) {
             fprintf(stderr,"ms%zu state%zu %lld != %lld\n",ms+1,i,(long long)state[i],(long long)v->state[i]);CHECK(0);
         }
         CHECK(audio->original_dc.adjustment[0]==v->dc[0] && audio->original_dc.adjustment[1]==v->dc[1]);
@@ -313,7 +313,8 @@ static int replacement_prefill_before_unregister(void) {
 static int failed_DIG_install_does_not_quiesce_music(void) {
     CHECK(reset_test());fd2_audio *audio=make_original(1,0);CHECK(audio);
     CHECK(fd2_bios_clock_ail_attach(0,65536)==0);
-    for(unsigned i=0;i<15;i++)CHECK(fd2_bios_clock_install_mdi(0,idle_mdi,NULL)!=FD2_AIL_TIMER_INVALID);
+    CHECK(fd2_bios_clock_install_mdi(0,idle_mdi,NULL)==FD2_AIL_TIMER_MDI);
+    CHECK(fd2_bios_clock_install_dig(0,idle_mdi,NULL)==FD2_AIL_TIMER_DIG);
     source fm={.value=.25f};CHECK(fd2_audio_play_music_source(audio,make_source(&fm),1)==0);
     fd2_pcm_driver d={0};CHECK(fd2_pcm_driver_init(&d,audio)<0);
     CHECK(d.normal_bound && d.audio==audio && d.dig.closed && !d.dig.attached);
@@ -323,9 +324,9 @@ static int failed_DIG_install_does_not_quiesce_music(void) {
     return 1;
 }
 
-/* FA03：给定合法PAUSED/left1..2与pending IRQ前态，不声称正常SAV或实机可达。
+/* 给定PAUSED/left1..2的短尾；核单次消费/取消，不声称正常SAV或实机可达。
  * 固定b6abbd5 sblaster.cpp1130..1147/2394..2399/3728..3731/3876..3879，
- * PIC_AddEvent664..672；literal由独立Fraction converter按host算式导出。
+ * 短尾literal由独立Fraction converter按采样数和播放率导出。
  * 全ring=128、FM=0、DC=0，因此全部已发布PCM严格为0；不是H静音替代。 */
 static const uint8_t remaining_end_source[2]={0,255};
 static int given_paused_remaining(fd2_audio *audio,fd2_pcm_driver *d,source *fm,
@@ -335,15 +336,15 @@ static int given_paused_remaining(fd2_audio *audio,fd2_pcm_driver *d,source *fm,
     host_ns=anchor;CHECK(fd2_audio_sync(audio)==0);
     CHECK(audio->closed_frames==0 && audio->original_rendered==0);
     fd2_sb_dma_provider *sb=&audio->original_sb.dma;
-    /* source-given: old block has 1/2 bytes, saved half1 resumes as1; D0已暂停。 */
+    /* 给定旧块剩1/2字节、已暂停；按原缓冲恢复关系继续half1。 */
     sb->ring=&d->dig.dma[0][0];sb->cursor=FD2_SB_BLOCK-left;
     sb->left=left;sb->total=FD2_SB_BLOCK;sb->mode=FD2_SB_PAUSED;
     sb->driver_half=-1;sb->saved_next_half=2;sb->driver_state=0;
     CHECK(fd2_audio_dig_start(&d->dig,0,remaining_end_source,2,1)==0);
-    CHECK(sb->mode==FD2_SB_DMA && sb->driver_half==1 && sb->driver_state==3);
+    CHECK(sb->mode==FD2_SB_RUNNING && sb->driver_half==1 && sb->driver_state==3);
     CHECK(sb->saved_next_half==0 && sb->end.pending && sb->end.serial==1);
     CHECK(sb->end.count==left && sb->dma_reads==0 && sb->block_ends==0);
-    CHECK(!sb->irq_pending && audio->first_error==FD2_AUDIO_ERROR_NONE);
+    CHECK(!sb->block_ready && audio->first_error==FD2_AUDIO_ERROR_NONE);
     return 1;
 }
 static int zero_published_audio(const fd2_audio *audio,const source *fm,size_t frames) {
@@ -378,7 +379,7 @@ static int original_positive_remaining_END_and_tick(void) {
             CHECK(zero_published_audio(audio,&fm,24));
             host_ns=rows[r].due;CHECK(fd2_audio_sync(audio)==0);
             CHECK(!sb->end.pending && sb->dma_reads==rows[r].left && sb->left==2048);
-            CHECK(sb->block_ends==1 && !sb->irq_pending && sb->driver_half==0);
+            CHECK(sb->block_ends==1 && !sb->block_ready && sb->driver_half==0);
             CHECK(sb->cursor==2048 && sb->next_serial==1);
             CHECK(audio->original_sb.channel.written==(rows[r].left==1?24u:27u));
             CHECK(audio->original_sb.channel.freq_f==(rows[r].left==1?48000u:66150u));
@@ -389,7 +390,7 @@ static int original_positive_remaining_END_and_tick(void) {
         CHECK(!sb->end.pending && sb->next_serial==1 && sb->block_ends==1);
         CHECK(sb->dma_reads==rows[r].reads && sb->left==rows[r].remaining);
         CHECK(sb->cursor==2048u-rows[r].left+rows[r].reads);
-        CHECK(!sb->irq_pending && sb->driver_half==0 && sb->mode==FD2_SB_DMA);
+        CHECK(!sb->block_ready && sb->driver_half==0 && sb->mode==FD2_SB_RUNNING);
         CHECK(audio->original_sb.channel.written==rows[r].written);
         CHECK(audio->original_sb.channel.freq_f==rows[r].phase);
         CHECK(audio->original_sb.channel.read==0 && audio->original_sb.channel.rendered==0);
@@ -397,44 +398,29 @@ static int original_positive_remaining_END_and_tick(void) {
         /* 旧END在下一Mix/块末已取消；越过原到期点不得再读count或再翻half。 */
         host_ns=1100000;CHECK(fd2_audio_sync(audio)==0);
         CHECK(sb->dma_reads==rows[r].reads && sb->block_ends==1 && sb->driver_half==0);
-        CHECK(!sb->end.pending && !sb->irq_pending && sb->next_serial==1);
+        CHECK(!sb->end.pending && !sb->block_ready && sb->next_serial==1);
         CHECK(memcmp(&d.dig,&d_before,sizeof(d_before))==0);
         CHECK(audio->first_error==0 && fd2_bios_clock_ticks(host_ns)==0);
         CHECK(zero_published_audio(audio,&fm,48));CHECK(shutdown_driver(audio,&d));
         CHECK(fm.retired==1);
     }return 1;
 }
-static int original_remaining_pause_resume_cancels_old_END(void) {
-    static const uint64_t old_due[2]={545352,590703},new_due[2]={575352,620703};
+/* 给定短尾后走真实关闭入口；不制造未消费却已完成的块。 */
+static int original_quiesce_cancels_pending_tail(void) {
     for(unsigned left=1;left<=2;left++) {
         CHECK(reset_test());fd2_audio *audio=make_original(1,0);CHECK(audio);
         fd2_pcm_driver d={0};source fm={0};
         CHECK(given_paused_remaining(audio,&d,&fm,500000,left));
         fd2_sb_dma_provider *sb=&audio->original_sb.dma;
-        /* 真实第三空服务调用request_pause；pending IRQ是给定外部CPU交付前提。 */
-        CHECK(fd2_audio_dig_stop(&d.dig,0)==0);d.dig.empty_services=2;
-        CHECK(fd2_audio_dig_service(&d.dig)==1);
-        CHECK(!d.dig.playing && sb->driver_state==2 && sb->end.pending);
-        host_ns=520000;CHECK(fd2_audio_sync(audio)==0);sb->irq_pending=1;
-        CHECK(fd2_audio_sb_deliver_irq(&audio->original_sb)==0);
-        CHECK(sb->mode==FD2_SB_PAUSED && sb->driver_state==0 && sb->driver_half==-1);
-        CHECK(sb->saved_next_half==1 && !sb->end.pending && !sb->irq_pending);
-        CHECK(sb->left==left && sb->dma_reads==0 && sb->block_ends==0);
-        host_ns=530000;CHECK(fd2_audio_sync(audio)==0);
-        CHECK(fd2_audio_dig_start(&d.dig,0,remaining_end_source,2,1)==0);
-        CHECK(sb->mode==FD2_SB_DMA && sb->driver_state==3 && sb->driver_half==0);
-        CHECK(sb->end.pending && sb->end.serial==2 && sb->next_serial==2);
-        CHECK(sb->end.count==left && sb->left==left && sb->dma_reads==0);
-        CHECK(zero_published_audio(audio,&fm,25));
-        host_ns=old_due[left-1];CHECK(fd2_audio_sync(audio)==0);
-        CHECK(sb->end.pending && sb->end.serial==2 && sb->dma_reads==0);
-        host_ns=new_due[left-1]-1u;CHECK(fd2_audio_sync(audio)==0);
-        CHECK(sb->end.pending && sb->dma_reads==0 && sb->block_ends==0);
-        host_ns=new_due[left-1];CHECK(fd2_audio_sync(audio)==0);
-        CHECK(!sb->end.pending && sb->dma_reads==left && sb->block_ends==1);
-        CHECK(sb->left==2048 && !sb->irq_pending && sb->driver_half==1);
-        CHECK(sb->next_serial==2 && fd2_audio_sync(audio)==0 && sb->dma_reads==left);
-        CHECK(zero_published_audio(audio,&fm,25));
+        host_ns=520000;CHECK(fd2_pcm_driver_quiesce(&d)==0);
+        CHECK(audio->original_quiesced && sb->mode==FD2_SB_NONE);
+        CHECK(!sb->end.pending && !sb->block_ready && !sb->left && !sb->total);
+        CHECK(sb->dma_reads==0 && sb->block_ends==0 && fm.retired==0);
+        uint64_t frames=audio->closed_frames,puts=device.puts;
+        host_ns=1100000;CHECK(fd2_audio_sync(audio)==-1);
+        CHECK(fd2_bios_clock_advance(host_ns)==0);
+        CHECK(sb->dma_reads==0 && sb->block_ends==0 && !sb->end.pending);
+        CHECK(audio->closed_frames==frames && device.puts==puts);
         CHECK(audio->first_error==0);CHECK(shutdown_driver(audio,&d));CHECK(fm.retired==1);
     }return 1;
 }
@@ -452,7 +438,7 @@ static int original_bad_END_keeps_reached_audio_prefix(void) {
         host_ns=600000;CHECK(fd2_audio_sync(audio)==0);
         CHECK(audio->first_error==FD2_AUDIO_ERROR_SOURCE && !sb->end.pending);
         CHECK(sb->dma_reads==0 && sb->block_ends==0 && sb->left==1 && sb->driver_half==1);
-        CHECK(sb->mode==FD2_SB_DMA && !sb->irq_pending && sb->first_error==0);
+        CHECK(sb->mode==FD2_SB_RUNNING && !sb->block_ready && sb->first_error==0);
         CHECK(memcmp(&d.dig,&d_before,sizeof(d_before))==0);
         CHECK(memcmp(&audio->original_sb.channel,&channel_before,sizeof(channel_before))==0);
         CHECK(memcmp(&audio->original_dc,&dc_before,sizeof(dc_before))==0);
@@ -461,7 +447,7 @@ static int original_bad_END_keeps_reached_audio_prefix(void) {
         /* 有界错误只锁首错；下一合法tick继续其已定义Mix，不能冻结BDA/源或追补END。 */
         host_ns=1000000;CHECK(fd2_audio_sync(audio)==0);
         CHECK(audio->first_error==FD2_AUDIO_ERROR_SOURCE && sb->first_error==0);
-        CHECK(sb->dma_reads==14 && sb->block_ends==1 && !sb->end.pending && !sb->irq_pending);
+        CHECK(sb->dma_reads==14 && sb->block_ends==1 && !sb->end.pending && !sb->block_ready);
         CHECK(zero_published_audio(audio,&fm,48));CHECK(shutdown_driver(audio,&d));CHECK(fm.retired==1);
     }return 1;
 }
@@ -527,7 +513,7 @@ int main(int argc,char **argv) {
     }
     if(argc==2 && !strcmp(argv[1],"--remaining-end")) {
         if(!original_positive_remaining_END_and_tick() ||
-           !original_remaining_pause_resume_cancels_old_END() ||
+           !original_quiesce_cancels_pending_tail() ||
            !original_bad_END_keeps_reached_audio_prefix())return 1;
         puts("audio_original: 3 given-state remaining-END families PASS; no device or guest");return 0;
     }
@@ -537,7 +523,7 @@ int main(int argc,char **argv) {
        !output_error_null_and_quiet_keep_logic() || !replacement_prefill_before_unregister() ||
        !failed_DIG_install_does_not_quiesce_music() ||
        !original_positive_remaining_END_and_tick() ||
-       !original_remaining_pause_resume_cancels_old_END() ||
+       !original_quiesce_cancels_pending_tail() ||
        !original_bad_END_keeps_reached_audio_prefix() ||
        !transport_stats_are_lifetime_owner_readonly())return 1;
     puts("audio_original: 11 finite owner/clock/source families PASS; no device or original CPU");return 0;

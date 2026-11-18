@@ -38,7 +38,6 @@ class BridgeModel:
         self.ch = leaf.Model(8192, 4096)
         self.ch.window = [[0, 0] for _ in range(2048)]
         self.ch.out = [[0, 0] for _ in range(48)]
-        self.ch.enable(1)
         self.samples = [dict(data=0, length=0, pos=0, loops=1, status=2) for _ in range(2)]
         self.ring = bytearray([128] * 4096)
         self.build = [0] * 2048
@@ -139,12 +138,9 @@ class BridgeModel:
         self.ch.add(data)
         self.left -= count
         if not self.left:
-            was_pending = self.pending
             self.pending = 1
             self.ends += 1
             self.left = self.total
-            if was_pending:
-                self.mode = 4
 
     def mix(self, whole):
         for _ in range(2):
@@ -154,12 +150,9 @@ class BridgeModel:
             self.generate(requested)
         self.ch.render(whole)
 
-    def irq(self):
+    def complete_block(self):
         assert self.pending
         self.pending = 0
-        if self.mode == 4:
-            self.fill()
-            self.mode = 1
         if self.driver_state == 2:
             self.fill()
             self.mode = 3
@@ -176,7 +169,7 @@ class BridgeModel:
         samples = [value for sample in self.samples
                    for value in (sample['length'], sample['pos'], sample['loops'], sample['status'])]
         return self.ch.state() + [self.playing, self.empty, self.entered, self.last_half] + samples + [
-            self.cursor, self.left, self.total, self.mode, self.pending, 1,
+            self.cursor, self.left, self.total, self.mode, self.pending,
             self.half, self.saved, self.driver_state, self.reads, self.ends, self.fills]
 
 def build(leaf):
@@ -194,14 +187,11 @@ def build(leaf):
         elif op == 'STOP': model.stop(a)
         elif op == 'SERVICE': model.service()
         elif op == 'MIX': model.mix(a)
-        elif op == 'IRQ': model.irq()
+        elif op == 'COMPLETE': model.complete_block()
         elif op == 'END': model.end()
-        elif op == 'GAIN':
-            model.fill()
-            model.ch.gain = [a, b]
         elif op != 'INIT': raise AssertionError(op)
         state = model.state()
-        assert len(state) == 38
+        assert len(state) == 36
         events.append(dict(label=label or f'{tick}:{op}', op=op, a=a, b=b, c=c,
             tick=tick, fill_whole=fill_whole, state=state,
             dma_fnv=fnv(model.ring), build_fnv=fnv(wordbytes(model.build)),
@@ -220,44 +210,31 @@ def build(leaf):
         if ms == 470: event('START', 0, 2, 1, tick=ms)
         if ms % 5 == 0: event('SERVICE', tick=ms)
         event('MIX', 48, tick=ms)
-        # Explicit test CPU policy: deliver pending IRQ after this Mix. It is
-        # an input tape, not a claim about exact DOSBox or protected CPU latency.
-        if model.pending: event('IRQ', tick=ms, fill_whole=48)
+        # Complete a consumed audio block after this Mix. This is
+        # a buffer operation, not a simulated CPU/interrupt policy.
+        if model.pending: event('COMPLETE', tick=ms, fill_whole=48)
         event('END', tick=ms)
     assert model.fills > 4 and model.ends >= 3
 
-    event('INIT', label='delayed-IRQ-ACK-recovery')
-    event('START', 0, 3, 0)
-    event('SERVICE')
-    ack_seen = False
-    for ms in range(1, 206):
-        if ms % 5 == 0: event('SERVICE', tick=ms)
-        event('MIX', 48, tick=ms)
-        ack_seen |= model.mode == 4
-        if ms >= 200 and model.pending: event('IRQ', tick=ms, fill_whole=48)
-        event('END', tick=ms)
-    assert ack_seen
-
-    event('INIT', label='source-FillUp-partial-and-gain-epoch')
+    event('INIT', label='partial-mix-prefix')
     event('START', 0, 3, 0)
     event('SERVICE')
     for ms in range(1, 106):
         if ms % 5 == 0: event('SERVICE', tick=ms)
         if ms in (1, 94):
             event('MIX', 12, tick=ms)
-            event('GAIN', 4096 if ms == 1 else 8192, 16384,
-                  tick=ms, fill_whole=23)
+            event('MIX', 23, tick=ms)
         event('MIX', 48, tick=ms)
-        if model.pending: event('IRQ', tick=ms, fill_whole=48)
+        if model.pending: event('COMPLETE', tick=ms, fill_whole=48)
         event('END', tick=ms)
     return dict(cases=cases, events=events, inputs=[list(p) for p in PAYLOADS])
 
 def header(result):
-    ops = ['INIT', 'START', 'STOP', 'SERVICE', 'MIX', 'IRQ', 'END', 'GAIN']
+    ops = ['INIT', 'START', 'STOP', 'SERVICE', 'MIX', 'COMPLETE', 'END']
     lines = ['/* Independent finite source event tape; no C results. */',
         'enum { '+','.join('B_'+op for op in ops)+' };',
         'typedef struct { const char *label; int op,a,b,c; uint64_t tick; size_t fill_whole;',
-        ' int64_t state[38]; uint64_t dma_fnv,build_fnv,window_fnv; int32_t out[96]; } bridge_vector;']
+        ' int64_t state[36]; uint64_t dma_fnv,build_fnv,window_fnv; int32_t out[96]; } bridge_vector;']
     for i, payload in enumerate(PAYLOADS):
         lines.append('static const uint8_t bridge_input_'+str(i)+'[] = {')
         for start in range(0, len(payload), 32):

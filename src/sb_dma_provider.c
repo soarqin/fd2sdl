@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * 原SB16.DIG 401/402/IRQ与固定官方SB DMA函数的独立有限实现。
+ * 原SB16.DIG 401/402的双缓冲播放关系；只保游戏实际消费的完成/暂停。
  * 保留环缓冲、暂停/恢复和短尾样本；不模拟端口或安装探测。
  */
 #include "sb_dma_provider.h"
@@ -14,9 +14,8 @@ static int fail(fd2_sb_dma_provider *s, int error)
 static int valid(const fd2_sb_dma_provider *s)
 {
     return s && s->add_u8 && s->fill_up && s->cursor < FD2_SB_RING &&
-        (s->rate==11025u||s->rate==22050u||s->rate==44100u) &&
         s->left <= FD2_SB_BLOCK && s->total <= FD2_SB_BLOCK &&
-        s->mode >= FD2_SB_NONE && s->mode <= FD2_SB_ACK &&
+        s->mode >= FD2_SB_NONE && s->mode <= FD2_SB_PAUSED &&
         (s->driver_half == -1 || s->driver_half == 0 || s->driver_half == 1) &&
         s->saved_next_half <= 2 &&
         s->driver_state <= 3;
@@ -33,17 +32,17 @@ static int fill(fd2_sb_dma_provider *s)
 static void cancel_end(fd2_sb_dma_provider *s) {
     s->end.pending = 0;
 }
+static int resume_buffer(fd2_sb_dma_provider *,const fd2_sb_point *);
 static int point_valid(const fd2_sb_point *p) {
-    return p && isfinite(p->tick_index) && isfinite(p->service_index) &&
-        (p->servicing_event==0 || p->servicing_event==1);
+    return p && isfinite(p->tick_index);
 }
-static int check_end_on_unmask(fd2_sb_dma_provider *s, const fd2_sb_point *p)
+static int schedule_short_tail(fd2_sb_dma_provider *s, const fd2_sb_point *p)
 {
-    const uint32_t minimum=(s->rate*3u)/1000u;
+    const uint32_t minimum=(22050u*3u)/1000u;
     if (s->left && s->left < minimum) {
         float count = (float)s->left;
-        float delay = (count * 1000.0f) / (float)s->rate;
-        double anchor = p->servicing_event ? p->service_index : p->tick_index;
+        float delay = (count * 1000.0f) / 22050.0f;
+        double anchor = p->tick_index;
         if (s->next_serial == UINT64_MAX) return fail(s, FD2_SB_H_EVENT);
         s->end.serial = ++s->next_serial;
         s->end.tick = p->tick;
@@ -55,57 +54,45 @@ static int check_end_on_unmask(fd2_sb_dma_provider *s, const fd2_sb_point *p)
     }
     return 0;
 }
-static int unmask(fd2_sb_dma_provider *s, const fd2_sb_point *point)
+static int begin_buffer(fd2_sb_dma_provider *s, const fd2_sb_point *point)
 {
-    /* Register_Callback->SetMask(masked)->DMA_UNMASKED->DSP_ChangeMode。 */
-    if (s->mode == FD2_SB_MASKED) {
+    /* 先关闭旧声音前缀，再允许从新缓冲取得样本。 */
+    if (s->mode == FD2_SB_UPDATING) {
         if (fill(s)) return s->first_error;
-        s->mode = FD2_SB_DMA;
-        return check_end_on_unmask(s, point);
+        s->mode = FD2_SB_RUNNING;
+        return schedule_short_tail(s, point);
     }
     return 0;
 }
-int fd2_sb_dma_init(fd2_sb_dma_provider *s, int require_ack, void *user,
+int fd2_sb_dma_init(fd2_sb_dma_provider *s, void *user,
     int (*add_u8)(void *, const uint8_t *, size_t), int (*fill_up)(void *))
 {
-    if (!s || !add_u8 || !fill_up || (require_ack != 0 && require_ack != 1))
+    if (!s || !add_u8 || !fill_up)
         return FD2_SB_H_ARGUMENT;
     memset(s, 0, sizeof(*s));
-    s->require_ack = require_ack; s->user = user;s->rate=22050u;
+    s->user = user;
     s->add_u8 = add_u8; s->fill_up = fill_up;
-    /* 原driver静态初值0504=0；ffff只在IRQ的pause分支写。 */
+    /* 首次使用half0；暂停后以-1表示暂不请求新的DIG半块。 */
     return 0;
 }
-int fd2_sb_dma_reset(fd2_sb_dma_provider *s) {
-    if(!valid(s))return -1;
-    int result=s->first_error;
-    s->irq_pending=0;
-    if(s->mode!=FD2_SB_NONE && fill(s)<0)result=s->first_error;
-    s->mode=FD2_SB_NONE;s->left=s->total=0;s->irq_pending=0;
-    s->end.pending=0;
-    return result;
-}
 /* 重新开始环缓冲前先提交旧声音前缀；保持续channel历史。 */
-int fd2_sb_dma_start_transfer(fd2_sb_dma_provider *s,const uint8_t *ring,
+static int start_transfer(fd2_sb_dma_provider *s,const uint8_t *ring,
                              size_t bytes,const fd2_sb_point *p)
 {
     int r = ready(s);
     if (r) return r;
-    if (!ring || bytes != FD2_SB_RING || !p || !isfinite(p->tick_index) ||
-        !isfinite(p->service_index) || (p->servicing_event != 0 && p->servicing_event != 1))
+    if (!ring || bytes != FD2_SB_RING || !point_valid(p))
         return fail(s, FD2_SB_H_ARGUMENT);
     s->ring = ring; s->cursor = 0;
     /* 先标记新缓冲，再关闭旧声音前缀。 */
     s->total=FD2_SB_BLOCK;
-    s->mode = FD2_SB_MASKED;
+    s->mode = FD2_SB_UPDATING;
     /* left/pending重置前关闭旧mixer前缀。 */
     if (fill(s)) return s->first_error;
     s->left = s->total = FD2_SB_BLOCK;
-    s->irq_pending = 0;
-    s->rate=22050u;
-    if(s->configure_22050 && s->configure_22050(s->user)<0)return fail(s,FD2_SB_H_SINK);
+    s->block_ready = 0;
     cancel_end(s);
-    if (unmask(s, p)) return s->first_error;
+    if (begin_buffer(s, p)) return s->first_error;
     return 0;
 }
 int fd2_sb_dma_start(fd2_sb_dma_provider *s,const uint8_t *ring,
@@ -116,37 +103,24 @@ int fd2_sb_dma_start(fd2_sb_dma_provider *s,const uint8_t *ring,
     if(s->driver_state==2||s->driver_state==3){s->driver_state=3;return 0;}
     if(s->saved_next_half){
         s->driver_half=(int16_t)(s->saved_next_half-1u);s->saved_next_half=0;
-        if(fd2_sb_dma_resume(s,p)<0)return s->first_error;
+        if(resume_buffer(s,p)<0)return s->first_error;
         s->driver_state=3;return 0;
     }
-    r=fd2_sb_dma_start_transfer(s,ring,bytes,p);if(r)return r;
+    r=start_transfer(s,ring,bytes,p);if(r)return r;
     s->driver_half=0;s->driver_state=3;return 0;
 }
-int fd2_sb_dma_bind_rate(fd2_sb_dma_provider *s,int(*set_rate)(void*,uint32_t)) {
-    if(ready(s)||s->ring||s->mode!=FD2_SB_NONE||s->set_rate||!set_rate)return -1;
-    s->set_rate=set_rate;return 0;
-}
-int fd2_sb_dma_halt(fd2_sb_dma_provider *s) {
+static int halt_buffer(fd2_sb_dma_provider *s) {
     int r=ready(s);if(r)return r;
     if(fill(s))return s->first_error;
     s->mode=FD2_SB_PAUSED;
     cancel_end(s);
     return 0;
 }
-int fd2_sb_dma_resume(fd2_sb_dma_provider *s,const fd2_sb_point*p) {
+static int resume_buffer(fd2_sb_dma_provider *s,const fd2_sb_point*p) {
     int r=ready(s);if(r)return r;if(!point_valid(p))return fail(s,FD2_SB_H_ARGUMENT);
     if(fill(s))return s->first_error;
-    if(s->mode==FD2_SB_PAUSED){s->mode=FD2_SB_MASKED;return unmask(s,p);}
+    if(s->mode==FD2_SB_PAUSED){s->mode=FD2_SB_UPDATING;return begin_buffer(s,p);}
     return 0;
-}
-int fd2_sb_dma_set_output_rate(fd2_sb_dma_provider *s,uint32_t rate) {
-    int r=ready(s);if(r)return r;
-    if(rate!=11025u&&rate!=22050u&&rate!=44100u)return fail(s,FD2_SB_H_ARGUMENT);
-    if(s->rate!=rate&&s->mode!=FD2_SB_NONE) {
-        if(fill(s))return s->first_error;
-        if(!s->set_rate||s->set_rate(s->user,rate)<0)return fail(s,FD2_SB_H_SINK);
-    }
-    s->rate=rate;return 0; /* no filter reconfiguration: DSP_ChangeRate only SetFreq. */
 }
 int fd2_sb_dma_read_half(fd2_sb_dma_provider *s, int16_t *half)
 {
@@ -167,7 +141,7 @@ static int generate_read(fd2_sb_dma_provider *s, size_t requested)
 {
     uint8_t bytes[1024];
     size_t n, first;
-    int was_pending, r = ready(s);
+    int r = ready(s);
     if (r) return r;
     if (!requested) return 0;
     if (!s->ring || !s->left || !s->total) return fail(s, FD2_SB_H_ARGUMENT);
@@ -178,18 +152,16 @@ static int generate_read(fd2_sb_dma_provider *s, size_t requested)
     if (first > n) first = n;
     memcpy(bytes, s->ring + s->cursor, first);
     if (n > first) memcpy(bytes + first, s->ring, n - first);
-    /* 原8237 Read在AddSamples前完整消费；不依converter loaded量回退。 */
+    /* 缓冲先消费整count，再送采样器；不能因预取窗截断而重复读尾部。 */
     s->cursor = (s->cursor + n) % FD2_SB_RING;
     s->dma_reads += n;
     if (s->add_u8(s->user, bytes, n) < 0) return fail(s, FD2_SB_H_SINK);
     s->left -= (uint32_t)n;
     if (!s->left) {
         cancel_end(s);
-        was_pending = s->irq_pending;
-        s->irq_pending = 1;
+        s->block_ready = 1;
         s->block_ends++;
         s->left = s->total;
-        if (s->require_ack && was_pending) s->mode = FD2_SB_ACK;
     }
     return 0;
 }
@@ -197,28 +169,18 @@ int fd2_sb_dma_generate(fd2_sb_dma_provider *s, size_t requested)
 {
     int r = ready(s);
     if (r) return r;
-    return s->mode == FD2_SB_DMA ? generate_read(s, requested) : 0;
+    return s->mode == FD2_SB_RUNNING ? generate_read(s, requested) : 0;
 }
-static int acknowledge(fd2_sb_dma_provider *s)
-{
-    int r=ready(s);if(r)return r;
-    s->irq_pending=0;
-    if(s->mode==FD2_SB_ACK) {
-        if(fill(s))return s->first_error;
-        s->mode=FD2_SB_DMA;
-    }
-    return 0;
-}
-int fd2_sb_dma_deliver_irq(fd2_sb_dma_provider *s)
+int fd2_sb_dma_complete_block(fd2_sb_dma_provider *s)
 {
     int r = ready(s);
     if (r) return r;
-    if (!s->irq_pending) return fail(s, FD2_SB_H_ARGUMENT);
+    if (!s->block_ready) return fail(s, FD2_SB_H_ARGUMENT);
     /* 先完成旧缓冲，再按暂停请求或正常播放交接half。 */
-    if(acknowledge(s)<0)return s->first_error;
+    s->block_ready=0;
     if (s->driver_state == 2) {
-        /* D0的FillUp在暂停写前，仍可消费已提交DMA尾。 */
-        if(fd2_sb_dma_halt(s)<0)return s->first_error;
+        /* 暂停前仍须提交已到达的声音尾部。 */
+        if(halt_buffer(s)<0)return s->first_error;
         s->saved_next_half = (uint16_t)((s->driver_half ^ 1) + 1);
         s->driver_half = -1;
         s->driver_state = 0;
@@ -233,7 +195,7 @@ int fd2_sb_dma_dispatch_end(fd2_sb_dma_provider *s, uint64_t serial)
     if (r) return r;
     if (!s->end.pending || s->end.serial != serial)
         return fail(s, FD2_SB_H_EVENT);
-    /* 真实END_DMA_Event不检查MODE；D0/块末已经RemoveEvents。 */
+    /* 已排定短尾只消费一次；暂停或块完成会取消该任务。 */
     s->end.pending = 0;
     return generate_read(s, s->end.count);
 }

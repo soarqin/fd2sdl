@@ -125,9 +125,40 @@ static uint64_t fixture_hash(void) {
     fprintf(stderr, "CHECK failed %s:%d: %s\n", __FILE__, __LINE__, #expr); \
     result = 1; goto done; } } while (0)
 
+/* 超大编号乘以 3 会绕回条目 2。该条目及其后两条均可正常解析。 */
+static int check_group_indices(void) {
+    uint8_t fields[143] = {0,0,1,0,1,0};
+    uint32_t field_offsets[] = {0,1,2,10,141};
+    fd2_archive field = {.data=fields, .size=sizeof(fields),
+        .offsets=field_offsets, .count=5};
+    uint8_t shapes[] = {1,0,1,0,1,0,10,0,0,0,0xc0, 0,0,0,0};
+    uint32_t shape_offsets[] = {0,11};
+    fd2_archive shape = {.data=shapes, .size=sizeof(shapes),
+        .offsets=shape_offsets, .count=2};
+    size_t stage = SIZE_MAX / 3u + 1u;
+    fd2_field_map map = {0};
+    fd2_field_metadata meta = {0};
+    fd2_field_placements placements = {0};
+    fd2_terrain_tileset terrain = {0};
+    int result = 0;
+    CHECK(fd2_field_map_open_stage(&map, &field, stage) == -1);
+    CHECK(fd2_field_metadata_open_stage(&meta, &field, stage) == -1);
+    CHECK(fd2_field_placements_open_stage(&placements, &field, stage) == -1);
+    CHECK(fd2_terrain_tileset_open_stage(&terrain, &shape, &field, stage) == -1);
+    CHECK(fd2_terrain_tileset_open(&terrain, &shape, SIZE_MAX / 2u + 1u) == -1);
+    CHECK(!map.cells && !meta.unit_templates && !placements.records && !terrain.frames);
+done:
+    fd2_field_map_close(&map);
+    fd2_field_metadata_close(&meta);
+    fd2_field_placements_close(&placements);
+    fd2_terrain_tileset_close(&terrain);
+    return result;
+}
+
 int main(void) {
     int result = 0, changed_directory = 0;
     char original_directory[2048], output[4096];
+    CHECK(check_group_indices() == 0);
     CHECK(create_fixture() == 0);
     CHECK(check_output(STARTUP_TITLE, output) == -1);
     CHECK(occurrences(output, "缺少文件：") == 8);
@@ -150,6 +181,11 @@ int main(void) {
     CHECK(strstr(output, "格式损坏：") && strstr(output, "FDOTHER.DAT"));
     CHECK(!strstr(output, "缺少文件："));
     CHECK(write_valid("FDOTHER.DAT") == 0);
+    /* 第一帧仅有 23 行；后一帧独立有效，不能借它的首行补齐。 */
+    uint8_t overlapping[14 + 23 + 24] = {24,0,24,0,2,0,14,0,0,0,37,0,0,0};
+    memset(overlapping + 14, 0xd7, sizeof(overlapping) - 14);
+    CHECK(write_data("FDICON.B24", overlapping, sizeof(overlapping)) == 0);
+    CHECK(check_output(STARTUP_TITLE, output) == -1 && strstr(output, "FDICON.B24"));
     CHECK(write_data("FDICON.B24", "broken", 6) == 0);
     CHECK(check_output(STARTUP_TITLE, output) == -1);
     CHECK(strstr(output, "损坏：") && strstr(output, "FDICON.B24"));

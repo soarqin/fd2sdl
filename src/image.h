@@ -26,6 +26,10 @@ int fd2_image_decode_entry(fd2_image *img, const fd2_archive *ar, size_t idx);
 /* 直接从内存缓冲解码（条目已取出）。 */
 int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len);
 
+/* 返回首个完整帧消耗的字节数，损坏返回 0；dst 为 NULL 时只测量。 */
+size_t fd2_image_read_rle_frame(uint8_t *dst, int width, int height,
+                                const uint8_t *src, size_t src_len);
+
 /* 解码无 4 字节宽高头的 RLE 像素流。
  * FDSHAP.DAT 精灵帧共用同一控制字节方案，但宽高来自精灵包头。 */
 int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,

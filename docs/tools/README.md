@@ -197,6 +197,8 @@ G4的30类 C／原码探针及runtime／common端口门见[冷定义工具](stat
 
 普通音频专项不创建窗口。`audio_lifecycle` 以单 TU 平台替换覆盖 Open／Resume／Put、主线程同步与积压首错；`audio_device_probe_finalization` 覆盖提交失败及关闭时不再借用source；`audio_pcm_capture_main_order` 检查成功Put后的真实mix与失败封包。后者是F5当前登记名，旧A8的callback身份保历史记录。`audio_unavailable_field_quick_entry` 用dummy video和无效音频后端验证逻辑null入口，不算原生窗口或设备播放通过。[F5记录](../plans/f5-audio-device.md)区分当前候选与[历史A8](../plans/stage-log.md#a8宿主与设备生命周期)；以下命令本身不构成通过记录。
 
+音频采集器独占创建 `ready.json.tmp` 和 `summary.json.tmp`。如果另一写入者在启动检查之后创建了同名文件，本次发布失败并保留该文件。
+
 当前AppMix为`fd2-app-mix-capture-v3`，仍在主线程成功Put之后观察；新增明确的`pcm_quantizer`及版本。量化按32768单位、half-away后S16饱和，可无损回译`S16/32768`的全部65536个F32载体值；不声称任意非整数F32与SDL设备转换逐byte相同。v1 callback及v2的32767量化只作历史读取，不能重标v3。`fd2_audio_pcm_quantizer_test`／CTest `audio_pcm_capture_quantizer`核该完整载体域，无设备或GUI。
 
 Windows（PowerShell，已配置的 Visual Studio Debug 构建）：

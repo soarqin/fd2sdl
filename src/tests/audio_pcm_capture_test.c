@@ -44,6 +44,20 @@ static int no_callback(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_
 static int bad_chunk(int nonfinite){char dir[2048],p[2200];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,nonfinite?1000:1,0);CHECK(c);CHECK(!start(dir,pid()));float a[1024];samples(a);if(nonfinite)a[3]=NAN;path(p,dir,"summary.json");uint64_t end=SDL_GetTicks()+1000;while(!file_exists(p)){fd2_audio_pcm_capture_push(c,a,nonfinite?512:49);SDL_Delay(2);CHECK(SDL_GetTicks()<end);}CHECK(contains(dir,"summary.json",nonfinite?"nonfinite_mix":"buffer_capacity"));CHECK(!contains(dir,"summary.json","\"ok\":true"));fd2_audio_pcm_capture_close(c);return 0;}
 static int early_stop(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,1000,0);CHECK(c);CHECK(!stop(dir));CHECK(wait_file(dir,"summary.json",1000));CHECK(contains(dir,"summary.json","stop_before_start"));fd2_audio_pcm_capture_close(c);return 0;}
 static int output_collision(void){char dir[2048],p[2200];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,2000,0);CHECK(c);CHECK(!start(dir,pid()));CHECK(ready(c,dir));path(p,dir,"app-mix.wav");CHECK(!write_text(p,"KEEP"));CHECK(!stop(dir));CHECK(wait_file(dir,"summary.json",1000));CHECK(contains(dir,"summary.json","io_error"));FILE *f=fopen(p,"rb");CHECK(f);char b[5]={0};CHECK(fread(b,1,5,f)==4&&!strcmp(b,"KEEP"));fclose(f);fd2_audio_pcm_capture_close(c);return 0;}
+/* 通过启动检查后才出现的临时文件属于另一写入者。 */
+static int temporary_output_collision(void) {
+    char dir[2048], tmp[2200];
+    CHECK(!new_case(dir));
+    fd2_audio_pcm_capture *capture = fd2_audio_pcm_capture_open(dir,48000,2000,0);
+    CHECK(capture);
+    path(tmp, dir, "summary.json.tmp");
+    CHECK(!write_text(tmp, "KEEP"));
+    fd2_audio_pcm_capture_close(capture);
+    CHECK(contains(dir, "summary.json.tmp", "KEEP"));
+    path(tmp, dir, "summary.json");
+    CHECK(!file_exists(tmp));
+    return 0;
+}
 typedef struct{fd2_audio_pcm_capture *c;_Atomic int quit;} Producer;
 static int SDLCALL producer(void *u){Producer *p=u;float a[1024];samples(a);while(!atomic_load(&p->quit)){fd2_audio_pcm_capture_push(p->c,a,512);SDL_Delay(1);}return 0;}
 static int concurrent_stop(void){char dir[2048];CHECK(!new_case(dir));fd2_audio_pcm_capture *c=fd2_audio_pcm_capture_open(dir,48000,2000,0);CHECK(c);CHECK(!start(dir,pid()));Producer p={c};atomic_init(&p.quit,0);SDL_Thread *t=SDL_CreateThread(producer,"synthetic-observer-submission",&p);CHECK(t);CHECK(wait_file(dir,"ready.json",1000));SDL_Delay(20);CHECK(!stop(dir));CHECK(wait_file(dir,"summary.json",1200));CHECK(contains(dir,"summary.json","\"ok\":true"));CHECK(contains(dir,"summary.json","\"submission_quiescent\":true"));CHECK(!inspect_wave(dir));atomic_store(&p.quit,1);SDL_WaitThread(t,NULL);fd2_audio_pcm_capture_close(c);return 0;}
@@ -56,4 +70,4 @@ CHECK(SDL_SetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DI
 CHECK(!fd2_audio_create(&config));
 CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR"));
 return 0;}
-int main(int argc,char **argv){CHECK(argc==2);CHECK(SDL_Init(0));snprintf(base,sizeof(base),"%s/%llu-%u",argv[1],(unsigned long long)SDL_GetPerformanceCounter(),pid());CHECK(SDL_CreateDirectory(base));CHECK(!reject_config());CHECK(!normal());CHECK(!wrong_owner());CHECK(!no_callback());CHECK(!bad_chunk(0));CHECK(!bad_chunk(1));CHECK(!early_stop());CHECK(!output_collision());CHECK(!concurrent_stop());CHECK(!utf8_paths());CHECK(!offline_boundary());CHECK(!backlog_error());SDL_Quit();printf("audio_pcm_capture_test:12groupsPASS; synthetic-only; no device/GUI\nartifacts:%s\n",base);return 0;}
+int main(int argc,char **argv){CHECK(argc==2);CHECK(SDL_Init(0));snprintf(base,sizeof(base),"%s/%llu-%u",argv[1],(unsigned long long)SDL_GetPerformanceCounter(),pid());CHECK(SDL_CreateDirectory(base));CHECK(!reject_config());CHECK(!normal());CHECK(!wrong_owner());CHECK(!no_callback());CHECK(!bad_chunk(0));CHECK(!bad_chunk(1));CHECK(!early_stop());CHECK(!output_collision());CHECK(!temporary_output_collision());CHECK(!concurrent_stop());CHECK(!utf8_paths());CHECK(!offline_boundary());CHECK(!backlog_error());SDL_Quit();printf("audio_pcm_capture_test:collision and boundary checks passed; synthetic-only; no device/GUI\nartifacts:%s\n",base);return 0;}

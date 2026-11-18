@@ -20,41 +20,48 @@ static uint16_t rd_u16_le(const uint8_t *p) {
  *
  * 验证：FDOTHER[0x45-0x49] 片头5帧精确消耗完所有数据，输出恰好 320x147
  */
-int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
+size_t fd2_image_read_rle_frame(uint8_t *dst, int width, int height,
                                 const uint8_t *src, size_t src_len) {
-    if (!dst || !src || width <= 0 || height <= 0 ||
+    if (!src || width <= 0 || height <= 0 ||
         (size_t)width > SIZE_MAX / (size_t)height)
-        return -1;
+        return 0;
     size_t si = 0;
     for (int row = 0; row < height; row++) {
         int col = 0;
-        uint8_t *d = dst + (size_t)row * (size_t)width;
+        uint8_t *d = dst ? dst + (size_t)row * (size_t)width : NULL;
         while (col < width) {
-            if (si >= src_len) return -1;
+            if (si >= src_len) return 0;
             uint8_t c = src[si++];
             int count = (c & 0x3f) + 1;
             int span = (c & 0xc0) == 0x40 ? count * 2 : count;
             /* 不裁剪损坏指令，否则超行的 RUN 或截断 LITERAL 会假成功。 */
-            if (span > width - col) return -1;
+            if (span > width - col) return 0;
             if (c & 0x80) {
                 if (!(c & 0x40)) {
-                    if ((size_t)count > src_len - si) return -1;
-                    memcpy(d + col, src + si, (size_t)count);
+                    if ((size_t)count > src_len - si) return 0;
+                    if (d) memcpy(d + col, src + si, (size_t)count);
                     si += (size_t)count;
                 }
             } else {
-                if (si >= src_len) return -1;
+                if (si >= src_len) return 0;
                 uint8_t value = src[si++];
-                if (c & 0x40) {
+                if (d && (c & 0x40)) {
                     for (int k = 0; k < count; k++) d[col + k * 2 + 1] = value;
-                } else {
+                } else if (d) {
                     memset(d + col, value, (size_t)count);
                 }
             }
             col += span;
         }
     }
-    return si == src_len ? 0 : -1;
+    return si;
+}
+
+int fd2_image_decode_rle_pixels(uint8_t *dst, int width, int height,
+                                const uint8_t *src, size_t src_len) {
+    if (!dst || !src_len) return -1;
+    return fd2_image_read_rle_frame(dst, width, height, src, src_len) == src_len
+        ? 0 : -1;
 }
 
 int fd2_image_decode_buf(fd2_image *img, const uint8_t *buf, size_t len) {

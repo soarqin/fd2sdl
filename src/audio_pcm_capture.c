@@ -110,8 +110,14 @@ static int finish_file(FILE *file) {
 }
 static int publish(const char *path,const char *text) {
     char *tmp=malloc(strlen(path)+5);if(!tmp)return -1;sprintf(tmp,"%s.tmp",path);
-    FILE *file=new_file(tmp);int ok=file!=NULL;
-    if(file){ok=fwrite(text,1,strlen(text),file)==strlen(text);if(finish_file(file))ok=0;}
+    FILE *file = new_file(tmp);
+    if (!file) {
+        free(tmp);
+        return -1;
+    }
+    size_t length = strlen(text);
+    int ok = fwrite(text, 1, length, file) == length;
+    if (finish_file(file)) ok = 0;
     if(ok) {
 #ifdef _WIN32
         wchar_t a[32768],b[32768];

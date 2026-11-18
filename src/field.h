@@ -105,6 +105,9 @@ typedef struct {
     fd2_field_placement *records;
 } fd2_field_placements;
 
+/* 按 FDFIELD 每组三条取借用切片：地图、metadata、placement。 */
+int fd2_field_stage_entry(const fd2_archive *ar, size_t stage, unsigned slot,
+                          const uint8_t **data, size_t *size);
 int  fd2_field_map_open_mem(fd2_field_map *map,
                             const uint8_t *data, size_t size);
 int  fd2_field_map_open_entry(fd2_field_map *map,

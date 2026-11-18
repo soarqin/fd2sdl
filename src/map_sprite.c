@@ -19,55 +19,32 @@ static uint32_t rd_u32_le(const uint8_t *p) {
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-static int measure_rle_24(const uint8_t *src, size_t src_len, size_t *used) {
-    size_t si = 0;
-    for (int row = 0; row < 24; row++) {
-        int col = 0;
-        while (col < 24 && si < src_len) {
-            uint8_t c = src[si++];
-            size_t count = (size_t)(c & 0x3f) + 1;
-            if (c & 0x80) {
-                if (c & 0x40) {
-                    col += (int)count;
-                } else {
-                    if (si + count > src_len) return -1;
-                    si += count;
-                    col += (int)count;
-                }
-            } else {
-                if (si >= src_len) return -1;
-                si++;
-                col += (c & 0x40) ? (int)count * 2 : (int)count;
-            }
-        }
-        if (col != 24) return -1;
-    }
-    *used = si;
-    return 0;
-}
-
 int fd2_map_sprite_frame_source(const fd2_map_sprite_bank *bank,
         size_t frame_idx, const uint8_t **source, size_t *length) {
     if (!bank || !bank->data || !bank->offsets || !source || !length ||
         frame_idx >= bank->frame_count || bank->offsets[frame_idx] >= bank->size)
         return -1;
     const uint8_t *start = bank->data + bank->offsets[frame_idx];
-    size_t used;
-    if (measure_rle_24(start,bank->size-bank->offsets[frame_idx],&used) != 0)
-        return -1;
-    *source=start;
-    *length=used;
+    size_t used = fd2_image_read_rle_frame(NULL, 24, 24, start,
+                                          bank->size - bank->offsets[frame_idx]);
+    if (!used) return -1;
+    *source = start;
+    *length = used;
     return 0;
 }
 
 int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
+    if (!bank) return -1;
     memset(bank, 0, sizeof(*bank));
+    if (!path) return -1;
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (sz <= 8) { fclose(f); return -1; }
+    long sz;
+    if (fseek(f, 0, SEEK_END) != 0 || (sz = ftell(f)) <= 8 ||
+        (uintmax_t)sz > UINT32_MAX || fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return -1;
+    }
 
     uint8_t *data = malloc((size_t)sz);
     if (!data) { fclose(f); return -1; }
@@ -94,23 +71,26 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
             return -1;
         }
         first = rd_u32_le(data + table_offset);
+        if (first < table_offset + count * 4u) {
+            free(data);
+            return -1;
+        }
     } else {
         first = rd_u32_le(data);
-        if (first == 0 || first >= (uint32_t)sz) {
+        if (first < 4u || first >= (uint32_t)sz) {
             free(data);
             return -1;
         }
         /* FD2.TMP 是运行期缓存。其表项可能按 class 重排，逐项以 RLE
          * 校验，保留该兼容路径供独立调试使用。 */
-        for (size_t pos = 0; pos + 4 <= (size_t)first; pos += 4) {
+        for (size_t pos = 0; pos <= first - 4u; pos += 4) {
             uint32_t off = rd_u32_le(data + pos);
             if (off == 0 || off < first || off >= (uint32_t)sz) break;
-            size_t used = 0;
-            if (measure_rle_24(data + off, (size_t)sz - off, &used) != 0) break;
+            if (!fd2_image_read_rle_frame(NULL, 24, 24, data + off, (size_t)sz - off)) break;
             count++;
         }
     }
-    if (first == 0 || first >= (uint32_t)sz || count == 0) {
+    if (count == 0 || count > SIZE_MAX / (24u * 24u)) {
         free(data);
         return -1;
     }
@@ -119,7 +99,8 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
     if (!offsets) { free(data); return -1; }
     for (size_t i = 0; i < count; i++) {
         uint32_t off = rd_u32_le(data + table_offset + i * 4u);
-        if (off < first || off >= (uint32_t)sz) {
+        if (off < first || off >= (uint32_t)sz ||
+            (table_offset && i && off <= offsets[i - 1])) {
             free(offsets);
             free(data);
             return -1;
@@ -139,10 +120,10 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
     }
     for (size_t i = 0; i < count; i++) {
         uint32_t start = offsets[i];
-        size_t used = 0;
-        if (measure_rle_24(data + start, (size_t)sz - start, &used) != 0 ||
-            fd2_image_decode_rle_pixels(decoded_frames + i * 24u * 24u,
-                                        24, 24, data + start, used) != 0) {
+        /* B24 的下一偏移界定当前帧；TMP 的表项可重复或重排。 */
+        size_t end = table_offset && i + 1 < count ? offsets[i + 1] : (size_t)sz;
+        if (!fd2_image_read_rle_frame(decoded_frames + i * 24u * 24u,
+                                      24, 24, data + start, end - start)) {
             free(decoded_frames);
             free(offsets);
             free(data);

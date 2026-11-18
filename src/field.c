@@ -109,10 +109,19 @@ int fd2_field_map_open_entry(fd2_field_map *map,
     return fd2_field_map_open_mem(map, data, size);
 }
 
+int fd2_field_stage_entry(const fd2_archive *ar, size_t stage, unsigned slot,
+                          const uint8_t **data, size_t *size) {
+    if (slot >= 3 || stage > (SIZE_MAX - slot) / 3u) return -1;
+    return fd2_archive_get(ar, stage * 3u + slot, data, size);
+}
+
 int fd2_field_map_open_stage(fd2_field_map *map,
                               const fd2_archive *ar, size_t stage_idx) {
     /* FDFIELD.DAT: [stage*3 + 0] 地图、[+1]/[+2] 为事件/单位等附表。 */
-    return fd2_field_map_open_entry(map, ar, stage_idx * 3);
+    const uint8_t *data;
+    size_t size;
+    if (fd2_field_stage_entry(ar, stage_idx, 0, &data, &size) != 0) return -1;
+    return fd2_field_map_open_mem(map, data, size);
 }
 
 int fd2_field_metadata_open_mem(fd2_field_metadata *meta,
@@ -169,7 +178,7 @@ int fd2_field_metadata_open_stage(fd2_field_metadata *meta,
                                   const fd2_archive *ar, size_t stage_idx) {
     const uint8_t *data;
     size_t size;
-    if (fd2_archive_get(ar, stage_idx * 3 + 1, &data, &size) != 0) return -1;
+    if (fd2_field_stage_entry(ar, stage_idx, 1, &data, &size) != 0) return -1;
     return fd2_field_metadata_open_mem(meta, data, size);
 }
 
@@ -206,7 +215,7 @@ int fd2_field_placements_open_stage(fd2_field_placements *placements,
                                     const fd2_archive *ar, size_t stage_idx) {
     const uint8_t *data;
     size_t size;
-    if (fd2_archive_get(ar, stage_idx * 3 + 2, &data, &size) != 0) return -1;
+    if (fd2_field_stage_entry(ar, stage_idx, 2, &data, &size) != 0) return -1;
     return fd2_field_placements_open_mem(placements, data, size);
 }
 

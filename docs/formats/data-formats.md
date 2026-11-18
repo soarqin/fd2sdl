@@ -203,6 +203,8 @@ TAI.DAT 使用 FDOTHER.DAT[0] 调色板显示。条目内容是战斗/地形相�
 | `stage*3 + 1` | stage metadata：地形包编号、阶段事件表、cell 事件表、单位模板 |
 | `stage*3 + 2` | 单位/对象 placement：按模板序号提供坐标，末 WORD 原样保留 |
 
+SDL 读取地图、metadata、placement 和地形包编号时，先检查关卡编号能否换算成组内条目，再检查该条目是否存在。地形包按 FDSHAP 中完整的条目对计数。超出范围的编号返回失败，避免无符号乘法回绕后误读其他资源。
+
 地图网格条目：
 
 ```
@@ -557,6 +559,8 @@ SDL 纯绘制当前只支持 stage 0 的 fragment 597／598（敵全滅／索爾
 
 原版城镇手工读取 `@0x2986f` 先以 `slot+0xa00 == 0xff` 判空，再按 `byte523E7[stage]` 检查是否允许在商店内读取；不兼容时显示 FDTXT479。没有证据证明这些原版函数会安全拒绝坏 checksum 或畸形 count。SDL 的严格 `fd2_save_file_get_manual_slot()` 另外要求 count 在 `0..32`；`fd2_save_file_get_manual_slot_raw()` 仍保留空槽和未知字节，供正确 owner 的后续实现使用。截断、超长、checksum、slot 越界、无效标记、容量或阶段支持失败均须在 owner 交接前拒绝，不能截断或覆盖坏档。
 
+从磁盘读取时，普通读档和保存前读取均在同一文件句柄上检查长度，并在读入的缓冲区内解密。只有校验和通过后才交付明文。内存接口保留调用方传入的密文，保存前只有打开文件返回 `ENOENT` 才初始化空档。
+
 写回使用目标同目录内独占创建的临时文件，避免预置符号链接和并发 writer 共用固定 `.tmp` 路径；POSIX 在临时文件 `fsync`、rename 后继续 `fsync` 父目录，Windows 使用 `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`。
 
 单位记录当前确认字段：
@@ -695,6 +699,8 @@ repeat group_count:
 0x06   4*1680     frame_offsets
 ?      变长       24×24 RLE frames
 ```
+
+SDL 要求 B24 的帧偏移位于表尾之后或恰好在表尾，且严格递增。每帧须在下一偏移（末帧为文件末尾）之前解出 24 行。TMP 目录允许偏移重复或重排，读取时从指定偏移测量一个完整帧。两种格式共用 RLE 指令解码，透明跳过和隔点写入都保留目标中未写的像素。
 
 共 `140×12` 帧。稳定帧号为：
 

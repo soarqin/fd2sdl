@@ -32,11 +32,10 @@ int fd2_terrain_tileset_open(fd2_terrain_tileset *terrain,
                               const fd2_archive *fdshap,
                               size_t shape_index) {
     memset(terrain, 0, sizeof(*terrain));
-    if (!fdshap) return -1;
+    if (!fdshap || shape_index >= fdshap->count / 2u) return -1;
 
     size_t sheet_entry = shape_index * 2;
     size_t attr_entry = sheet_entry + 1;
-    if (attr_entry >= fdshap->count) return -1;
 
     if (fd2_shape_sheet_open_entry(&terrain->sheet, fdshap, sheet_entry) != 0)
         goto fail;
@@ -74,7 +73,7 @@ int fd2_terrain_tileset_open_stage(fd2_terrain_tileset *terrain,
     /* FDFIELD.DAT 每 3 条一组；组内第 1 条首字节即 FDSHAP 地形包编号。
      * 反编译中 `res_load(&DAT_00001a65, ..., *LAB_00003a55 * 2)` 以此编号
      * 加载 FDSHAP 偶数条目，奇数条目则是 FUN_00010580 使用的地形表。 */
-    if (!field || fd2_archive_get(field, stage_idx * 3 + 1, &meta, &meta_len) != 0)
+    if (fd2_field_stage_entry(field, stage_idx, 1, &meta, &meta_len) != 0)
         return -1;
     if (meta_len == 0) return -1;
 

@@ -2,7 +2,7 @@
 
 用于重构类改动的旧版／新版执行对照：同一 RNG 种子、隔离存档目录、
 经 fd2_field_play_input_driver 向本轮 PID 的窗口后台投递按键，记录
-stdout 逻辑轨迹（field ...: 行）、FD2.SAV 和每步 WGC 单窗口截图。
+游戏日志（stdout 和 stderr）、FD2.SAV 和每步 WGC 单窗口截图。
 
 场景默认从 `--field-play 0` 开始；也可从标题启动并预置存档副本（如
 `original_game/FD2.SAV` 的复制件），覆盖标题 LOAD 后的准备／城镇页与
@@ -14,8 +14,8 @@ CONTINUE 活动战场。原存档只读，写入只发生在本轮副本。
 
 用法（PowerShell）：
   python tools/compare_field_play_builds.py --root . `
-    --old-game build/ab/old-build/Debug/fd2sdl.exe `
-    --new-game src/build-win/Debug/fd2sdl.exe `
+    --old-game build/ab/old-src/src/Debug/fd2sdl.exe `
+    --new-game src/Debug/fd2sdl.exe `
     --driver src/build-win/Debug/fd2_field_play_input_driver.exe `
     --artifacts build/ab/runs
 """
@@ -115,9 +115,20 @@ def scenario_steps(text):
 
 def bmp_pixels(path):
     data = Path(path).read_bytes()
+    if len(data) < 54:
+        raise ValueError(f"truncated WGC bitmap: {path}")
     offset = struct.unpack_from("<I", data, 10)[0]
     width, height = struct.unpack_from("<ii", data, 18)
-    return width, abs(height), data[offset:]
+    row_size = width * 3
+    stride = (row_size + 3) & ~3
+    if (data[:2] != b"BM" or struct.unpack_from("<H", data, 28)[0] != 24 or
+            offset < 54 or width <= 0 or not height or len(data) < offset + abs(height) * stride):
+        raise ValueError(f"invalid 24-bit WGC bitmap: {path}")
+    rows = range(abs(height))
+    if height > 0:  # BMP 正高度为自下而上；跳过行尾对齐字节。
+        rows = reversed(rows)
+    pixels = b"".join(data[offset + y * stride:offset + y * stride + row_size] for y in rows)
+    return width, abs(height), pixels
 
 
 def pixel_diff(a, b):
@@ -142,6 +153,7 @@ def settle(log, process, quiet=2.0, minimum=0.6, timeout=90):
         if process.poll() is not None:
             return
         time.sleep(0.1)
+    raise TimeoutError("game log did not settle")
 
 
 def wait_marker(log, process, marker, after, timeout=600):
@@ -157,9 +169,7 @@ def wait_marker(log, process, marker, after, timeout=600):
 
 def run(args, game, label, name, spec):
     work = Path(args.artifacts) / name / label
-    work.mkdir(parents=True, exist_ok=True)
-    for stale in work.iterdir():
-        stale.unlink()
+    work.mkdir(parents=True, exist_ok=False)
     if spec["fixture"]:
         # 只读输入：复制到本轮目录，游戏只写副本。
         (work / "FD2.SAV").write_bytes((Path(args.root) / spec["fixture"]).read_bytes())
@@ -195,6 +205,8 @@ def run(args, game, label, name, spec):
                     wait_marker(log, process, marker, offset)
                 settle(log, process)
                 if process.poll() is not None:
+                    if index + 1 < len(steps):
+                        raise RuntimeError(f"game exited after step {index + 1} of {len(steps)}")
                     break
                 shot = work / f"{index:02d}-{key}.bmp"
                 try:
@@ -228,19 +240,23 @@ def run(args, game, label, name, spec):
 
 
 def compare(name, base_dir, base, other_dir, other):
-    report = {"trace_equal": base["trace"] == other["trace"],
+    base_log = (base_dir / "game.log").read_bytes()
+    other_log = (other_dir / "game.log").read_bytes()
+    report = {"trace_equal": base_log == other_log,
               "save_equal": base["save"] == other["save"],
               "captures_equal_count": base["captures"] == other["captures"],
               "pixel_diffs": {}}
     if not report["trace_equal"]:
-        for i, (a, b) in enumerate(zip(base["trace"], other["trace"])):
+        base_lines = base_log.splitlines(keepends=True)
+        other_lines = other_log.splitlines(keepends=True)
+        for i, (a, b) in enumerate(zip(base_lines, other_lines)):
             if a != b:
-                report["first_trace_diff"] = {"line": i, "base": a, "other": b}
+                report["first_trace_diff"] = {"line": i, "base": a.decode("utf-8", "backslashreplace"),
+                                              "other": b.decode("utf-8", "backslashreplace")}
                 break
         else:
-            report["first_trace_diff"] = {"line": min(len(base["trace"]), len(other["trace"])),
-                                          "base_len": len(base["trace"]),
-                                          "other_len": len(other["trace"])}
+            report["first_trace_diff"] = {"line": min(len(base_lines), len(other_lines)),
+                                          "base_len": len(base_lines), "other_len": len(other_lines)}
     for shot in base["captures"]:
         if shot in other["captures"]:
             report["pixel_diffs"][shot] = pixel_diff(base_dir / shot, other_dir / shot)
@@ -262,16 +278,25 @@ def main():
     for key in ("root", "old_game", "new_game", "driver", "artifacts"):
         setattr(args, key, Path(getattr(args, key)).resolve())
     names = args.scenario or list(SCENARIOS)
+    if len(names) != len(set(names)):
+        parser.error("--scenario values must be unique")
+    original = (args.root / "original_game").resolve()
+    if args.artifacts == original or original in args.artifacts.parents:
+        parser.error("--artifacts cannot be inside original_game")
+    args.artifacts.mkdir(parents=True, exist_ok=True)
+    if any(args.artifacts.iterdir()):
+        parser.error("--artifacts must be an empty or new directory")
     summary, ok = {}, True
     if args.explore:
         for name in names:
             work, result = run(args, args.old_game, "explore", name, scenario_spec(name))
             print(f"== {name}: {work} exit={result['exit_code']} "
                   f"captures={len(result['captures'])} error={result['error']}")
+            ok = ok and not result["error"] and not result["forced"] and result["exit_code"] == 0
             for line in result["trace"]:
                 if line.startswith("field ") and not line.startswith("field result query"):
                     print("  " + line)
-        return 0
+        return 0 if ok else 1
     for name in names:
         old1_dir, old1 = run(args, args.old_game, "old1", name, scenario_spec(name))
         old2_dir, old2 = run(args, args.old_game, "old2", name, scenario_spec(name))
@@ -280,19 +305,21 @@ def main():
         delta = compare(name, old1_dir, old1, new_dir, new)
         clean_exit = all(r["exit_code"] == 0 and not r["forced"] and not r["error"]
                          for r in (old1, old2, new))
-        passed = delta["trace_equal"] and delta["save_equal"] and clean_exit
+        old_repeatable = noise["trace_equal"] and noise["save_equal"]
+        passed = old_repeatable and delta["trace_equal"] and delta["save_equal"] and clean_exit
         ok = ok and passed
         summary[name] = {"passed": passed, "clean_exit": clean_exit,
                          "errors": [r["error"] for r in (old1, old2, new) if r["error"]],
                          "trace_lines": len(old1["trace"]), "old_vs_old": noise,
                          "old_vs_new": delta}
         print(json.dumps({name: {"passed": passed, "trace_lines": len(old1["trace"]),
-                                 "old_repeatable": noise["trace_equal"] and noise["save_equal"],
+                                 "old_repeatable": old_repeatable,
                                  "trace_equal": delta["trace_equal"],
                                  "save_equal": delta["save_equal"],
                                  "clean_exit": clean_exit}}, ensure_ascii=False), flush=True)
     out = Path(args.artifacts) / "summary.json"
-    out.write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
+    with out.open("x", encoding="utf-8") as stream:
+        json.dump(summary, stream, ensure_ascii=False, indent=1)
     return 0 if ok else 1
 
 

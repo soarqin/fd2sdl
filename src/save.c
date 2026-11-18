@@ -66,13 +66,8 @@ int fd2_save_validate_plain(const uint8_t *data, size_t size) {
            rd_u32_le(data + size - FD2_SAVE_CHECKSUM_SIZE) ? 0 : -1;
 }
 
-int fd2_save_file_open_encrypted(fd2_save_file *save,
-                                 const uint8_t *encrypted, size_t size) {
-    if (!save || !encrypted || save->data || size != FD2_SAVE_FILE_SIZE)
-        return -1;
-    uint8_t *data = malloc(size);
-    if (!data) return -1;
-    memcpy(data, encrypted, size);
+/* 接管独占缓冲区；校验通过后才交给调用者。 */
+static int save_open_owned(fd2_save_file *save, uint8_t *data, size_t size) {
     fd2_save_xor_crypt(data, size);
     if (fd2_save_validate_plain(data, size) != 0) {
         free(data);
@@ -81,6 +76,16 @@ int fd2_save_file_open_encrypted(fd2_save_file *save,
     save->data = data;
     save->size = size;
     return 0;
+}
+
+int fd2_save_file_open_encrypted(fd2_save_file *save,
+                                 const uint8_t *encrypted, size_t size) {
+    if (!save || !encrypted || save->data || size != FD2_SAVE_FILE_SIZE)
+        return -1;
+    uint8_t *data = malloc(size);
+    if (!data) return -1;
+    memcpy(data, encrypted, size);
+    return save_open_owned(save, data, size);
 }
 
 /* 写回末尾 4 字节校验和；所有切片更新在原缓冲区完成后调用。 */
@@ -100,10 +105,8 @@ int fd2_save_file_create_empty(fd2_save_file *save) {
     return 0;
 }
 
-int fd2_save_file_open(fd2_save_file *save, const char *path) {
-    if (!save || !path || save->data) return -1;
-    FILE *file = fopen(path, "rb");
-    if (!file) return -1;
+/* 消费已打开的流，普通读取与保留式更新使用同一次打开的文件。 */
+static int save_read_file(fd2_save_file *save, FILE *file) {
     uint8_t *encrypted = malloc(FD2_SAVE_FILE_SIZE);
     if (!encrypted) {
         fclose(file);
@@ -118,19 +121,19 @@ int fd2_save_file_open(fd2_save_file *save, const char *path) {
         free(encrypted);
         return -1;
     }
-    int result = fd2_save_file_open_encrypted(
-        save, encrypted, FD2_SAVE_FILE_SIZE);
-    free(encrypted);
-    return result;
+    return save_open_owned(save, encrypted, FD2_SAVE_FILE_SIZE);
+}
+
+int fd2_save_file_open(fd2_save_file *save, const char *path) {
+    if (!save || !path || save->data) return -1;
+    FILE *file = fopen(path, "rb");
+    return file ? save_read_file(save, file) : -1;
 }
 
 int fd2_save_file_open_for_update(fd2_save_file *save, const char *path) {
     if (!save || !path || save->data) return -1;
     FILE *existing = fopen(path, "rb");
-    if (existing) {
-        if (fclose(existing) != 0) return -1;
-        return fd2_save_file_open(save, path);
-    }
+    if (existing) return save_read_file(save, existing);
     if (errno != ENOENT || fd2_save_file_create_empty(save) != 0) return -1;
     /* ff是空档哨兵，不是有效的actor/roster count；不建立可加载战场。 */
     save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;

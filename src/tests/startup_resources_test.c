@@ -155,10 +155,44 @@ done:
     return result;
 }
 
+static int check_vga_integer_scale(void) {
+    const int scale = 3, edge = 4 * scale;
+    const uint8_t palette[VGA_PALETTE_SIZE] = {0, 0, 0, 63, 63, 63};
+    int result = 0;
+    fd2_vga vga = {0};
+    SDL_Renderer *renderer = NULL;
+    SDL_Surface *surface = SDL_CreateSurface(VGA_W * scale, VGA_H * scale, SDL_PIXELFORMAT_ARGB8888);
+    CHECK(surface);
+    renderer = SDL_CreateSoftwareRenderer(surface);
+    CHECK(renderer && SDL_SetRenderLogicalPresentation(renderer, VGA_W, VGA_H,
+                                                        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE));
+    CHECK(fd2_vga_init(&vga, NULL, renderer) == 0);
+    /* 内区角落的一个白像素应只覆盖 3×3，四周保持纯黑。 */
+    vga.framebuffer[4 * VGA_STRIDE + 4] = 1;
+    fd2_vga_set_palette(&vga, palette);
+    fd2_vga_upload_current_frame(&vga);
+    CHECK(fd2_vga_output_error(&vga) == 0);
+    for (int y = edge - 1; y <= edge + scale; y++) {
+        for (int x = edge - 1; x <= edge + scale; x++) {
+            uint8_t r, g, b;
+            uint8_t expected = (x >= edge && x < edge + scale &&
+                                y >= edge && y < edge + scale) ? 255 : 0;
+            CHECK(SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, NULL));
+            CHECK(r == expected && g == expected && b == expected);
+        }
+    }
+done:
+    fd2_vga_close(&vga);
+    if (renderer) SDL_DestroyRenderer(renderer);
+    SDL_DestroySurface(surface);
+    return result;
+}
+
 int main(void) {
     int result = 0, changed_directory = 0;
     char original_directory[2048], output[4096];
     CHECK(check_group_indices() == 0);
+    CHECK(check_vga_integer_scale() == 0);
     CHECK(create_fixture() == 0);
     CHECK(check_output(STARTUP_TITLE, output) == -1);
     CHECK(occurrences(output, "缺少文件：") == 8);

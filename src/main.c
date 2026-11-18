@@ -778,10 +778,12 @@ title_screen:
     }
 
     if (selection != FD2_TITLE_ACTION_HOST_QUIT) {
-        /* boot_intro_title_menu @0x1f894：确认闪烁后先1f882再返回分派。 */
+        /* boot_intro_title_menu @0x1f894（原登记 title_action_menu）：
+         * 确认闪烁后淡出，0x1ff42 清空 VGA。战场投影只覆盖内区。 */
         faded = fd2_scene_palette_fade(vga, 0, 0);
         if (faded == FD2_SCENE_RESULT_HOST_QUIT) goto host_quit;
         if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
+        fd2_vga_clear(vga, 0);
     }
     result = fd2_title_action_from_selection(selection, continue_available);
     goto done;

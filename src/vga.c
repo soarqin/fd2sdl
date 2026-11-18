@@ -19,10 +19,16 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
     vga->texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                      SDL_TEXTUREACCESS_STREAMING,
                                      VGA_W, VGA_H);
-    if (!vga->texture) {vga->output_error=FD2_VGA_OUTPUT_CREATE;return -1;}
+    /* 整数缩放保留 VGA 像素边界，避免地图颜色混进黑边。 */
+    if (!vga->texture || !SDL_SetTextureScaleMode(vga->texture, SDL_SCALEMODE_NEAREST)) {
+        fd2_vga_close(vga);
+        vga->output_error = FD2_VGA_OUTPUT_CREATE;
+        return -1;
+    }
     vga->field_page=fd2_field_page_create();
     if(!vga->field_page) {
-        SDL_DestroyTexture(vga->texture);vga->texture=NULL;return -1;
+        fd2_vga_close(vga);
+        return -1;
     }
     return 0;
 }

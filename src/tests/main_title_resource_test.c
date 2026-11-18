@@ -493,6 +493,12 @@ static int run_case(const char *name) {
         CHECK(title_reads == 2 && base_decodes == 1 && menu_decodes == 6);
         CHECK(menu_frames == (menu_quit ? 1 : 1 + FD2_TITLE_CONFIRM_FLASH_FRAMES));
         CHECK(action_reads == (menu_quit ? 0 : 1) && presents > 0);
+        if (menu_quit) {
+            CHECK(vga.framebuffer[0] == 1);
+        } else {
+            static const uint8_t cleared[VGA_H * VGA_STRIDE] = {0};
+            CHECK(memcmp(vga.framebuffer, cleared, sizeof(cleared)) == 0);
+        }
     }
     return 0;
 }
@@ -699,6 +705,7 @@ static int test_intro_fade_callers(void) {
             (host?FD2_TITLE_ACTION_HOST_QUIT:FD2_TITLE_ACTION_ERROR));
         CHECK(fade_calls==fault && !image_live && archive_opens==archive_closes && !unexpected);
         if(fault<26)CHECK(!menu_frames && !action_reads);
+        else CHECK(vga.framebuffer[0]==1);
     }
     return 0;
 }

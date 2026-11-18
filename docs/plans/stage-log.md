@@ -2063,3 +2063,16 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 精简（行为不变）：删除无调用者的 TAI 预览 tileset、`fd2_map_sprite_decode_frame`、旧存档单槽读取／字段访问器、`fd2_field_move_query_step` 与 `fd2_field_audio_stop`；合并 AFM 两份相同的 RLE 解码、tile 两份 blit 循环、存档三处整文件影子拷贝（校验通过后原地写并统一重封校验和）、`field_unit_base` 重复的物品属性回调、指令菜单／系统菜单两份过渡函数、目标范围清理和 6 处场景出口表达式；两个仅文件内使用的 `field_game` 导出改为 static。测试会以 `#include` 引用的私有函数和测试专用包装保留。
 
 验证（Windows Debug，当前平台）：全目标构建通过，无新增编译警告。CTest 172 项中 171 项在 `-j 4` 下通过，`original_reference_contract` 在并行负载下超时一次，单独重跑 8 次均通过（约 0.9 秒）。Python `unittest discover` 共 2381 项，12 项错误均为环境缺失：10 项缺少 `unicorn`（F6 记为历史原码对照跳过或使用本地缓存），2 项缺少历史夹具 `build/f1/domain-boundaries/source09.json`。`check_src_addresses.py` 1001 个地址均为 canonical。本轮未执行原版对照或 Linux。
+
+## field_play.c 冗余重构（2026-11-18）
+
+以 `6168e1d` 为基线，只重构 `field_play.c`，不改变逻辑和表现。原 `fd2_field_play_run_context` 约 1160 行。输入分派中同一种「映射 Scene 结果、停止循环、break」写法重复约 30 次，系统菜单确认、活动存取和取消分支全部内联。
+
+- 主循环状态集中到本地 `field_play_loop`。取消、详情、F1、焦点轮换、确认、系统菜单确认、活动存取和方向各有一个分派函数；原 `break` 一律对应提前返回，原来跳过或执行确认尾清键／结束帧的路径逐一保留。
+- 抽出 Scene 结果映射、终局／宿主退出门、提示失败、受理提示后的退出检查、会话失败检查和方向映射。四个方向 case 合为一处。
+- CONTINUE 入口与活动 Load 共用 10010 Round 和本关 primary 曲请求；胜利结算的两条交接共用同一存放与输出；启动失败统一经一个清理出口。主函数缩至约 330 行。
+- 单位列表与战利品库存选择共用 DATO 立绘双帧读取、16c57 眨眼等键和 12 帧详情底页开合；总览开合合并为一个循环；三处四帧立绘预检合并；删除只转发的 `play_system_menu_close`。测试按名称引用的内部函数保持原名和签名。
+
+整个文件由 3531 行减至 3349 行。
+
+验证（Windows Debug）：全目标构建通过，无新增警告。CTest 172 项全部通过，含原生窗口输入用例。新增 `tools/compare_field_play_builds.py`，对 `--field-play 0` 的 8 个场景各运行旧版两次、新版一次，覆盖待机整回合、攻击、取消、详情／F1、物品、法术、系统菜单（选项、总览、存档否／是、读档取消／是、出击）和结束回合。8 个场景的 stdout 与 `FD2.SAV` 均逐字节一致，旧版两次运行可重复。截图受水面、待机和光标实时动画影响，旧版两次之间也有差异，不作通过判据，用法见[图形测试规范](../tools/gui-testing.md)。本轮为纯重构，未改变可与原版对照的行为，因此未重跑 DOS 原版对照；Linux 未执行。

@@ -504,6 +504,17 @@ python tools/run_original_battle_menu.py --root . --game src/Debug/fd2sdl.exe --
 & src/build-win/Debug/fd2_field_play_input_driver.exe run-job 360000 python tools/run_original_player.py --root . --game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --dosbox 'C:/Tools/DOSBox-X/dosbox-x.exe' --artifacts src/build-win/original-player
 ```
 
+重构类改动可用 `tools/compare_field_play_builds.py` 对比旧版与新版 SDL 程序的执行结果。先在 `build/` 下用 `git worktree` 检出基线提交并只构建 `fd2sdl`（旧版程序生成在该检出的 `src/Debug/`），再运行：
+
+```powershell
+git worktree add --detach build/ab/old-src <基线提交>
+cmake -S build/ab/old-src/src -B build/ab/old-build -DCPM_SOURCE_CACHE=E:/Projects/fd2sdl/build/_deps
+cmake --build build/ab/old-build --config Debug --target fd2sdl --parallel
+python tools/compare_field_play_builds.py --root . --old-game build/ab/old-src/src/Debug/fd2sdl.exe --new-game src/Debug/fd2sdl.exe --driver src/build-win/Debug/fd2_field_play_input_driver.exe --artifacts build/ab/runs
+```
+
+工具对 `--field-play 0` 依次运行待机整回合、攻击、各类取消、详情／F1、物品、法术、系统菜单（选项、总览、存档否／是、读档取消／是、出击）和结束回合等场景。每个场景运行旧版两次、新版一次，使用相同 RNG 种子和各自隔离的 `FD2.SAV`，并经驱动向本轮 PID 后台投递按键。stdout 全文和存档必须逐字节一致才算通过；同一旧版两次运行若不一致，说明场景对时长敏感，需先修正场景。截图逐步保存，只报告像素差异，因为水面、待机和光标动画按实时变化，旧版两次之间也会不同。`--explore` 只运行旧版并打印轨迹，用于编写场景。该工具只用于新旧 SDL 程序之间的对照，不是原版对照，也不能代替 CTest。驱动的任意按键与截图只在 Windows 实现，Linux 未提供对应入口。
+
 CTest 输入回归保存到构建目录的 `test-artifacts/field-play-input/`；总流程为每轮创建 `graphics-artifacts/<时间>/`，其中包括输入 trace、日志、原始截图、差异图、原版资源 SHA-256、子进程退出与清理记录及 `summary.json`。当前驱动的文件接口使用 Windows 当前代码页，测试产物目录先使用 ASCII 路径。总流程自动把 SDL 正式 UI 生成的 `storage-cancel/FD2.SAV` 传给原版配对。单独复跑时将示例的 fixture 路径换成该文件，并使用新的产物目录；不要拿任意高关卡存档要求仅支持 stage 0 的 SDL 呈现相同菜单。原版与转换产物不提交；只提交测试脚本、配置生成逻辑与文字结论。
 
 大阶段统一回归的 Windows 总流程先执行自然开场和边缘镜头配对，再执行快速战场入口、菜单和动作测试；日常阶段验收按上方范围选择自身场景。自然开场必须从标题 START 经 stage 32／31／0，到首次可操作状态；`--field-play 0` 跳过引导，不能作为自然站位基线。117 个等待点各自通过文字、头像、框边和必要箭头的资源门后才发送一次确认键。首次焦点先截图确认，再向左一格打开正式 Save 测量；原始焦点与测量焦点分别报告。当前不宣称 RNG、完整场景像素、音频或精确时序相等。

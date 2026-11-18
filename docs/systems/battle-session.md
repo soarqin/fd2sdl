@@ -16,6 +16,8 @@
 | `scene`／`field_effect`／绘制模块 | 对已确定状态的画面、文本、动画与 cue | 不重复扣 HP/MP、移除物品或设置 acted |
 | `input`／`audio`／`audio_pcm`／`bgm` | App 普通键队列、held／repeat、持久 quit；播放命令、设备和 source 生命周期 | 不推进战场 RNG、phase 或剧情 |
 
+`field_play.c` 的主循环把一次运行的借用对象、事件报告计数和退出原因集中在本地 `field_play_loop` 中；每类已读输入（取消、详情、F1、焦点轮换、确认、系统菜单确认、活动存取、方向）各有一个分派函数，原 `break` 处的提前返回语义逐一保留。Scene 结果到 Play 返回码的映射、终局／宿主退出门、提示失败处理、CONTINUE 与活动 Load 共用的 10010 Round 和本关 primary 曲请求，以及胜利结算交接都只写一份。
+
 保留现有分层与调用点。只有某项功能确实需要共享代码时才抽取局部 helper，不先拆分 `field_game.c`、建立通用 command bus、事务框架或剧情 VM。单位和存档的字节布局以 [`../formats/data-formats.md`](../formats/data-formats.md) 为准，本文件不维护第二份格式表。
 
 概要板`18c6d`的板宽149不是HP条或目的owner边界。正式`18b84`直接在同一456×336 App页绘制，战斗板借320×200 owner；二者共用原signed条长及板／条／数字／姓名顺序。合法线性写可越板或逻辑行，真正越owner时保已写前缀并停止本叶。资源／姓名预检错误仍在首写前拒绝，不把条截成149宽或先画VGA再回交局部矩形。`field_info`只在调用期间借App像素，Game不保留内部指针，也不复制第二页。

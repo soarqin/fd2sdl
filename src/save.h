@@ -155,12 +155,4 @@ int fd2_save_file_update_slot(fd2_save_file *save, size_t slot_index,
                               size_t unit_count,
                               const uint8_t meta_28[FD2_SAVE_SLOT_META_SIZE]);
 
-/* 兼容旧调用：验证整文件 checksum 后读取一个 slot。 */
-int fd2_save_load_slot(fd2_save_slot *slot, const char *path,
-                       size_t slot_index);
-
-uint8_t fd2_save_unit_class(const fd2_save_unit *unit);
-uint8_t fd2_save_unit_portrait(const fd2_save_unit *unit);
-uint8_t fd2_save_unit_name_id(const fd2_save_unit *unit);
-
 #endif /* FD2_SAVE_H */

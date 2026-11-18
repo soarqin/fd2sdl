@@ -739,7 +739,6 @@ int fd2_field_game_set_attack_hooks(
     fd2_field_combat_rng_fn rng, void *rng_userdata);
 int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
                                           size_t target_index);
-int fd2_field_game_attack_is_available(const fd2_field_game *game);
 int fd2_field_game_begin_attack(fd2_field_game *game);
 /* 115b6的Z/小键盘5按raw候选回绕；121占槽但不移动焦点，不消费RNG。 */
 int fd2_field_game_cycle_attack_target(fd2_field_game *game);
@@ -814,7 +813,6 @@ int fd2_field_game_item_equip_is_available(const fd2_field_game *game);
  * resolve按当前owner完成空槽转交或交换，不acted；只重算sender，保留recipient派生。
  * 任一Give取消也重算sender并回菜单；最终COMMAND取消见53C53合同。 */
 int fd2_field_game_begin_item_give(fd2_field_game *game);
-int fd2_field_game_item_give_target_is_legal(const fd2_field_game *game);
 int fd2_field_game_cycle_item_give_target(fd2_field_game *game);
 int fd2_field_game_resolve_item_give(fd2_field_game *game);
 int fd2_field_game_item_give_list_step(fd2_field_game *game, fd2_field_item_list_key key);

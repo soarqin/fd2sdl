@@ -1245,6 +1245,9 @@ static int settlement_roster_sync(const fd2_field_units *units, fd2_save_manual_
 }
 
 static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, int force);
+static int common_event_append_group_units(fd2_field_units *units,
+        const fd2_field_metadata *metadata, const fd2_field_placements *placements,
+        const fd2_field_map *map, uint32_t group, int force);
 
 /* sub_1088D @0x1088d（原同名）的内部credits资源域：只换实际resource30，
  * 不借205da重置turn/focus/event/result，也不把坏结局的热stage26改成30。
@@ -1266,12 +1269,14 @@ int fd2_field_game_source_credits_setup(fd2_field_game *game) {
     if (fd2_field_prepare_deployment_project(&state,30,&map,&metadata,&placements,&units)) goto done;
     for (size_t i=0;i<units.count;i++)
         if (fd2_field_unit_cached_frame_index(&units,i,0)>=game->sprites.frame_count) goto done;
+    /* group0 追加在局部 stage30 资源上完成；失败时 game 保持不变。 */
+    if (common_event_append_group_units(&units,&metadata,&placements,&map,0,0)) goto done;
     fd2_field_map_close(&game->map); game->map=map; memset(&map,0,sizeof(map));
     fd2_field_metadata_close(&game->metadata); game->metadata=metadata; memset(&metadata,0,sizeof(metadata));
     fd2_field_placements_close(&game->placements); game->placements=placements; memset(&placements,0,sizeof(placements));
     fd2_terrain_tileset_close(&game->terrain); game->terrain=terrain; memset(&terrain,0,sizeof(terrain));
     game->units=units;
-    result=common_event_append_group_wide(game,0,0);
+    result=0;
 done:
     fd2_field_map_close(&map); fd2_field_metadata_close(&metadata);
     fd2_field_placements_close(&placements); fd2_terrain_tileset_close(&terrain);
@@ -1490,18 +1495,21 @@ static int run_stage_logic(const fd2_static_flow *flow, stage_flow_context *cont
                 if (context->resources->roster_count + (size_t)n->args[0] > FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
             } else if (!strcmp(op, "branch_any_hidden")) {
                 int hidden = 0;
-                if (n->args[0] > n->args[1] || (size_t)n->args[1] >= units->count) return -1;
+                if (n->args[0] < 0 || n->args[0] > n->args[1] ||
+                        (size_t)n->args[1] >= units->count) return -1;
                 for (int32_t i = n->args[0]; i <= n->args[1]; i++)
                     if (fd2_field_unit_is_hidden(&units->items[i])) hidden = 1;
                 port = hidden ? FD2_FLOW_YES : FD2_FLOW_NO;
             } else if (!strcmp(op, "grant_party_item")) {
+                if (n->args[0] < 0 || n->args[0] > UINT8_MAX) return -1;
                 for (size_t i = 0; i < units->count; i++)
                     if (units->items[i].side == 2u && inventory_first_empty_add(&units->items[i], (uint8_t)n->args[0]) == 1) break;
             } else if (!strcmp(op, "next_stage")) {
-                if (!state) return -1;
+                if (!state || n->args[0] < 1 || n->args[0] > 30) return -1;
                 state->stage_id = (uint8_t)n->args[0];
             } else if (!strcmp(op, "roster_append")) {
-                if (!state || state->unit_count >= FD2_SAVE_BATTLE_MAX_ROSTER) return -1;
+                if (!state || state->unit_count >= FD2_SAVE_BATTLE_MAX_ROSTER ||
+                        n->args[0] < 0 || n->args[0] > 31) return -1;
                 fd2_field_unit added;
                 uint8_t *target = state->unit_area + state->unit_count * sizeof(added);
                 memcpy(&added, target, sizeof(added));
@@ -1788,50 +1796,39 @@ int fd2_field_game_tick_visual(fd2_field_game *game, uint64_t now_ns) {
     return fd2_field_game_tick_terrain_visual(game, now_ns);
 }
 
+/* headless 周期补追：返回自 *last 起完整经过的周期数并推进 *last。
+ * *last==0 表示尚未起算；时钟回退时只重取 *last，不补追（否则无符号差回绕）。 */
+static uint64_t headless_elapsed_periods(uint64_t now_ms, uint64_t *last,
+                                         uint64_t period_ms) {
+    if (*last == 0 || now_ms < *last) {
+        *last = now_ms;
+        return 0;
+    }
+    uint64_t periods = (now_ms - *last) / period_ms;
+    *last += periods * period_ms;
+    return periods;
+}
+
 void fd2_field_game_tick(fd2_field_game *game, uint64_t now_ns) {
     if (fd2_field_game_tick_visual(game, now_ns) != 0) return;
     uint64_t now_ms=now_ns/UINT64_C(1000000);
-    if (game->visual_owner) {
-        /* 正式range与菜单从同一App owner借读，不走旧headless时钟。 */
-    } else if (game->last_range_visual_ms == 0) {
-        game->last_range_visual_ms = now_ms;
-    } else {
-        while (now_ms - game->last_range_visual_ms >=
-               FD2_FIELD_RANGE_VISUAL_MS) {
-            game->range_visual_phase = (uint8_t)(
-                (game->range_visual_phase + 1u) %
-                FD2_FIELD_RANGE_PHASE_COUNT);
-            game->last_range_visual_ms += FD2_FIELD_RANGE_VISUAL_MS;
-        }
-    }
+    /* 正式range与菜单从同一App owner借读，不走旧headless时钟。 */
     if (game->visual_owner) goto transient_deadlines;
+    game->range_visual_phase = (uint8_t)((game->range_visual_phase +
+        headless_elapsed_periods(now_ms, &game->last_range_visual_ms,
+                                 FD2_FIELD_RANGE_VISUAL_MS)) %
+        FD2_FIELD_RANGE_PHASE_COUNT);
     if (game->interaction == FD2_FIELD_INTERACTION_COMMAND ||
         game->interaction == FD2_FIELD_INTERACTION_ITEM_MENU) {
-        if (game->last_command_highlight_ms == 0) {
-            game->last_command_highlight_ms = now_ms;
-        } else {
-            while (now_ms - game->last_command_highlight_ms >=
-                   FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
-                game->command_highlight_phase ^= 1u;
-                game->last_command_highlight_ms +=
-                    FD2_FIELD_COMMAND_HIGHLIGHT_MS;
-            }
-        }
+        game->command_highlight_phase ^= (uint8_t)(headless_elapsed_periods(now_ms,
+            &game->last_command_highlight_ms, FD2_FIELD_COMMAND_HIGHLIGHT_MS) & 1u);
         game->system_menu.highlight_phase = 0;
         game->system_menu.last_highlight_ms = 0;
     } else if (game->interaction == FD2_FIELD_INTERACTION_SYSTEM_MENU) {
         game->command_highlight_phase = 0;
         game->last_command_highlight_ms = 0;
-        if (game->system_menu.last_highlight_ms == 0) {
-            game->system_menu.last_highlight_ms = now_ms;
-        } else {
-            while (now_ms - game->system_menu.last_highlight_ms >=
-                   FD2_FIELD_COMMAND_HIGHLIGHT_MS) {
-                game->system_menu.highlight_phase ^= 1u;
-                game->system_menu.last_highlight_ms +=
-                    FD2_FIELD_COMMAND_HIGHLIGHT_MS;
-            }
-        }
+        game->system_menu.highlight_phase ^= (uint8_t)(headless_elapsed_periods(now_ms,
+            &game->system_menu.last_highlight_ms, FD2_FIELD_COMMAND_HIGHLIGHT_MS) & 1u);
     } else {
         game->command_highlight_phase = 0;
         game->last_command_highlight_ms = 0;
@@ -3017,6 +3014,14 @@ static int player_move_range(fd2_field_game *game, size_t actor_index) {
         FD2_FIELD_MOVEMENT_COST_CLASS_COUNT, unit->movement_points);
 }
 
+/* 关闭目标范围owner并清空法术／物品／攻击共用的候选与焦点游标。 */
+static void close_target_range(fd2_field_game *game) {
+    fd2_field_path_close(&game->move_range);
+    game->magic_target_id = 0;
+    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
+    game->magic_target_count = game->magic_target_cycle = 0;
+}
+
 static void clear_move_query(fd2_field_game *game) {
     if (!game) return;
     fd2_field_path_close(&game->move_range);
@@ -3375,7 +3380,7 @@ int fd2_field_game_attack_target_is_legal(const fd2_field_game *game,
         (size_t)game->selected_unit, target_index);
 }
 
-int fd2_field_game_attack_is_available(const fd2_field_game *game) {
+static int fd2_field_game_attack_is_available(const fd2_field_game *game) {
     if (!game || !game->ready || game->selected_unit < 0 ||
         (size_t)game->selected_unit >= game->units.count ||
         !game->attack_rng)
@@ -3981,11 +3986,7 @@ int fd2_field_game_cancel_magic_targeting(fd2_field_game *game) {
     if (focus_to(game, actor->x, actor->y) != 0) return -1;
     if(game->runtime_host_quit)return 0;
     game->ordinary_display_mode=1;
-    fd2_field_path_close(&game->move_range);
-    game->magic_target_id = 0;
-    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
-    game->magic_target_count = 0;
-    game->magic_target_cycle = 0;
+    close_target_range(game);
     game->magic_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_MAGIC_LIST;
     return 0;
@@ -4065,11 +4066,7 @@ int fd2_field_game_cancel_item_targeting(fd2_field_game *game) {
     if (focus_to(game, actor->x, actor->y) != 0) return -1;
     if(game->runtime_host_quit)return 0;
     game->ordinary_display_mode=1;
-    fd2_field_path_close(&game->move_range);
-    game->magic_target_id = 0;
-    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
-    game->magic_target_count = 0;
-    game->magic_target_cycle = 0;
+    close_target_range(game);
     /* 1be60先focus，1be85重开1b932的selected0；不返回物品子菜单。 */
     game->item_list_selected = 0;
     game->interaction = FD2_FIELD_INTERACTION_ITEM_LIST;
@@ -4110,13 +4107,6 @@ static int inventory_prefix_is_valid(const fd2_field_unit *unit) {
     return fd2_field_item_list_select_step(unit, &selected, FD2_FIELD_ITEM_LIST_KEY_OTHER, 0) == 0;
 }
 
-static void close_give_range(fd2_field_game *game) {
-    fd2_field_path_close(&game->move_range);
-    game->magic_target_id = 0;
-    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
-    game->magic_target_count = game->magic_target_cycle = 0;
-}
-
 static int return_item_menu_or_command(fd2_field_game *game) {
     game->item_give_recipient = game->item_give_selected = 0;
     if (fd2_field_unit_inventory_count(&game->units.items[game->selected_unit]))
@@ -4144,7 +4134,7 @@ static int give_cell_has_player(const fd2_field_game *game, int x, int y) {
     return 0;
 }
 
-int fd2_field_game_item_give_target_is_legal(const fd2_field_game *game) {
+static int fd2_field_game_item_give_target_is_legal(const fd2_field_game *game) {
     if (!give_source_is_valid(game) || game->interaction != FD2_FIELD_INTERACTION_ITEM_GIVE_TARGETING ||
         !target_focus_is_valid(game)) return -1;
     const fd2_field_unit *actor = &game->units.items[game->selected_unit];
@@ -4204,7 +4194,7 @@ int fd2_field_game_resolve_item_give(fd2_field_game *game) {
         /* 原版先恢复Give前focus，再打开recipient的mode0列表。 */
         if (focus_to(game, sender.x, sender.y) != 0) return -1;
         if(game->runtime_host_quit)return 0;
-        close_give_range(game);
+        close_target_range(game);
         game->item_give_recipient = receiver;
         game->item_give_selected = 0;
         game->interaction = FD2_FIELD_INTERACTION_ITEM_GIVE_LIST;
@@ -4231,7 +4221,7 @@ int fd2_field_game_resolve_item_give(fd2_field_game *game) {
     game->units.items[game->selected_unit] = sender;
     game->units.items[receiver] = recipient;
     game->item_transfer_committed = 1;
-    close_give_range(game);
+    close_target_range(game);
     return return_item_menu_or_command(game);
 }
 
@@ -4243,7 +4233,7 @@ static int finish_item_give_cancel(fd2_field_game *game, int restore_focus) {
     if (restore_focus) {
         if (!target_focus_is_valid(game) || focus_to(game, sender.x, sender.y) != 0) return -1;
         if(game->runtime_host_quit)return 0;
-        close_give_range(game);
+        close_target_range(game);
     }
     game->units.items[game->selected_unit] = sender;
     return return_item_menu_or_command(game);
@@ -5267,11 +5257,7 @@ int fd2_field_game_cancel_attack(fd2_field_game *game) {
     if (focus_to(game, attacker->x, attacker->y) != 0) return 0;
     if(game->runtime_host_quit)return 0;
     game->attack_target = -1;
-    fd2_field_path_close(&game->move_range);
-    game->magic_target_id = 0;
-    memset(game->magic_target_candidates, 0, sizeof(game->magic_target_candidates));
-    game->magic_target_count = 0;
-    game->magic_target_cycle = 0;
+    close_target_range(game);
     game->interaction = FD2_FIELD_INTERACTION_COMMAND;
     (void)fd2_field_game_refresh_commands(game);
     return 1;

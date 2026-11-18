@@ -101,7 +101,6 @@ typedef struct {
     const uint8_t *data;
     size_t size;
     uint16_t count;
-    const uint32_t *offsets;
 } fd2_ui_sheet;
 
 typedef struct {
@@ -199,7 +198,6 @@ static int ui_sheet_open_fdother(fd2_ui_sheet *sheet,
     sheet->data = data;
     sheet->size = size;
     sheet->count = count;
-    sheet->offsets = (const uint32_t *)(const void *)(data + 6);
     return 0;
 }
 
@@ -235,6 +233,13 @@ static int ui_sheet_decode_rle(const fd2_ui_sheet *sheet,uint16_t index,fd2_imag
 }
 
 static int scene_host_quit_requested;
+
+/* 场景出口：时钟／显示错误优先，其次宿主退出，否则保留场景自身结果。 */
+static int scene_finish(fd2_vga *vga, int result) {
+    if (fd2_bios_clock_error() < 0 || fd2_vga_output_error(vga) < 0)
+        return FD2_SCENE_RESULT_ERROR;
+    return scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+}
 static int scene_render_error;
 
 static void scene_motion_sync(const fd2_scene_field_state *state) {
@@ -2579,8 +2584,7 @@ done:
     fd2_archive_close(&fdtxt);
     fd2_archive_close(&fdshap);
     fd2_archive_close(&field);
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 int fd2_scene_play_new_game_prologue_handoff(fd2_vga *vga,
@@ -2779,8 +2783,7 @@ int fd2_scene_play_stage_entry(fd2_vga *vga, const fd2_archive *fdother,
 done:
     fd2_text_entry_close(&text);
     fd2_archive_close(&fdtxt);
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 /* 完整源caller序列的单次执行；只接受已生成的明确source ID。
@@ -2824,8 +2827,7 @@ done:
     fd2_scene_cinematic_close(&context.cinematic);
     fd2_text_entry_close(&text);
     if (result == FD2_SCENE_RESULT_ERROR && scene_render_error) return result;
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 int fd2_scene_play_stage1_entry(fd2_vga *vga, const fd2_archive *fdother,
@@ -2946,8 +2948,7 @@ static int scene_play_stage_victory_with_owner(fd2_vga *vga, const fd2_archive *
     result = FD2_SCENE_RESULT_OK;
 done:
     fd2_text_entry_close(&text); fd2_archive_close(&fdtxt);
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 int fd2_scene_play_stage_victory(fd2_vga *vga, const fd2_archive *fdother,
@@ -3015,8 +3016,7 @@ int fd2_scene_play_field_story(fd2_vga *vga, const fd2_archive *fdother,
 done:
     fd2_text_entry_close(&text);
     fd2_archive_close(&fdtxt);
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 /* 已证common冷节点的资源叶；24754这里只替换map/shape，4df4c与10652
@@ -3338,8 +3338,7 @@ int fd2_scene_play_game_over(fd2_vga *vga, const fd2_archive *fdother,
     result = FD2_SCENE_RESULT_OK;
 done:
     for (size_t i = 0; i < 2; i++) fd2_image_free(&images[i]);
-    return (fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)?FD2_SCENE_RESULT_ERROR:
-        scene_host_quit_requested ? FD2_SCENE_RESULT_HOST_QUIT : result;
+    return scene_finish(vga, result);
 }
 
 int fd2_scene_play_new_game_prologue(fd2_vga *vga,

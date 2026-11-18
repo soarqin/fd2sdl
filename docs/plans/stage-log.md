@@ -2045,3 +2045,21 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 本节记录 F1–F6 大阶段收尾的全量回归。以 `3fdf087` 为基线在独立检出恢复全目标 Debug 构建。首轮无窗口 CTest 166 项通过、5 项失败；修复构建接口、过期断言和夹具后全量复测，171 项均通过。原生 SDL 输入和 WGC 测试在同一应用二进制通过，合计 172 项，无跳过。首次 Python 全量测试及定向复测按用例名合计 2371 项通过，两组历史原码对照跳过。
 
 详见[F6 回归清单](f6-sdl-regression.md)。本地集成、物理文件与保护记录以两树 `build/f6/sdl-regression-20261118/local-integration.json` 为准。原版完整对照及 DOS 硬件等价属于历史目标，2026-11-18 已退出当前 F6 验收。未在 Linux 执行。
+
+## 全仓代码审查修复与精简（2026-11-18）
+
+以 `9bbe523` 为基线，按模块分组审查产品源码，只修复经代码确认的问题；与 DOS 原版无关的重构保持逻辑和表现不变。
+
+修复：
+
+- credits 资源安装（`fd2_field_game_source_credits_setup`）原先先换入 resource30 再追加 group0，追加失败会留下半装状态。现在全部可失败步骤都在局部资源上完成，成功后才换入 Game，见[session 文档](../systems/battle-session.md)。
+- stage 入场／胜利／结算共用逻辑解释器补齐与 source 节点相同的参数域检查。`branch_any_hidden` 负下界原本会越界读取，另有三个叶会把越界参数截断成 BYTE，见[冷定义工具](../tools/static-data.md)。
+- headless 的 range 和菜单高亮周期补追改用同一辅助函数。时钟回退时只重取起点，不再因无符号差回绕而长时间循环；时间正常前进时相位推进不变。
+- 战利品仓库选择关闭动画中，音效后的时钟／显示错误原先按成功返回，并继续提交领取；现在返回 ERROR。
+- credits 素材打开失败时只回收本次新开的 FDTXT31，不关闭 roll 阶段已经打开的文本。
+- `FD2SDL_APP_PCM_CAPTURE_MAX_MS` 非法时补 SDL 错误信息。
+- `original_reference_contract` 的 junction 用例在 `setUp` 清空环境后启动 `cmd`，Windows 因缺少 `SystemRoot` 报 WinError 87。改为向子进程传入导入时保留的最小系统环境；断言不变。
+
+精简（行为不变）：删除无调用者的 TAI 预览 tileset、`fd2_map_sprite_decode_frame`、旧存档单槽读取／字段访问器、`fd2_field_move_query_step` 与 `fd2_field_audio_stop`；合并 AFM 两份相同的 RLE 解码、tile 两份 blit 循环、存档三处整文件影子拷贝（校验通过后原地写并统一重封校验和）、`field_unit_base` 重复的物品属性回调、指令菜单／系统菜单两份过渡函数、目标范围清理和 6 处场景出口表达式；两个仅文件内使用的 `field_game` 导出改为 static。测试会以 `#include` 引用的私有函数和测试专用包装保留。
+
+验证（Windows Debug，当前平台）：全目标构建通过，无新增编译警告。CTest 172 项中 171 项在 `-j 4` 下通过，`original_reference_contract` 在并行负载下超时一次，单独重跑 8 次均通过（约 0.9 秒）。Python `unittest discover` 共 2381 项，12 项错误均为环境缺失：10 项缺少 `unicorn`（F6 记为历史原码对照跳过或使用本地缓存），2 项缺少历史夹具 `build/f1/domain-boundaries/source09.json`。`check_src_addresses.py` 1001 个地址均为 canonical。本轮未执行原版对照或 Linux。

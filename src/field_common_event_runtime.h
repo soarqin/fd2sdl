@@ -20,24 +20,34 @@
 
 /* 10b4e的DWORD参数与模板BYTE零扩展比较；不继承旧stage夹具的
  * duplicate/no-new门。一次构造仍由现有units原语保证半组不交接。 */
-static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, int force) {
-    if (!game || (force != 0 && force != 1) || game->units.count > FD2_FIELD_MAX_UNITS) return -1;
+/* 在调用方给定的资源上构造；成功才整体写回 *units，失败不改 *units。
+ * credits 安装前用局部 stage30 资源预演，避免先换资源后失败。 */
+static int common_event_append_group_units(fd2_field_units *units,
+        const fd2_field_metadata *metadata, const fd2_field_placements *placements,
+        const fd2_field_map *map, uint32_t group, int force) {
+    if (!units || (force != 0 && force != 1) || units->count > FD2_FIELD_MAX_UNITS) return -1;
     size_t templates;
-    if (fd2_field_unit_template_count(&game->metadata, &templates) != 0) return -1;
+    if (fd2_field_unit_template_count(metadata, &templates) != 0) return -1;
     if (group > UINT8_MAX) return 0;
     int match = 0;
     for (size_t i = 0; i < templates; i++)
-        if (game->metadata.unit_templates[i].bytes[0x15] == group) match = 1;
+        if (metadata->unit_templates[i].bytes[0x15] == group) match = 1;
     if (!match) return 0; /* 原10b4e空匹配不读地图/placement，更不拒绝整事件。 */
-    fd2_field_units units = game->units;
-    if (fd2_field_units_append_group_placed(&units, &game->metadata,
-        &game->placements, &game->map, (uint8_t)group, force) != 0) return -1;
-    for (size_t i = game->units.count; i < units.count; i++)
+    fd2_field_units updated = *units;
+    if (fd2_field_units_append_group_placed(&updated, metadata,
+        placements, map, (uint8_t)group, force) != 0) return -1;
+    for (size_t i = units->count; i < updated.count; i++)
         /* 图形源越界由renderer有界省绘制；不能撤销已证10b4e业务新增。 */
-        if (fd2_field_unit_combat_stats_recompute(&units.items[i], fd2_field_unit_original_item_stats,
+        if (fd2_field_unit_combat_stats_recompute(&updated.items[i], fd2_field_unit_original_item_stats,
                 NULL, fd2_field_unit_original_status_scale, NULL) != 0) return -1;
-    game->units = units;
+    *units = updated;
     return 0;
+}
+
+static int common_event_append_group_wide(fd2_field_game *game, uint32_t group, int force) {
+    if (!game) return -1;
+    return common_event_append_group_units(&game->units, &game->metadata,
+        &game->placements, &game->map, group, force);
 }
 
 static int common_event_leaf(const char *op) {

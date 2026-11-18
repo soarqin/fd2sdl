@@ -272,7 +272,9 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
         const char *value = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_MAX_MS");
         if (value) {
             char *end; unsigned long n = strtoul(value, &end, 10);
-            if (!*value || *end || !n || n > 120000) goto failed;
+            if (!*value || *end || !n || n > 120000) {
+                SDL_SetError("FD2SDL_APP_PCM_CAPTURE_MAX_MS must be 1..120000"); goto failed;
+            }
             capture_ms = (unsigned)n;
         }
         if (!open_device) { SDL_SetError("app PCM requires a playback stream"); goto failed; }

@@ -72,53 +72,6 @@ static int opponent_adjacent(const fd2_field_move_query_context *context,
     return 0;
 }
 
-int fd2_field_move_query_step(void *opaque,
-                              int from_x, int from_y,
-                              int to_x, int to_y,
-                              fd2_field_path_step *step) {
-    (void)from_x;
-    (void)from_y;
-    fd2_field_move_query_context *context = opaque;
-    if (!context || !context->map || !context->map->cells ||
-        !context->terrain || !context->units || !step ||
-        context->mover_index >= context->units->count ||
-        !context->movement_profile_costs ||
-        to_x < 0 || to_y < 0 ||
-        to_x >= context->map->width || to_y >= context->map->height)
-        return -1;
-
-    uint32_t cell = context->map->cells[
-        (size_t)to_y * (size_t)context->map->width + (size_t)to_x];
-    uint16_t terrain_id = (uint16_t)(cell & 0x03ffu);
-    if (!context->terrain->attrs ||
-        terrain_id >= context->terrain->attr_count)
-        return -1;
-    uint8_t cost_class =
-        context->terrain->attrs[terrain_id].movement_cost_class;
-    if (cost_class >= context->movement_profile_cost_count)
-        return -1;
-
-    const fd2_field_unit *mover =
-        &context->units->items[context->mover_index];
-    int friendly_occupied = 0;
-    /* 剧情 placement 允许重复坐标；移动判定必须检查该格全部单位，
-     * 不能只依赖首个命中的 actor。任一敌方存在都使该格不可进入。 */
-    for (size_t i = 0; i < context->units->count; i++) {
-        const fd2_field_unit *occupant = &context->units->items[i];
-        if (i == context->mover_index ||
-            (occupant->flags & FD2_FIELD_UNIT_FLAG_HIDDEN) != 0 ||
-            occupant->x != to_x || occupant->y != to_y)
-            continue;
-        if (!same_faction(mover->side, occupant->side)) return 0;
-        friendly_occupied = 1;
-    }
-
-    step->cost = context->movement_profile_costs[cost_class];
-    step->can_stop = !friendly_occupied;
-    step->can_expand = !opponent_adjacent(context, to_x, to_y);
-    return 1;
-}
-
 /* 4e4df..4e4e1和4e6a5..4e6a9均比较signed BYTE；用int域表达，
  * 不依赖超范围uint8_t转int8_t的实现定义行为。 */
 static int signed_byte(uint8_t value) {

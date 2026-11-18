@@ -9,34 +9,13 @@ static uint16_t rd_u16_le(const uint8_t *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
 
-static int afm_decode_palette_rle(uint8_t dst[VGA_PALETTE_SIZE],
-                                  const uint8_t *src, size_t len,
-                                  size_t *pos) {
-    /* FUN_000345ad：AFM palette RLE。
-     * 控制字节高 2 位为 0xc0 时，低 6 位是重复次数，下一字节为值；
-     * 否则控制字节本身就是 literal。注意这里没有 image.c RLE 的 +1。 */
-    size_t out = 0;
-    while (out < VGA_PALETTE_SIZE) {
-        if (*pos >= len) return -1;
-        uint8_t c = src[(*pos)++];
-        if ((c & 0xc0) == 0xc0) {
-            size_t count = c & 0x3f;
-            if (*pos >= len || out + count > VGA_PALETTE_SIZE) return -1;
-            memset(dst + out, src[(*pos)++], count);
-            out += count;
-        } else {
-            dst[out++] = c;
-        }
-    }
-    return 0;
-}
-
 static int afm_decode_frame_rle(uint8_t *dst, size_t dst_len,
                                 const uint8_t *src, size_t len,
                                 size_t *pos) {
-    /* FUN_0003466c：AFM framebuffer RLE。
+    /* FUN_0003466c：AFM framebuffer RLE；FUN_000345ad 的 palette RLE
+     * 使用同一编码（dst_len=0x300）。
      * 该格式与 FDOTHER 图像 RLE 不同：只有 0xc0-0xff 表示 run，
-     * 低 6 位为重复次数；其他字节直接写入显存。 */
+     * 低 6 位为重复次数（没有 image.c RLE 的 +1）；其他字节为 literal。 */
     size_t out = 0;
     while (out < dst_len) {
         if (*pos >= len) return -1;
@@ -71,7 +50,8 @@ static int afm_exec_frame(fd2_vga *vga, const uint8_t *data, size_t len,
             break;
         case 2: {
             uint8_t pal[VGA_PALETTE_SIZE];
-            if (afm_decode_palette_rle(pal, data, len, &pos) != 0) return -1;
+            if (afm_decode_frame_rle(pal, VGA_PALETTE_SIZE, data, len, &pos) != 0)
+                return -1;
             fd2_vga_set_palette(vga, pal);
             break;
         }

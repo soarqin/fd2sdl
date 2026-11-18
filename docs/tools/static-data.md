@@ -52,6 +52,8 @@ python3 -B -m unittest discover -s tools/tests -p 'test_static*.py'
 
 脚本本身是冷数据。触发条件、分支、等待、取消、动作顺序与提示参数均由图定义；库存、选择、完成位、执行游标及单位状态仍由现有 Game／loot／progress／session 持有。SAV 不增加流程版本或执行位置，不序列化中途提示。活动 Load 仍重建原有边界状态。
 
+运行期有两处解释同名逻辑叶：Game 内 source 节点与入场／胜利／结算共用的 stage 逻辑。二者对 `branch_any_hidden`（区间下界非负且上界在表内）、`grant_party_item`（0..255）、`next_stage`（1..30）和 `roster_append`（0..31）执行同一参数域检查。越界参数明确失败，不截断成 BYTE 后继续写状态。
+
 八个领域共用节点结构，但各自只接受当前已确认的固定操作：
 
 | 文件 | 冷定义范围 | 代码保留的职责 |

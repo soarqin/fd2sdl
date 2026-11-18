@@ -14,6 +14,11 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import original_reference as reference
 
+# setUp 会清空 os.environ；Windows 子进程缺 SystemRoot 时 CreateProcess 失败，
+# 故在导入时保留创建 junction 所需的最小系统环境。
+_WINDOWS_CHILD_ENV = {key: os.environ[key] for key in ("SystemRoot", "ComSpec")
+                      if key in os.environ}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -210,8 +215,9 @@ class OriginalReferenceTest(unittest.TestCase):
     def test_output_through_directory_alias_cannot_enter_original(self):
         link = self.root / "original-alias"
         if os.name == "nt":
-            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(self.original)],
-                           check=True, capture_output=True)
+            subprocess.run([_WINDOWS_CHILD_ENV.get("ComSpec", "cmd"), "/c", "mklink", "/J",
+                            str(link), str(self.original)],
+                           check=True, capture_output=True, env=_WINDOWS_CHILD_ENV)
             self.assertEqual(link.lstat().st_reparse_tag, 0xA0000003)
         else:
             link.symlink_to(self.original, target_is_directory=True)

@@ -445,14 +445,17 @@ static int text_draw(fd2_scene_cinematic *scope,int destination,size_t offset,
 
 int fd2_scene_cinematic_credits_assets_open(fd2_scene_cinematic *scope) {
     if(!scope || !scope->game || scope->credits_assets)return -1;
+    /* 31c49先滚FDTXT31时文本已由roll打开；失败只回收本次新开的owner。 */
+    int opened_text=!scope->credits_text.data;
     if(fd2_archive_open(&scope->tai,"original_game/TAI.DAT")!=0 ||
         image_entry(&scope->credits_terrain,&scope->tai,3)!=0 ||
-        (!scope->credits_text.data &&
+        (opened_text &&
             fd2_text_entry_open_entry(&scope->credits_text,&scope->game->fdtxt_archive,31)!=0))
         goto fail;
     scope->credits_assets=1;return 0;
 fail:
-    fd2_text_entry_close(&scope->credits_text);image_close(&scope->credits_terrain);
+    if(opened_text)fd2_text_entry_close(&scope->credits_text);
+    image_close(&scope->credits_terrain);
     fd2_archive_close(&scope->tai);return -1;
 }
 int fd2_scene_cinematic_credits_assets_close(fd2_scene_cinematic *scope) {

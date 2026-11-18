@@ -158,38 +158,6 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
     return 0;
 }
 
-int fd2_map_sprite_decode_frame(fd2_image *img,
-                                 const fd2_map_sprite_bank *bank,
-                                 size_t frame_idx) {
-    memset(img, 0, sizeof(*img));
-    if (!bank || !bank->data || !bank->offsets || frame_idx >= bank->frame_count)
-        return -1;
-
-    uint32_t start = bank->offsets[frame_idx];
-    size_t used = 0;
-    if (measure_rle_24(bank->data + start, bank->size - start, &used) != 0)
-        return -1;
-    uint32_t end = start + (uint32_t)used;
-    if (end <= start || end > bank->size) return -1;
-
-    img->width = 24;
-    img->height = 24;
-    img->pixels = calloc(24u * 24u, 1);
-    if (!img->pixels) return -1;
-
-    if (bank->decoded_frames) {
-        memcpy(img->pixels,
-               bank->decoded_frames + frame_idx * 24u * 24u,
-               24u * 24u);
-    } else if (fd2_image_decode_rle_pixels(img->pixels, 24, 24,
-                                           bank->data + start,
-                                           (size_t)(end - start)) != 0) {
-        fd2_image_free(img);
-        return -1;
-    }
-    return 0;
-}
-
 void fd2_map_sprite_bank_close(fd2_map_sprite_bank *bank) {
     if (!bank) return;
     free(bank->data);

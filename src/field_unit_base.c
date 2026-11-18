@@ -55,18 +55,6 @@ static void wr_u16(uint8_t *record, size_t offset, uint32_t value) {
     record[offset + 1u] = (uint8_t)(narrowed >> 8);
 }
 
-static int initial_item_stats(void *userdata, uint8_t item_id,
-                               fd2_field_item_stat_effect *effect) {
-    (void)userdata;
-    const uint8_t *item = fd2_field_item_record_get(item_id);
-    if (!item || !effect) return -1;
-    effect->attack = fd2_field_item_i16(item, 1);
-    effect->accuracy = fd2_field_item_i16(item, 3);
-    effect->defense = fd2_field_item_i16(item, 5);
-    effect->evasion = fd2_field_item_i16(item, 7);
-    return 0;
-}
-
 const uint8_t *fd2_field_unit_growth_record_get(uint8_t unit_id) {
     return unit_id < ARRAY_COUNT(k_growth_records)
         ? k_growth_records[unit_id] : NULL;
@@ -130,7 +118,7 @@ int fd2_field_unit_reward_preview(
     fd2_reward_notice notice;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         int result = fd2_reward_advance(flow, &updated, gain, &cursor, &notice,
-            initial_item_stats, NULL, scale, scale_userdata);
+            fd2_field_unit_original_item_stats, NULL, scale, scale_userdata);
         if (result == 2) return 0;
         if (result < 0) return -1;
         if (result == 1) { *out = updated; return 1; }
@@ -147,7 +135,7 @@ int fd2_field_unit_persistent_stats_recompute(fd2_field_unit *unit) {
     uint8_t *record = (uint8_t *)&updated;
     memset(record + 0x22, 0, 3);
     if (fd2_field_unit_combat_stats_recompute(
-            &updated, initial_item_stats, NULL, NULL, NULL) != 0)
+            &updated, fd2_field_unit_original_item_stats, NULL, NULL, NULL) != 0)
         return -1;
     memcpy((uint8_t *)unit + 0x48, record + 0x48, 8);
     return 0;
@@ -234,7 +222,7 @@ int fd2_field_unit_stage_template_apply(
     record[0x3d] = tpl[0x02];
 
     if (fd2_field_unit_base_apply(&updated, tpl[0x04]) != 0 ||
-        fd2_field_unit_combat_stats_recompute(&updated,initial_item_stats,NULL,NULL,NULL) != 0)
+        fd2_field_unit_combat_stats_recompute(&updated,fd2_field_unit_original_item_stats,NULL,NULL,NULL) != 0)
         return -1;
     *unit = updated;
     return 0;

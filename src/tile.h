@@ -12,20 +12,6 @@
 #include "shape.h"
 #include "vga.h"
 
-/* TAI.DAT 图像读取
- *
- * TAI.DAT 的每个条目可按通用 RLE 图像解码，尺寸多为 154/155×39/42，
- * 使用 FDOTHER.DAT[0] 调色板显示。它不是战场网格底图的直接来源。
- */
-typedef struct {
-    fd2_image *images;
-    size_t count;
-} fd2_tileset;
-
-int  fd2_tileset_load(fd2_tileset *tiles, const fd2_archive *tai);
-const fd2_image *fd2_tileset_get(const fd2_tileset *tiles, size_t idx);
-void fd2_tileset_close(fd2_tileset *tiles);
-
 /* FDSHAP.DAT 战场地形表与 24×24 地图帧。
  *
  * 对照 FUN_00010580 @0x12e38：FDFIELD cell 低 10 位为 terrain_id，
@@ -96,10 +82,6 @@ void fd2_tileset_blit(fd2_vga *vga, const fd2_image *img,
 void fd2_tileset_blit_lut(fd2_vga *vga, const fd2_image *img,
                           int x, int y, int transparent_index,
                           const uint8_t lut[256]);
-void fd2_terrain_render_field_base(fd2_vga *vga,
-                                   const fd2_terrain_tileset *terrain,
-                                   const fd2_field_map *map,
-                                   int camera_x, int camera_y);
 void fd2_terrain_render_field_base_animated(
                                    fd2_vga *vga,
                                    const fd2_terrain_tileset *terrain,
@@ -132,12 +114,5 @@ void fd2_terrain_render_field_scaled_animated(
                                       int center_x_fp, int center_y_fp,
                                       int step_fp,
                                       int terrain_phase, int actor_phase);
-
-/* 兼容旧调试代码的临时 TAI 预览映射。正式战场底图见 fd2_terrain_*。 */
-size_t fd2_tileset_preview_index_from_cell(uint32_t cell, size_t tile_count);
-void fd2_tileset_render_field_preview(fd2_vga *vga,
-                                      const fd2_tileset *tiles,
-                                      const fd2_field_map *map,
-                                      int camera_x, int camera_y);
 
 #endif /* FD2_TILE_H */

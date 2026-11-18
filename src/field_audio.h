@@ -63,7 +63,6 @@ void fd2_field_audio_init(fd2_field_audio *audio,
 
 /* 所有已确认战场调用都复用原版全局 AIL sample handle。 */
 int fd2_field_audio_play(fd2_field_audio *audio, fd2_field_sfx cue);
-int fd2_field_audio_stop(fd2_field_audio *audio);
 
 /* sfx_play @0x25a96：借用原primary AIL handle播放临时FDOTHER81/88等源bank。
  * index==-1只走既有stop；disabled门仍在bank读取/stop之前。bank在同步play时

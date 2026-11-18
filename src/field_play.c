@@ -1103,39 +1103,38 @@ static int play_field_magic_selection(fd2_field_game *game, fd2_vga *vga,
     return play_command_transition(game,vga,audio,1);
 }
 
-static int play_command_transition(fd2_field_game *game, fd2_vga *vga,
-                                    fd2_field_audio *audio, int opening) {
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return FD2_SCENE_RESULT_ERROR;
-    if (game->failure != FD2_FIELD_FAILURE_NONE) return FD2_SCENE_RESULT_ERROR;
-    if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-    if (audio && game->option_values[1])
-        (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_COMMAND_MENU);
-    if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return FD2_SCENE_RESULT_ERROR;
-    int result = fd2_field_game_animate_command(
-        game, vga, opening, FD2_FIELD_COMMAND_FRAME_MS);
-    if (result < 0 || game->failure != FD2_FIELD_FAILURE_NONE)
-        return FD2_SCENE_RESULT_ERROR;
-    if(result>0 || game->runtime_host_quit || fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
-    if(!opening)fd2_input_clear_keys(&vga->input); /* 176b4尾；1741c不清。 */
-    return fd2_input_take_quit(&vga->input)?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
-}
+typedef int (*menu_animate_fn)(fd2_field_game *game, fd2_vga *vga,
+                               int opening, uint32_t frame_delay_ms);
 
-/* 16f55/1728c/19df7复用同一1741c/176b4；成功关闭后才清键。 */
-static int play_system_menu_transition(fd2_field_game *game,fd2_vga *vga,
-        fd2_field_audio *audio,int opening) {
+/* 指令菜单与系统菜单共用1741c开／176b4关：音效、动画、失败与退出门相同；
+ * 成功关闭后才清键（176b4尾；1741c不清）。 */
+static int play_menu_transition(fd2_field_game *game, fd2_vga *vga,
+        fd2_field_audio *audio, int opening, menu_animate_fn animate) {
     if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return FD2_SCENE_RESULT_ERROR;
     if (game->failure != FD2_FIELD_FAILURE_NONE) return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
     if (audio && game->option_values[1])
         (void)fd2_field_audio_play(audio, FD2_FIELD_SFX_COMMAND_MENU);
     if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return FD2_SCENE_RESULT_ERROR;
-    int result = fd2_field_game_animate_system_menu(
-        game, vga, opening, FD2_FIELD_COMMAND_FRAME_MS);
+    int result = animate(game, vga, opening, FD2_FIELD_COMMAND_FRAME_MS);
     if (result < 0 || game->failure != FD2_FIELD_FAILURE_NONE)
         return FD2_SCENE_RESULT_ERROR;
     if(result>0 || game->runtime_host_quit || fd2_input_take_quit(&vga->input))return FD2_SCENE_RESULT_HOST_QUIT;
     if(!opening)fd2_input_clear_keys(&vga->input);
     return fd2_input_take_quit(&vga->input)?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_OK;
+}
+
+static int play_command_transition(fd2_field_game *game, fd2_vga *vga,
+                                    fd2_field_audio *audio, int opening) {
+    return play_menu_transition(game, vga, audio, opening,
+                                fd2_field_game_animate_command);
+}
+
+/* 16f55/1728c/19df7复用同一1741c/176b4。 */
+static int play_system_menu_transition(fd2_field_game *game,fd2_vga *vga,
+        fd2_field_audio *audio,int opening) {
+    return play_menu_transition(game, vga, audio, opening,
+                                fd2_field_game_animate_system_menu);
 }
 
 static int play_system_menu_close(fd2_field_game *game,fd2_vga *vga,fd2_field_audio *audio) {
@@ -1765,7 +1764,7 @@ static int loot_inventory_select(fd2_field_game *game, fd2_vga *vga,
             int cue = fd2_field_detail_sfx_for_phase(opening, phase);
             if (audio && game->option_values[1] && cue >= 0)
                 {(void)fd2_field_audio_play(audio, opening
-                    ? FD2_FIELD_SFX_DETAIL_OPEN : FD2_FIELD_SFX_DETAIL_CLOSE);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)){goto done;}}
+                    ? FD2_FIELD_SFX_DETAIL_OPEN : FD2_FIELD_SFX_DETAIL_CLOSE);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)){result=FD2_SCENE_RESULT_ERROR;goto done;}}
             if(play_present_copy(vga)<0){result=FD2_SCENE_RESULT_ERROR;goto done;}
             if (fd2_input_take_quit(&vga->input)) {
                 result = FD2_SCENE_RESULT_HOST_QUIT; goto done;

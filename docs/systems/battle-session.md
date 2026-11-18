@@ -395,7 +395,7 @@ S5适用验收已闭合，已证域为stage0／1原范围及stage2..29的战斗�
 
 C22的HOST前缀测试在真实`teleport_commit`完成后、下一`teleport_top`节点进入wipe前交付quit，xy由真实module写入。display0／1各自的成功、ERROR、HOST六场及缺cursor门由同Play目标链接的`field_s5_callback82_scope_checks.c`私有Scene TU执行，不借已移除的delay资源钩子，不写假坐标。旧C21钩子未触发的失败保原身份；删除临时诊断fprintf没有放宽精确PASS／空stderr门，也不把失败前缀测试称作原版宿主退出等价。
 
-credits的`1088d(30)`只替换原资源、构造active及其缓存，不强制把坏结局热stage26改成30，不重置turn／camera／focus／event／result／roster／RNG。29 caller本身已先改热stage30。内部metadata部署字节31不套普通准备UI20槽；resource30不是新增战场能力。
+credits的`1088d(30)`只替换原资源、构造active及其缓存，不强制把坏结局热stage26改成30，不重置turn／camera／focus／event／result／roster／RNG。29 caller本身已先改热stage30。内部metadata部署字节31不套普通准备UI20槽；resource30不是新增战场能力。资源打开、active构造、帧缓存检查和group0追加都先在局部resource30上完成，全部成功后才整体换入Game；任一步失败返回错误，Game的资源与active表保持调用前状态。
 
 S5 `cin_animation`仅消费完整原caller确认的ANI0／2。原20421的52766是临时调色区，未写永久53A65或DAC；复用现decoder时每帧present前恢复进入该叶的base／DAC。像素、输入、时钟和失败前缀照常保留，旧ANI调用路径不因此重新签证。
 

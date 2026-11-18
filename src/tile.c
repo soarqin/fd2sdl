@@ -8,39 +8,6 @@
 
 #define FD2_FIELD_TILE_STEP 24 /* 反编译地图绘制中横/纵格步长 0x18 */
 
-int fd2_tileset_load(fd2_tileset *tiles, const fd2_archive *tai) {
-    memset(tiles, 0, sizeof(*tiles));
-    if (!tai || tai->count == 0) return -1;
-
-    fd2_image *images = calloc(tai->count, sizeof(*images));
-    if (!images) return -1;
-
-    for (size_t i = 0; i < tai->count; i++) {
-        if (fd2_image_decode_entry(&images[i], tai, i) != 0) {
-            for (size_t j = 0; j < i; j++) fd2_image_free(&images[j]);
-            free(images);
-            return -1;
-        }
-    }
-
-    tiles->images = images;
-    tiles->count = tai->count;
-    return 0;
-}
-
-const fd2_image *fd2_tileset_get(const fd2_tileset *tiles, size_t idx) {
-    if (!tiles || !tiles->images || idx >= tiles->count) return NULL;
-    return &tiles->images[idx];
-}
-
-void fd2_tileset_close(fd2_tileset *tiles) {
-    if (tiles && tiles->images) {
-        for (size_t i = 0; i < tiles->count; i++) fd2_image_free(&tiles->images[i]);
-        free(tiles->images);
-    }
-    if (tiles) memset(tiles, 0, sizeof(*tiles));
-}
-
 static int terrain_load_attrs(fd2_terrain_tileset *terrain,
                               const uint8_t *data, size_t size) {
     if (!data || size == 0 || (size % 4) != 0) return -1;
@@ -287,36 +254,9 @@ void fd2_terrain_tileset_close(fd2_terrain_tileset *terrain) {
     memset(terrain, 0, sizeof(*terrain));
 }
 
-size_t fd2_tileset_preview_index_from_cell(uint32_t cell, size_t tile_count) {
-    if (tile_count == 0) return 0;
-    uint32_t idx = cell & 0xffu;
-    if (idx >= tile_count) idx %= (uint32_t)tile_count;
-    return (size_t)idx;
-}
-
-void fd2_tileset_blit(fd2_vga *vga, const fd2_image *img,
-                      int x, int y, int transparent_index) {
-    if (!vga || !img || !img->pixels) return;
-
-    for (int row = 0; row < img->height; row++) {
-        int dy = y + row;
-        if (dy < 0 || dy >= VGA_H) continue;
-
-        for (int col = 0; col < img->width; col++) {
-            int dx = x + col;
-            if (dx < 0 || dx >= VGA_W) continue;
-            uint8_t px = img->pixels[(size_t)row * (size_t)img->width + (size_t)col];
-            if (transparent_index >= 0 && px == (uint8_t)transparent_index)
-                continue;
-            vga->framebuffer[(size_t)dy * VGA_STRIDE + (size_t)dx] = px;
-        }
-    }
-}
-
-void fd2_tileset_blit_lut(fd2_vga *vga, const fd2_image *img,
-                          int x, int y, int transparent_index,
-                          const uint8_t lut[256]) {
-    if (!vga || !img || !img->pixels || !lut) return;
+/* 裁切到 VGA 可见域的透明直写；lut 非 NULL 时写入 lut[px]。 */
+static void blit_clipped(fd2_vga *vga, const fd2_image *img, int x, int y,
+                         int transparent_index, const uint8_t *lut) {
     for (int row = 0; row < img->height; row++) {
         int dy = y + row;
         if (dy < 0 || dy >= VGA_H) continue;
@@ -328,9 +268,23 @@ void fd2_tileset_blit_lut(fd2_vga *vga, const fd2_image *img,
             if (transparent_index >= 0 &&
                 px == (uint8_t)transparent_index)
                 continue;
-            vga->framebuffer[(size_t)dy * VGA_STRIDE + (size_t)dx] = lut[px];
+            vga->framebuffer[(size_t)dy * VGA_STRIDE + (size_t)dx] =
+                lut ? lut[px] : px;
         }
     }
+}
+
+void fd2_tileset_blit(fd2_vga *vga, const fd2_image *img,
+                      int x, int y, int transparent_index) {
+    if (!vga || !img || !img->pixels) return;
+    blit_clipped(vga, img, x, y, transparent_index, NULL);
+}
+
+void fd2_tileset_blit_lut(fd2_vga *vga, const fd2_image *img,
+                          int x, int y, int transparent_index,
+                          const uint8_t lut[256]) {
+    if (!vga || !img || !img->pixels || !lut) return;
+    blit_clipped(vga, img, x, y, transparent_index, lut);
 }
 
 void fd2_terrain_render_field_base_animated(
@@ -358,14 +312,6 @@ void fd2_terrain_render_field_base_animated(
             fd2_tileset_blit(vga, img, sx, sy, 0);
         }
     }
-}
-
-void fd2_terrain_render_field_base(fd2_vga *vga,
-                                   const fd2_terrain_tileset *terrain,
-                                   const fd2_field_map *map,
-                                   int camera_x, int camera_y) {
-    fd2_terrain_render_field_base_animated(vga, terrain, map,
-                                           camera_x, camera_y, 0, 0);
 }
 
 void fd2_terrain_render_field_overlay_cell(fd2_vga *vga,
@@ -409,7 +355,8 @@ void fd2_terrain_render_field_preview(fd2_vga *vga,
                                       const fd2_field_map *map,
                                       int camera_x, int camera_y,
                                       int anim_phase) {
-    fd2_terrain_render_field_base(vga, terrain, map, camera_x, camera_y);
+    fd2_terrain_render_field_base_animated(vga, terrain, map,
+                                           camera_x, camera_y, 0, 0);
     fd2_terrain_render_field_overlay(vga, terrain, map, camera_x, camera_y,
                                      anim_phase);
 }
@@ -465,25 +412,6 @@ void fd2_terrain_render_field_scaled_animated(
             }
             vga->framebuffer[(size_t)(y + 4) * VGA_STRIDE +
                              (size_t)(x + 4)] = pixel;
-        }
-    }
-}
-
-void fd2_tileset_render_field_preview(fd2_vga *vga,
-                                      const fd2_tileset *tiles,
-                                      const fd2_field_map *map,
-                                      int camera_x, int camera_y) {
-    if (!vga || !tiles || !map) return;
-
-    fd2_vga_clear(vga, 0);
-    for (int y = 0; y < map->height; y++) {
-        for (int x = 0; x < map->width; x++) {
-            uint32_t cell = fd2_field_map_cell(map, x, y);
-            size_t idx = fd2_tileset_preview_index_from_cell(cell, tiles->count);
-            const fd2_image *img = fd2_tileset_get(tiles, idx);
-            int sx = x * FD2_FIELD_TILE_STEP - camera_x;
-            int sy = y * FD2_FIELD_TILE_STEP - camera_y;
-            fd2_tileset_blit(vga, img, sx, sy, 0);
         }
     }
 }

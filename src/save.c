@@ -83,13 +83,18 @@ int fd2_save_file_open_encrypted(fd2_save_file *save,
     return 0;
 }
 
+/* 写回末尾 4 字节校验和；所有切片更新在原缓冲区完成后调用。 */
+static void save_reseal(uint8_t *data, size_t size) {
+    wr_u32_le(data + size - FD2_SAVE_CHECKSUM_SIZE,
+              fd2_save_checksum_sum(data, size));
+}
+
 int fd2_save_file_create_empty(fd2_save_file *save) {
     if (!save || save->data) return -1;
     uint8_t *data = malloc(FD2_SAVE_FILE_SIZE);
     if (!data) return -1;
     memset(data, 0xff, FD2_SAVE_FILE_SIZE); /* H：确定的新文件空槽/未知区。 */
-    wr_u32_le(data + FD2_SAVE_FILE_SIZE - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(data, FD2_SAVE_FILE_SIZE));
+    save_reseal(data, FD2_SAVE_FILE_SIZE);
     save->data = data;
     save->size = FD2_SAVE_FILE_SIZE;
     return 0;
@@ -130,8 +135,7 @@ int fd2_save_file_open_for_update(fd2_save_file *save, const char *path) {
     /* ff是空档哨兵，不是有效的actor/roster count；不建立可加载战场。 */
     save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_UNIT_COUNT] = 0;
     save->data[FD2_SAVE_BATTLE_META_BASE + FD2_SAVE_BATTLE_META_ROSTER_COUNT] = 0;
-    wr_u32_le(save->data + save->size - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(save->data, save->size));
+    save_reseal(save->data, save->size);
     return 0;
 }
 
@@ -318,23 +322,19 @@ int fd2_save_file_update_battle_snapshot(
         snapshot->meta[FD2_SAVE_BATTLE_META_ROSTER_COUNT] >
             FD2_SAVE_BATTLE_MAX_ROSTER)
         return -1;
-    uint8_t *shadow = malloc(save->size);
-    if (!shadow) return -1;
-    memcpy(shadow, save->data, save->size);
-    memcpy(shadow + FD2_SAVE_BATTLE_METADATA_BASE, snapshot->metadata,
+    /* 校验全部通过后不再有失败路径，直接原地写入各切片再重封校验和。 */
+    uint8_t *data = save->data;
+    memcpy(data + FD2_SAVE_BATTLE_METADATA_BASE, snapshot->metadata,
            sizeof(snapshot->metadata));
-    memcpy(shadow + FD2_SAVE_BATTLE_ROSTER_BASE, snapshot->roster,
+    memcpy(data + FD2_SAVE_BATTLE_ROSTER_BASE, snapshot->roster,
            sizeof(snapshot->roster));
-    memcpy(shadow + FD2_SAVE_BATTLE_UNIT_BASE, snapshot->unit_area,
+    memcpy(data + FD2_SAVE_BATTLE_UNIT_BASE, snapshot->unit_area,
            sizeof(snapshot->unit_area));
-    memcpy(shadow + FD2_SAVE_BATTLE_CELL_STATE_BASE, snapshot->cell_state,
+    memcpy(data + FD2_SAVE_BATTLE_CELL_STATE_BASE, snapshot->cell_state,
            sizeof(snapshot->cell_state));
-    memcpy(shadow + FD2_SAVE_BATTLE_META_BASE, snapshot->meta,
+    memcpy(data + FD2_SAVE_BATTLE_META_BASE, snapshot->meta,
            sizeof(snapshot->meta));
-    wr_u32_le(shadow + save->size - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(shadow, save->size));
-    memcpy(save->data, shadow, save->size);
-    free(shadow);
+    save_reseal(data, save->size);
     return 0;
 }
 
@@ -346,6 +346,13 @@ static int slot_offset(size_t slot_index, size_t *offset) {
         return -1;
     *offset = value;
     return 0;
+}
+
+/* 末槽 meta 与末尾校验和重叠，只写入较短的前缀。 */
+static size_t slot_meta_size(size_t slot_index) {
+    return slot_index + 1u == FD2_SAVE_SLOT_COUNT
+         ? FD2_SAVE_LAST_SLOT_META_SIZE
+         : FD2_SAVE_SLOT_META_SIZE;
 }
 
 int fd2_save_file_slot_valid(const fd2_save_file *save, size_t slot_index) {
@@ -455,19 +462,10 @@ int fd2_save_file_update_manual_slot(fd2_save_file *save, size_t slot_index,
         slot_offset(slot_index, &offset) != 0)
         return -1;
 
-    uint8_t *shadow = malloc(save->size);
-    if (!shadow) return -1;
-    memcpy(shadow, save->data, save->size);
-    memcpy(shadow + offset, slot->unit_area, sizeof(slot->unit_area));
-    size_t meta_size = slot_index + 1u == FD2_SAVE_SLOT_COUNT
-                     ? FD2_SAVE_LAST_SLOT_META_SIZE
-                     : FD2_SAVE_SLOT_META_SIZE;
-    memcpy(shadow + offset + FD2_SAVE_UNIT_TABLE_SIZE, slot->meta,
-           meta_size);
-    wr_u32_le(shadow + save->size - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(shadow, save->size));
-    memcpy(save->data, shadow, save->size);
-    free(shadow);
+    memcpy(save->data + offset, slot->unit_area, sizeof(slot->unit_area));
+    memcpy(save->data + offset + FD2_SAVE_UNIT_TABLE_SIZE, slot->meta,
+           slot_meta_size(slot_index));
+    save_reseal(save->data, save->size);
     return 0;
 }
 
@@ -508,41 +506,10 @@ int fd2_save_file_update_slot(fd2_save_file *save, size_t slot_index,
         meta_28[1] != unit_count || slot_offset(slot_index, &offset) != 0)
         return -1;
 
-    uint8_t *shadow = malloc(save->size);
-    if (!shadow) return -1;
-    memcpy(shadow, save->data, save->size);
-    uint8_t *data = shadow + offset;
+    uint8_t *data = save->data + offset;
     if (unit_count != 0)
         memcpy(data, units, unit_count * FD2_SAVE_UNIT_RECORD_SIZE);
-    size_t meta_size = slot_index + 1u == FD2_SAVE_SLOT_COUNT
-                     ? FD2_SAVE_LAST_SLOT_META_SIZE
-                     : FD2_SAVE_SLOT_META_SIZE;
-    memcpy(data + FD2_SAVE_UNIT_TABLE_SIZE, meta_28, meta_size);
-    wr_u32_le(shadow + save->size - FD2_SAVE_CHECKSUM_SIZE,
-              fd2_save_checksum_sum(shadow, save->size));
-    memcpy(save->data, shadow, save->size);
-    free(shadow);
+    memcpy(data + FD2_SAVE_UNIT_TABLE_SIZE, meta_28, slot_meta_size(slot_index));
+    save_reseal(save->data, save->size);
     return 0;
-}
-
-int fd2_save_load_slot(fd2_save_slot *slot, const char *path,
-                       size_t slot_index) {
-    if (!slot) return -1;
-    fd2_save_file save = {0};
-    if (fd2_save_file_open(&save, path) != 0) return -1;
-    int result = fd2_save_file_get_slot(&save, slot_index, slot);
-    fd2_save_file_close(&save);
-    return result;
-}
-
-uint8_t fd2_save_unit_class(const fd2_save_unit *unit) {
-    return unit ? unit->bytes[2] : 0;
-}
-
-uint8_t fd2_save_unit_portrait(const fd2_save_unit *unit) {
-    return unit ? unit->bytes[7] : 0xff;
-}
-
-uint8_t fd2_save_unit_name_id(const fd2_save_unit *unit) {
-    return unit ? unit->bytes[8] : 0xff;
 }

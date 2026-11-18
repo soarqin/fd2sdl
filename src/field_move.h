@@ -25,14 +25,6 @@ int fd2_field_move_unit_at(const fd2_field_units *units,
                            int ignore_index,
                            int visible_only);
 
-/* 通用Dijkstra诊断query，只表达占格与控制区边；正式4e390不用此query。
- * 复现已确认的原版占格与控制区规则：敌方所在格不可进入；友方所在格
- * 可通过但不可停留；进入敌方四邻格后剩余移动力归零。阵营按 side==0
- * 与 side!=0 两类判断。地形 attr[1] 只作为 movement profile cost 索引。 */
-int fd2_field_move_query_step(void *context,
-                              int from_x, int from_y,
-                              int to_x, int to_y,
-                              fd2_field_path_step *step);
 
 /* 4df4c→145cd→4e390→146d1的隔离查询；不改变map。
  * distance是屏蔽友方前BYTE(budget-raw3)（FF为不可达），不是最短路证明；

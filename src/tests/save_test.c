@@ -499,12 +499,16 @@ static int test_manual_state_file_backend(void) {
     return 0;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    int synthetic_only = argc == 2 && strcmp(argv[1], "--synthetic") == 0;
+    if (argc != 1 && !synthetic_only) {
+        fputs("usage: fd2_save_test [--synthetic]\n", stderr);
+        return 2;
+    }
     if (test_create_empty() != 0 ||
         test_xor_and_checksum() != 0 ||
         test_battle_snapshot_preservation() != 0 ||
         test_independent_roster_and_active_count_boundaries() != 0 ||
-        test_original_start_roster_is_distinct() != 0 ||
         test_slots_and_preservation() != 0 ||
         test_last_slot_overlap_and_zero_units() != 0 ||
         test_write_roundtrip_and_overwrite() != 0 ||
@@ -512,8 +516,9 @@ int main(void) {
 #if !defined(_WIN32)
         test_preexisting_tmp_symlink_is_ignored() != 0 ||
 #endif
-        test_original_save_if_available() != 0)
+        (!synthetic_only && (test_original_start_roster_is_distinct() != 0 ||
+                             test_original_save_if_available() != 0)))
         return 1;
-    puts("save_test: ok");
+    puts(synthetic_only ? "save_test: synthetic fixtures ok" : "save_test: ok");
     return 0;
 }

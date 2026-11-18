@@ -2029,3 +2029,13 @@ Magic12四轮原生全部保FAIL：01取消应返回列表的旧oracle错误；0
 普通110ms独立模型前后5280双声道帧完全相同，不读C生成期望。21目标构建、21CTest首轮20过，余一DIG旧编号断言FAIL；修替身／编号及固定rate上界后仅四项通过。删人工未读block_ready迟交付族，改真实quiesce取消；03关闭后sync旧期望FAIL、04局部补丁误匹配相邻行FAIL保原件，05仅audio_original修正通过，生产合同不改。三共享机制交叉复审及外围调用盘点无生产must-fix；全部候选和运行／静态／继承边界见[清理报告](dos-simulation-cleanup.md)。
 
 本轮不重跑原G／LEAVE或历史GUI，按score／cue／stop不变、数值／consumer检查继承有限资格，不声称新PE原生。实际独立提交、本地快进、物理源、主线重建／定向执行及保护记录只认两树`build/dos-clean/subject-delivery-20261118/local-integration.json`。按用户新增顺序独立汇报后直接F6，纯硬件形式退出，QK等真实游戏未知继续保门；不远程push／发布。
+
+## F6 范围内的 Windows 通用维护（2026-11-18）
+
+基于 `50272b0` 构建 Windows Debug 程序及 9 个定向测试和工具目标。8 项 CTest 通过，覆盖无资源启动检查、SDL 输入事件、音频传输、设备失败降级、关闭和源释放。未使用原版对照。
+
+正式程序使用独立目录及启动所需的数据副本。真实 Windows 窗口出现后，仅向本轮所属窗口发送 `WM_CLOSE`。程序退出码为 0，Job 确认无残留窗口或进程，未强制终止。另用独立 WASAPI 探针提交 294 次静音数据，全部成功，三个源各释放一次。未测试扬声器输出、物理拔插或画面一致性。
+
+合成存档首次检查因历史 `START.SAV` 依赖失败。新增 `save_synthetic` 和 `--synthetic` 入口，将自身存档检查从历史夹具中拆出。修复后，空目录下直接执行和 CTest 注册入口均通过，覆盖校验和、完整读回、覆写、坏文件拒绝与保留。不改运行时存档实现，原 `save` 入口仍保留。原件及用户存档的摘要和修改时间保持一致。
+
+实际运行回执在 `F:/fd2sdl-evidence/f6-windows-maintenance-20261118-01/`。两树 `build/f6/windows-maintenance-20261118/local-integration.json` 登记维护提交、本地集成及复测。Windows 通用维护独立交付，F6 完整复刻验收仍未完成。

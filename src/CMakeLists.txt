@@ -352,6 +352,8 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME save COMMAND fd2_save_test)
     set_tests_properties(save PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+    add_test(NAME save_synthetic COMMAND fd2_save_test --synthetic)
+    set_tests_properties(save_synthetic PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 
     add_executable(fd2_field_manual_slot_test
         tests/field_manual_slot_test.c

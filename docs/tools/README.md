@@ -30,6 +30,12 @@ C22来源工具索引`build/s5/source-final-C22-index02.json`分别保C21 Game�
 
 ## 构建与回归
 
+`save_synthetic` 使用程序自身生成的存档数据，检查校验和、完整读回、覆写以及坏文件拒绝。它不读取本地 `START.SAV` 或 `FD2.SAV`。已有 `save` 检查仍保留其历史夹具入口。
+
+Windows（PowerShell）：`ctest --test-dir src/build-win -C Debug -R '^save_synthetic$' --output-on-failure --no-tests=error`
+
+Linux（Bash）：`ctest --test-dir src/build -R '^save_synthetic$' --output-on-failure --no-tests=error`
+
 冷定义的 JSON 唯一来源、构建期生成、独立 LE 原字节验证和无资源负例命令见[冷定义工具](static-data.md)。正常构建需要 Python 3.9+ 标准库，运行程序不需要 Python 或原版 EXE。
 
 开发验收执行当前平台的适用检查即可；下列另一平台命令用于维护兼容说明，不是当前任务必须补跑的前置。未执行的平台如实登记，当前平台必测项仍须实际注册并通过。

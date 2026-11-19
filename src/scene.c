@@ -2295,6 +2295,10 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
         } else if (!strcmp(n->op, "refresh")) {
             if (!field || !c->source_flow || (a[0] != 0 && a[0] != 1)) return -1;
             render_scene_11cac(c->vga,c->terrain,c->map,c->sprites,c->state,a[0]);
+            if(scene_render_error)return -1;
+            /* sub_11CAC @0x11cac 直接写显存，随后的等待应显示这次重绘。 */
+            if(!c->fast)fd2_vga_upload_current_frame(c->vga);
+            if(fd2_bios_clock_error()<0 || fd2_vga_output_error(c->vga)<0)return -1;
         } else if (!strcmp(n->op, "present_base")) {
             if (!field) return -1;
             if(present_base_frame(c->vga,c->terrain,c->map,c->sprites,c->state,0)<0)return -1;
@@ -2400,7 +2404,10 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (!c->vga || scene_fixed_ticks(c->vga,(unsigned)a[0],c->fast) != 0) return -1;
         } else if (!strcmp(n->op, "clear_screen")) {
             if (!c->vga) return -1;
-            memset(c->vga->framebuffer,0,VGA_W*VGA_H);
+            /* sub_2548C @0x2548c 先清显存再等待，不能保留上一张窗口图像。 */
+            fd2_vga_clear(c->vga,0);
+            if(!c->fast)fd2_vga_upload_current_frame(c->vga);
+            if(fd2_bios_clock_error()<0 || fd2_vga_output_error(c->vga)<0)return -1;
         } else if (!strcmp(n->op, "gameover_frame")) {
             if (!c->vga || !c->game_over || scene_game_over_frame(c->vga,c->game_over,(size_t)a[0],c->fast) != 0) return -1;
         } else return -1;

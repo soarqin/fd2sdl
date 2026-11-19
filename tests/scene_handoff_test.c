@@ -1318,6 +1318,72 @@ static int test_scene_entry_prefix(const fd2_field_game *game) {
     return 0;
 }
 
+static uint8_t transition_frame[VGA_W*VGA_H];
+static uint64_t transition_frame_ms;
+static unsigned transition_uploads;
+static int transition_upload_error;
+
+static void record_transition_frame(fd2_vga *vga) {
+    memcpy(transition_frame,vga->framebuffer,sizeof(transition_frame));
+    transition_frame_ms=test_ms;
+    transition_uploads++;
+    if (transition_upload_error) vga->output_error=FD2_VGA_OUTPUT_PRESENT;
+}
+
+/* 32d18刷新后停200ms；2548c清屏后停800ms。等待期间须显示刚写入的页。 */
+static int test_source_transition_frame(fd2_field_game *game) {
+    const char *flows[]={"stage.source.entry.001","stage.source.victory.028"};
+    const char *labels[]={"n013","n0131"};
+    const uint32_t waits[]={200,800};
+    for (size_t i=0;i<2;i++) {
+        const fd2_static_flow *source=fd2_static_flow_lookup("stage",flows[i]);
+        CHECK(source);
+        const fd2_static_flow_node *write=fd2_static_flow_at(source,fd2_static_flow_label(source,labels[i]));
+        CHECK(write && !strcmp(write->op,i ? "clear_screen" : "refresh"));
+        const fd2_static_flow_node *wait=fd2_static_flow_at(source,fd2_static_flow_edge(source,write,FD2_FLOW_NEXT));
+        CHECK(wait && !strcmp(wait->op,"delay") && wait->args[0]==(int32_t)waits[i]);
+        fd2_static_flow_node nodes[]={*write,*wait,{.id="done",.op="end",.views=FD2_FLOW_PRESENT}};
+        nodes[0].edges[FD2_FLOW_NEXT]=1;
+        nodes[1].edges[FD2_FLOW_NEXT]=2;
+        const fd2_static_flow flow={flows[i],nodes,3,0};
+        for (int mode=0;mode<3;mode++) {
+            fd2_vga vga;
+            reset_controls(&vga);
+            scene_host_quit_requested=0;
+            memset(vga.framebuffer,0xa5,sizeof(vga.framebuffer));
+            vga.frame_deadline_ns=123456789;
+            vga.input.queued_count=1;
+            vga.input.queued_keys[0].key=FD2_INPUT_KEY_Z;
+            fd2_scene_field_state state={0};
+            scene_flow_context c={0};
+            c.vga=&vga;c.game=c.mutable_game=game;c.state=&state;
+            c.terrain=&game->terrain;c.map=&game->map;c.sprites=&game->sprites;
+            c.source_flow=1;c.fast=mode==1;
+            scene_source_load(&c);
+            transition_uploads=0;transition_upload_error=mode==2;
+            scene_upload_probe=record_transition_frame;
+            const uint64_t start=test_ms;
+            CHECK(scene_flow_run(&c,&flow)==(mode==2 ? -1 : 0));
+            CHECK(test_ms==start+(mode==0 ? waits[i] : 0));
+            CHECK(transition_uploads==(unsigned)!c.fast);
+            if (!c.fast) {
+                CHECK(transition_frame_ms==start);
+                CHECK(!memcmp(transition_frame,vga.framebuffer,sizeof(transition_frame)));
+            }
+            CHECK(vga.framebuffer[0]==(i ? 0 : 0xa5));
+            if (i) {
+                for (size_t pixel=0;pixel<sizeof(vga.framebuffer);pixel++) CHECK(!vga.framebuffer[pixel]);
+            } else {
+                CHECK(vga.framebuffer[4*VGA_STRIDE+4]!=0xa5);
+            }
+            CHECK(!presents && vga.frame_deadline_ns==123456789 &&
+                vga.input.queued_count==1 && vga.input.queued_keys[0].key==FD2_INPUT_KEY_Z);
+        }
+    }
+    scene_upload_probe=NULL;
+    return 0;
+}
+
 static int test_stage1_presentation(const fd2_archive *fdother) {
     fd2_save_manual_state prepared={0};
     prepared.stage_id=1;prepared.unit_count=5;prepared.gold_or_flags=1234;
@@ -1330,6 +1396,7 @@ static int test_stage1_presentation(const fd2_archive *fdother) {
     fd2_field_game *game=calloc(1,sizeof(*game));CHECK(game);
     CHECK(fd2_field_game_prepare_stage1(game,fdother,&prepared)==0);
     CHECK(test_scene_entry_prefix(game)==0);
+    CHECK(test_source_transition_frame(game)==0);
     fd2_field_units expected=game->units;
     fd2_vga vga;reset_controls(&vga);
     CHECK(scene_test_stage1_entry(&vga,fdother,game,NULL,1)==0);

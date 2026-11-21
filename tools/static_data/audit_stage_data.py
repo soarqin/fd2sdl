@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from dump_fd2_fixup_table import collect_internal_offset_fixups
 from rebuild_fd2_analysis import parse_le, parse_objects
-from verify_unit_tables import EXE_SHA256, source_range
+from verify_unit_tables import HISTORICAL_EXE_SHA256 as EXE_SHA256, source_range
 from verify_movement_scripts import ACTOR_LIMIT, POINTER_TABLE_VA, SCRIPT_IDS, source_scripts
 import generate as flow_generator
 

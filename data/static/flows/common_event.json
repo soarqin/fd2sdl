@@ -28243,6 +28243,7 @@
     "stage.024.action.055": "common.loot.physical",
     "stage.024.action.056": "common.callback.056",
     "stage.025.action.057": "common.callback.057",
+    "stage.025.action.058": "common.cell.grant",
     "stage.025.action.059": "common.callback.059",
     "stage.025.action.060": "common.callback.060",
     "stage.025.action.061": "common.key.consume",

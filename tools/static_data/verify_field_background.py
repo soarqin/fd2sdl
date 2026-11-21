@@ -9,7 +9,7 @@ import json
 import struct
 from pathlib import Path
 
-from verify_unit_tables import EXE_SHA256, ROOT, source_range
+from verify_unit_tables import HISTORICAL_EXE_SHA256 as EXE_SHA256, ROOT, source_range
 from table_schema import TABLE_SCHEMA_VERSION, load_table_document
 
 IMAGE_SHA="8c40cac1a4eb947007740c90a4bae8acdb49b3922a58f565eda0454bf4d238d1"

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from dump_fd2_fixup_table import collect_internal_offset_fixups
 from rebuild_fd2_analysis import parse_le, parse_objects
-from verify_unit_tables import EXE_SHA256, source_range
+from verify_unit_tables import EXE_SHA256, HISTORICAL_EXE_SHA256, source_range
 from table_schema import TABLE_SCHEMA_VERSION, load_json
 
 SCRIPT_IDS = tuple(range(106))
@@ -60,9 +60,10 @@ def parse_stream(data: bytes, *, complete: bool = True) -> bytes:
     return data[:at]
 
 
-def source_scripts(executable: Path) -> dict[int, ScriptSource]:
-    data = executable.read_bytes()
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
+def source_scripts(executable: Path, *, data: bytes | None = None) -> dict[int, ScriptSource]:
+    if data is None:
+        data = executable.read_bytes()
+    if hashlib.sha256(data).hexdigest() not in (EXE_SHA256, HISTORICAL_EXE_SHA256):
         raise ValueError("FD2.EXE 身份不符，拒绝套用脚本指针表")
     objects = parse_objects(data, parse_le(data))
     owners = [obj for obj in objects if obj.index == 3 and obj.relbase == 0x60000]
@@ -128,11 +129,12 @@ def check_document(document: dict, expected: dict[int, ScriptSource]) -> None:
 
 
 def verify(executable: Path, definitions: Path = ROOT / "data/static/tables/movement_scripts.json") -> dict:
-    expected = source_scripts(executable)
+    data = executable.read_bytes()
+    expected = source_scripts(executable, data=data)
     document = load_json(definitions)
     check_document(document, expected)
     return {"ok": True, "scripts": len(expected), "source_bytes": sum(len(s.data) for s in expected.values()),
-            "pointer_table_va": hex(POINTER_TABLE_VA), "executable_sha256": EXE_SHA256}
+            "pointer_table_va": hex(POINTER_TABLE_VA), "executable_sha256": hashlib.sha256(data).hexdigest()}
 
 
 if __name__ == "__main__":

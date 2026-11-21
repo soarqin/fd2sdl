@@ -18,7 +18,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 from rebuild_fd2_analysis import parse_le, parse_objects, page_number_from_map_entry
 from static_data.table_schema import load_table_document
 
-EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
+EXE_SHA256 = json.loads((ROOT / "docs/formats/original-reference.json").read_text(
+    encoding="utf-8"))["files"]["FD2.EXE"]["sha256"]
+# 历史原码审计仍按各自冻结的完整 EXE 身份读取 LE 页。
+HISTORICAL_EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 # 名称、类型、原始维度及VA独立固定；不能由待验JSON反向决定读集。
 TABLES = {
     "unit_base": (
@@ -42,7 +45,7 @@ MAGIC_CONTRACT_TABLES = ("MAGIC_MAP_EFFECT_IDS", "MAGIC_MAP_COST_IDS", "MAGIC_MA
 
 def source_range(data: bytes, va: int, size: int) -> bytes:
     """只从完整、已初始化的LE文件页取连续canonical读集。"""
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
+    if hashlib.sha256(data).hexdigest() not in (EXE_SHA256, HISTORICAL_EXE_SHA256):
         raise ValueError("FD2.EXE 身份不符；拒绝套用当前已确认读集")
     le = parse_le(data)
     objects = parse_objects(data, le)
@@ -129,7 +132,7 @@ def verify(executable: Path, tables_dir: Path = ROOT / "data" / "static" / "tabl
     return {"ok": True, "tables": checked, "source_bytes": total,
             "constructor_alias_views": len(windows), "constructor_alias_bytes": 48,
             "extra_magic_contracts":len(MAGIC_CONTRACT_TABLES),
-            "executable_sha256": EXE_SHA256}
+            "executable_sha256": hashlib.sha256(data).hexdigest()}
 
 
 def check_constructor_alias_views(unit_tables, stage_tables, expected):

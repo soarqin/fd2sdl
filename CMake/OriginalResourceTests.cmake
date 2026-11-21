@@ -46,6 +46,10 @@ target_link_libraries(fd2_field_save_test PRIVATE
 add_test(NAME field_save COMMAND fd2_field_save_test)
 set_tests_properties(field_save PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 
+add_executable(fd2_field_chest_test tests/field_chest_test.c $<TARGET_OBJECTS:fd2sdl_core>)
+target_link_libraries(fd2_field_chest_test PRIVATE ${FD2SDL_SDL3_TARGET})
+add_test(NAME field_chest COMMAND fd2_field_chest_test)
+
 add_executable(fd2_battle_animation_test
     tests/battle_animation_test.c
     src/figani.c src/magic_fx.c src/tile.c src/field_page.c src/field_info.c src/field_visual.c src/field_item.c src/field_magic.c src/field_unit.c src/field_unit_base.c
@@ -167,7 +171,7 @@ foreach(file IN ITEMS ANI.DAT BG.DAT DATO.DAT FDFIELD.DAT FDICON.B24 FDMUS.DAT
     list(APPEND fd2_original_files "${PROJECT_SOURCE_DIR}/original_game/${file}")
 endforeach()
 set_tests_properties(bgm bgm_native_sequence bgm_bank_resource_failure field_game_attack field_magic_commit field_turn
-    field_save battle_animation field_prepare_play scene_handoff scene_transition scene_cinematic
+    field_save field_chest battle_animation field_prepare_play scene_handoff scene_transition scene_cinematic
     audio_unavailable_field_quick_entry resource save field_play_result title_animation_owner PROPERTIES
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     LABELS original-resources REQUIRED_FILES "${fd2_original_files}")

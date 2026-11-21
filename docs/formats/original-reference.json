@@ -1,15 +1,15 @@
 {
   "schema": "fd2-original-reference-v1",
-  "identity": "fd2-local-reference-20261114",
+  "identity": "fd2-local-reference-20261121",
   "provenance": {
-    "description": "Existing user-provided local original_game byte set, independently matched against S5 guard. No release/distribution claim.",
+    "description": "User-provided local original_game byte set with FD2.EXE and FDFIELD.DAT restored on 2026-11-21. The other 18 files match the 2026-11-14 reference.",
     "release_label": null,
     "distribution_source": null
   },
   "files": {
     "FD2.EXE": {
       "size": 509158,
-      "sha256": "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd",
+      "sha256": "775bb4a179718f8515af991ed940ea523851f1ff5051597adf8ce38e1c011026",
       "role": "core"
     },
     "ANI.DAT": {
@@ -29,7 +29,7 @@
     },
     "FDFIELD.DAT": {
       "size": 243169,
-      "sha256": "81310211c6e96ebd89e79648650696691c740229fa4095ece37e7226bc27b74d",
+      "sha256": "b0cf75d94f58603f091c7462c0494f0e83bd6edfb04c1acbf83ed4d938c7a513",
       "role": "core"
     },
     "FDICON.B24": {

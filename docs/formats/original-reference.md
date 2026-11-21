@@ -1,10 +1,14 @@
 # 原版参照身份与只读校验
 
-本规范固定 F1 的原版字节参照。唯一机器可读清单为 [original-reference.json](original-reference.json)，检查入口为 [original_reference.py](../../tools/original_reference.py)。它不分发原资源、不启动 DOSBox、不修改配置或用户存档。
+本规范固定当前原版资源的字节参照。唯一机器可读清单为 [original-reference.json](original-reference.json)，检查入口为 [original_reference.py](../../tools/original_reference.py)。它不分发原资源、不启动 DOSBox、不修改配置或用户存档。
 
 ## 固定范围
 
-清单包含 20 个文件：原 `FD2.EXE`、11 个 DAT、`FDICON.B24` 共 13 个核心文件，加 `MDI.INI`、`DIG.INI`、其选择的 `SBPRO2.MDI`／`SB16.DIG` 和 `SAMPLE.AD`／`SAMPLE.OPL`／`SAMPLE.BNK`。2026-11-14 从用户本地只读资源逐文件取 SHA-256／长度，并独立匹配 S5 `build/s5/local-integration.json::guards`；不是从冷定义生成器的输出推导 expected。
+清单包含 20 个文件。核心文件包括 `FD2.EXE`、11 个 DAT 和 `FDICON.B24`。音频文件包括 `MDI.INI`、`DIG.INI`、配置选用的 `SBPRO2.MDI` 和 `SB16.DIG`，以及 `SAMPLE.AD`、`SAMPLE.OPL` 和 `SAMPLE.BNK`。2026-11-21 按用户还原的本地文件更新 `FD2.EXE` 和 `FDFIELD.DAT` 的 SHA-256。其余 18 个文件的长度和摘要均与 2026-11-14 的 F1 参照一致。此前的运行收据和 IDA 发布物沿用各自的历史资源身份。
+
+- 第 17 章（stage 16）的箱子位于 `(23,17)`，`FDFIELD.DAT` 的 cell action 11 直接给物品 92「心眼之书」。历史参照的文件偏移 `0x1ac75` 为 91「领悟之书」。
+- 第 26 章（stage 25）的 cell action 0 至 4 均指向动作 58。`field_event_cell_reward_complete_first_five @0x35854`（原 `sub_35854`）按箱格编号从 VA `0x5274e` 取奖励。确认且库存有空间时，领取一件物品并在关闭提示后开启全部五只箱子。取消或库存已满时，五只箱子继续保持关闭。
+- `FD2.EXE` 的文件偏移 `0x4a84b` 对应 VA `0x24837`。`sub_24754 @0x24754` 在第 23 章结算时把该值传给 `sub_24BDE @0x24bde`，查询持久队伍的文本编号 13。历史参照的参数为 18。
 
 `FDOTHER[4]` 是正式 `fd2_font_open_fdother` 消费的字库：58,368 字节、每字 32 字节、1,824 个字形。清单同时固定其子资源摘要。该图形模式路径不读取 DOSBox 安装目录的 TTF；不能把宿主字体文件当原游戏字库。
 

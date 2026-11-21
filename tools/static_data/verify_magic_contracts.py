@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import copy
 import json
 from pathlib import Path
 import struct
 import sys
 
-from verify_unit_tables import ROOT, EXE_SHA256, source_range
+from verify_unit_tables import ROOT, source_range
 from table_schema import load_json, TABLE_SCHEMA_VERSION
 sys.path.insert(0, str(ROOT / "tools"))
 from dump_fd2_fixup_table import collect_internal_offset_fixups
@@ -22,8 +23,9 @@ from dump_fd2_fixup_table import collect_internal_offset_fixups
 MAP_FIELDS = ("effect_id", "cost_record_id", "target_limit", "cost_before_cast")
 
 
-def source_map_profiles(executable):
-    data = executable.read_bytes()
+def source_map_profiles(executable, *, data=None):
+    if data is None:
+        data = executable.read_bytes()
     source_range(data, 0x51d01, 28 * 4)  # strict identity/page validation before fixups
     fixups = collect_internal_offset_fixups(executable)
     targets = []
@@ -62,14 +64,15 @@ def source_map_profiles(executable):
 def check(document, executable):
     if type(document.get("schema_version")) is not int or document["schema_version"] != TABLE_SCHEMA_VERSION:
         raise ValueError("magic table schema differs")
-    expected = source_map_profiles(executable)
+    data = executable.read_bytes()
+    expected = source_map_profiles(executable, data=data)
     for identity, profile in enumerate(expected):
         spell = document["spells"][str(identity)]
         if json.dumps(spell.get("map"), sort_keys=True) != json.dumps(profile, sort_keys=True):
             raise ValueError(f"spells.{identity}.map: reviewed original map projection differs")
     if any("map" in document["spells"][str(identity)] for identity in range(28, 36)):
         raise ValueError("map projection supplied outside original dispatch slots")
-    return {"ok": True, "tables": 4, "dispatch_fixups": 28, "executable_sha256": EXE_SHA256,
+    return {"ok": True, "tables": 4, "dispatch_fixups": 28, "executable_sha256": hashlib.sha256(data).hexdigest(),
             "scope": "map aliases, scalar/call/jump anchors and independently reviewed wrapper-order projections",
             "original_runtime_executed": False, "all_wrapper_control_flow_automatically_proven": False}
 

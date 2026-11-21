@@ -8,9 +8,7 @@ from pathlib import Path
 import struct
 from functools import lru_cache
 
-from verify_unit_tables import source_range
-
-EXE_SHA256='bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd'
+from verify_unit_tables import EXE_SHA256, source_range
 
 
 def immediate(exe,va,prefix,size=1):

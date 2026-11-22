@@ -21,7 +21,8 @@ REQUIRED_SOURCE = {"LICENSE", "README.md", "CMakeLists.txt", "src/main.c",
                    "CMake/SDL3.cmake", "CMake/StaticData.cmake",
                    "data/static/manifest.json", "tools/static_data/generate.py", "tools/static_data/table_schema.py",
                    "src/third_party/nukedopl3.c", "src/third_party/nukedopl3.h",
-                   "src/third_party/LICENSE.nukedopl3"}
+                   "src/third_party/LICENSE.nukedopl3", "src/third_party/LICENSE.unifont",
+                   "src/third_party/setup-glyphs.hex", "tools/static_data/setup_font.py"}
 # 仅发布说明：main启动/音乐路径与battle_animation的BG/TAI读取，不作第二套runtime校验。
 DOCUMENTED_RESOURCE_FILES = ("ANI.DAT", "BG.DAT", "DATO.DAT", "FDFIELD.DAT", "FDICON.B24",
                              "FDMUS.DAT", "FDOTHER.DAT", "FDSHAP.DAT", "FDTXT.DAT", "FIGANI.DAT",
@@ -83,7 +84,7 @@ def _source_allowed(relative: str) -> bool:
         return relative in REQUIRED_SOURCE
     if parts[0] != "src" or (len(parts) > 2 and parts[1] != "third_party"):
         return False
-    return Path(name).suffix.lower() in CODE_EXTENSIONS or (
+    return relative == "src/third_party/setup-glyphs.hex" or Path(name).suffix.lower() in CODE_EXTENSIONS or (
         "third_party" in parts and (name.startswith(("LICENSE", "COPYING", "NOTICE")) or name == "README.md"))
 
 

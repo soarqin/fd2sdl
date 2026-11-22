@@ -7,7 +7,7 @@ include_directories("${FD2_SRC}")
 add_executable(fd2_startup_resources_test
     tests/startup_resources_test.c src/field_play.c src/field_prepare_play.c
     $<TARGET_OBJECTS:fd2sdl_core>)
-target_link_libraries(fd2_startup_resources_test PRIVATE ${FD2SDL_SDL3_TARGET})
+target_link_libraries(fd2_startup_resources_test PRIVATE fd2_launcher ${FD2SDL_SDL3_TARGET})
 add_test(NAME startup_resources COMMAND fd2_startup_resources_test)
 set_tests_properties(startup_resources PROPERTIES TIMEOUT 30
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
@@ -20,7 +20,7 @@ add_executable(fd2_main_title_resource_test
     src/field_play.c
     src/field_prepare_play.c
     $<TARGET_OBJECTS:fd2sdl_core>)
-target_link_libraries(fd2_main_title_resource_test PRIVATE ${FD2SDL_SDL3_TARGET})
+target_link_libraries(fd2_main_title_resource_test PRIVATE fd2_launcher ${FD2SDL_SDL3_TARGET})
 add_test(NAME main_title_resource COMMAND fd2_main_title_resource_test)
 add_test(NAME title_audio_return COMMAND fd2_main_title_resource_test --audio-return)
 set_tests_properties(main_title_resource PROPERTIES
@@ -197,6 +197,12 @@ add_test(NAME static_data_generated COMMAND ${Python3_EXECUTABLE} -B
 add_test(NAME tool_regressions COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
     -s "${PROJECT_SOURCE_DIR}/tools/tests")
 set_tests_properties(tool_regressions PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" TIMEOUT 120)
+
+add_executable(fd2_launcher_controls_test tests/launcher_controls_test.c src/input.c)
+target_link_libraries(fd2_launcher_controls_test PRIVATE fd2_launcher)
+add_test(NAME launcher_controls COMMAND fd2_launcher_controls_test)
+set_tests_properties(launcher_controls PROPERTIES ENVIRONMENT
+    "SDL_VIDEO_DRIVER=dummy;SDL_AUDIO_DRIVER=dummy;FD2SDL_TEST_AUDIO_QUIET=0")
 
 add_executable(fd2_gamepad_test tests/gamepad_test.c src/input.c)
 add_test(NAME gamepad COMMAND fd2_gamepad_test)

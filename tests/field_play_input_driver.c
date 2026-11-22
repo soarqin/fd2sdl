@@ -687,7 +687,7 @@ int main(int argc, char **argv) {
             return tap_keys(&target, symbols, 2u, settle_us, 0, chord.bios_scan_expected) == 0 ? 0 : 1;
         }
         const struct { const char *name; WORD key; } keys[] = {
-            {"ENTER", VK_RETURN}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
+            {"ENTER", VK_RETURN}, {"TAB", VK_TAB}, {"ESC", VK_ESCAPE}, {"SPACE", VK_SPACE},
             {"UP", VK_UP}, {"DOWN", VK_DOWN}, {"LEFT", VK_LEFT},
             {"RIGHT", VK_RIGHT}, {"Z", 'Z'}, {"KP5", VK_NUMPAD5}, {"G", 'G'}, {"A", 'A'},
             {"F1", VK_F1}, {"F2", VK_F2}, {"HOME", VK_HOME},

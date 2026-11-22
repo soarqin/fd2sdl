@@ -46,6 +46,20 @@ if(WIN32)
         set_tests_properties(graphics_job PROPERTIES
             TIMEOUT 60 LABELS "integration;process" RUN_SERIAL TRUE)
         if(FD2SDL_TEST_ORIGINAL)
+            execute_process(COMMAND ${Python3_EXECUTABLE} -c "import PIL"
+                RESULT_VARIABLE fd2_pillow_status ERROR_QUIET)
+            if(fd2_pillow_status EQUAL 0)
+                add_test(NAME launcher_window COMMAND fd2_field_play_input_driver run-job 120000
+                    ${Python3_EXECUTABLE} -B "${PROJECT_SOURCE_DIR}/tests/launcher_windows_test.py"
+                    $<TARGET_FILE:fd2sdl> $<TARGET_FILE:fd2_field_play_input_driver>
+                    "${CMAKE_BINARY_DIR}/test-artifacts/launcher")
+                set_tests_properties(launcher_window PROPERTIES RUN_SERIAL TRUE TIMEOUT 140
+                    LABELS "e2e;graphics;original-resources" REQUIRED_FILES "${fd2_original_files}")
+            elseif(FD2SDL_REQUIRE_GUI_TESTS)
+                message(FATAL_ERROR "The Windows launcher WGC test requires Python Pillow.")
+            else()
+                message(STATUS "Windows launcher WGC test unavailable: missing Pillow")
+            endif()
             add_test(NAME field_play_input
                 COMMAND ${Python3_EXECUTABLE} -B
                     ${PROJECT_SOURCE_DIR}/tests/field_play_input_test.py

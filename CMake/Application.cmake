@@ -28,6 +28,16 @@ add_dependencies(fd2_static_definitions fd2_static_data)
 target_include_directories(fd2_static_definitions PRIVATE ${FD2_SRC})
 link_libraries(fd2_static_definitions)
 
+set(fd2_setup_font "${FD2_STATIC_INCLUDE_ROOT}/setup_font.inc")
+add_custom_command(OUTPUT "${fd2_setup_font}"
+    COMMAND ${Python3_EXECUTABLE} -B tools/static_data/setup_font.py
+        src/third_party/setup-glyphs.hex "${fd2_setup_font}" src/launcher.c src/settings.c
+    DEPENDS tools/static_data/setup_font.py src/third_party/setup-glyphs.hex src/launcher.c src/settings.c
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    VERBATIM)
+add_library(fd2_launcher STATIC src/launcher.c src/setup_font.c "${fd2_setup_font}")
+target_link_libraries(fd2_launcher PRIVATE ${FD2SDL_SDL3_TARGET})
+
 set(FD2SDL_CORE_SOURCES
     src/app_flow.c
     src/title.c
@@ -105,7 +115,7 @@ add_executable(fd2sdl
     src/field_prepare_play.c
     $<TARGET_OBJECTS:fd2sdl_core>
 )
-target_link_libraries(fd2sdl PRIVATE ${FD2SDL_SDL3_TARGET})
+target_link_libraries(fd2sdl PRIVATE fd2_launcher ${FD2SDL_SDL3_TARGET})
 add_dependencies(fd2sdl fd2_static_data)
 
 # 发布工具读取实际CMake目标；不能从扩展名或旧SDK推断静态/动态链接。

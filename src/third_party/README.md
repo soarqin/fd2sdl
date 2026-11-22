@@ -1,4 +1,4 @@
-# 第三方音乐组件
+# 第三方组件
 
 本目录保留 BGM 运行组件及历史事件转换组件，不包含完整 libADLMIDI core。当前运行路径只引用 OPL AIL model 和 Nuked OPL3；历史源码停止引用后仍保留来源与许可证。
 
@@ -16,3 +16,7 @@
 外部音色评估脚本 `tools/render_fd2_opl_prototype.sh` 使用 Linux／Bash 和上游完整源码，独立于运行时；其平台条件见[工具速查](../../docs/tools/README.md#离线音频对照)。构建与打包在两平台都必须保留以上许可证，不能因静态链接而省略许可义务。
 
 项目自有代码采用根目录 MIT 许可。SDL、包含组件和静态发布的重建材料要求统一见[许可与第三方声明](../../THIRD_PARTY_NOTICES.md)，不以本表代替上游许可原文。
+
+## 启动设置字形
+
+`setup-glyphs.hex` 是 GNU Unifont 15.1.05 的字形子集，来源为 SDL 源码随附的 `test/unifont-15.1.05.hex`，原文件 SHA256 为 `fefddbdd1743e6706dd03e9e1109c20b42283c3172491c7443ccaa632d31f9d5`。字形采用随源文件分发的 [OFL 1.1](LICENSE.unifont)。增加界面文字时，从同一上游文件运行 `python tools/static_data/setup_font.py --hex <完整字体.hex> src/third_party/setup-glyphs.hex src/launcher.c src/settings.c`。常规构建从仓库中的子集生成字形表，缺字会报告对应字符。

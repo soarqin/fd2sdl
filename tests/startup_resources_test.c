@@ -191,6 +191,23 @@ done:
 int main(void) {
     int result = 0, changed_directory = 0;
     char original_directory[2048], output[4096];
+    fd2_config_file config = {0};
+    fd2_settings_defaults();
+    CHECK(!fd2_setup_requested(&config, false));
+    config.path = "first.cfg";
+    CHECK(fd2_setup_requested(&config, false) && !fd2_setup_requested(&config, true));
+    config.found = true;
+    CHECK(!fd2_setup_requested(&config, false));
+    size_t count;
+    const fd2_setting *items = fd2_settings_table(&count);
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(items[i].key, "show_on_start")) CHECK(fd2_setting_set(&items[i], "on"));
+    CHECK(fd2_setup_requested(&config, false) && !fd2_setup_requested(&config, true));
+    config.path = NULL;
+    CHECK(!fd2_setup_requested(&config, false));
+    config.setup = true;
+    CHECK(fd2_setup_requested(&config, true));
+    fd2_settings_defaults();
     CHECK(check_group_indices() == 0);
     CHECK(check_vga_integer_scale() == 0);
     CHECK(create_fixture() == 0);

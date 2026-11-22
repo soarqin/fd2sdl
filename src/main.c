@@ -20,6 +20,7 @@
 
 #include "archive.h"
 #include "version.h"
+#include "launcher.h"
 #include "app_flow.h"
 #include "bgm.h"
 #include "image.h"
@@ -975,6 +976,15 @@ int main(int argc, char **argv) {
         fd2_config_close(&config);
         return 1;
     }
+    fd2_input_install_interrupt_handlers();
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+    if (fd2_setup_requested(&config, argc > 1)) {
+        int launch = fd2_launcher_run(&config);
+        if (launch <= 0) {
+            fd2_config_close(&config);
+            return launch < 0 ? 1 : 0;
+        }
+    }
     fprintf(stderr, "fd2sdl %s config=%s parity=%s\n", FD2_VERSION,
             config.path ? config.path : "none", fd2_settings_original() ? "original" : "modified");
     fd2_config_close(&config);
@@ -1003,8 +1013,6 @@ int main(int argc, char **argv) {
     if (check_startup_resources(startup_mode, fd2_get_settings()->game_dir, stderr) != 0)
         return 1;
 
-    fd2_input_install_interrupt_handlers();
-    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;

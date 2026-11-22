@@ -7,6 +7,7 @@
 | 组件 | 来源与版权 | 许可及保留材料 |
 |---|---|---|
 | SDL3 | libsdl-org/SDL；本轮固定源码 commit `2813f2630904ea29806fcfaeeb3287ed555e42e2`，版权见实际 SDK | zlib；[原文](src/third_party/LICENSE.SDL3)及其包含组件的声明一并保留。发布清单记录实际版本、静态／动态目标和摘要 |
+| GNU Unifont 15.1.05 | Roman Czyborra、Paul Hardy 及 Unifont 贡献者。引导界面仅嵌入所需字形，取自 SDL 源码的 `test/unifont-15.1.05.hex` | 采用随上游字形分发的 [SIL Open Font License 1.1](src/third_party/LICENSE.unifont) |
 | Nuked OPL3 1.8 | Copyright (C) 2013-2020 Nuke.YKT；经 libADLMIDI commit `9760df4e0acfe27818dee38e786f3b1fea8c8e7f` 引入 | `LGPL-2.1-or-later`；[原文](src/third_party/LICENSE.nukedopl3)，原始源文件头保留 |
 | OPL AIL model | Copyright (c) 2025-2026 Vitaly Novichkov | MIT；[原文](src/third_party/LICENSE.opl-models-mit)与源文件头保留 |
 

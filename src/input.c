@@ -241,6 +241,7 @@ void fd2_input_init(fd2_input *input) {
     memset(input, 0, sizeof(*input));
     if(SDL_WasInit(SDL_INIT_EVENTS))input->lock_modifiers=(uint16_t)(SDL_GetModState()&
         (SDL_KMOD_CAPS|SDL_KMOD_NUM|SDL_KMOD_SCROLL));
+    input->stick_source = -1;
     active_input = input;
 }
 
@@ -250,6 +251,9 @@ static void clear_key_lifecycle(fd2_input *input) {
     memset(input->sources_down, 0, sizeof(input->sources_down));
     memset(input->chord_sources, 0, sizeof(input->chord_sources));
     input->chord_mods = 0;
+    memset(input->pad_down, 0, sizeof(input->pad_down));
+    input->stick_x = input->stick_y = 0;
+    input->stick_source = -1;
     memset(input->previous_down, 0, sizeof(input->previous_down));
     input->queued_head=input->queued_count=0;
     memset(input->next_repeat_ms, 0, sizeof(input->next_repeat_ms));
@@ -418,6 +422,65 @@ static void sample_key_state(fd2_input *input,const bool *state,uint64_t now_ms)
     }
 }
 
+static void connect_gamepad(fd2_input *input, SDL_JoystickID removed) {
+    if (!input->gamepad && SDL_WasInit(SDL_INIT_GAMEPAD)) {
+        input->gamepad = fd2_first_gamepad(removed);
+        input->pad_id = input->gamepad ? SDL_GetGamepadID(input->gamepad) : 0;
+    }
+}
+
+void fd2_input_connect_gamepad(fd2_input *input) { connect_gamepad(input, 0); }
+
+void fd2_input_close(fd2_input *input) {
+    if (input->gamepad) SDL_CloseGamepad(input->gamepad);
+    input->gamepad = NULL;
+    input->pad_id = 0;
+    if (input == active_input) active_input = NULL;
+}
+
+static void pad_transition(fd2_input *input, int source, bool down, uint64_t now) {
+    if (source < 0 || source >= FD2_PAD_SOURCES || input->pad_down[source] == down) return;
+    input->pad_down[source] = down;
+    binding_transition(input, fd2_pad_binding(source), down, physical_modifier_bits(input), now);
+}
+
+static void gamepad_event(fd2_input *input, const SDL_Event *event, uint64_t now) {
+    switch (event->type) {
+    case SDL_EVENT_GAMEPAD_ADDED:
+        connect_gamepad(input, 0);
+        break;
+    case SDL_EVENT_GAMEPAD_REMOVED:
+        if (input->pad_id != event->gdevice.which) break;
+        for (int i = 0; i < FD2_PAD_SOURCES; ++i) pad_transition(input, i, false, now);
+        SDL_CloseGamepad(input->gamepad);
+        input->gamepad = NULL;
+        input->pad_id = 0;
+        input->stick_x = input->stick_y = 0;
+        input->stick_source = -1;
+        connect_gamepad(input, event->gdevice.which);
+        break;
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        if (!input->pad_unfocused && input->pad_id == event->gbutton.which)
+            pad_transition(input, event->gbutton.button, event->gbutton.down, now);
+        break;
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+        if (input->pad_unfocused || input->pad_id != event->gaxis.which) break;
+        if (event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFTX) input->stick_x = event->gaxis.value;
+        else if (event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFTY) input->stick_y = event->gaxis.value;
+        else break;
+        int next = fd2_stick_direction(input->stick_x, input->stick_y, input->stick_source,
+                                       fd2_get_settings()->gamepad_deadzone);
+        if (next != input->stick_source) {
+            pad_transition(input, input->stick_source, false, now);
+            pad_transition(input, next, true, now);
+            input->stick_source = next;
+        }
+        break;
+    }
+    }
+}
+
 void fd2_input_poll_host_events(fd2_input *input) {
     if (!input) input = active_input;
     int focus_lost=0;
@@ -437,7 +500,10 @@ void fd2_input_poll_host_events(fd2_input *input) {
             if (input) input->quit_requested = 1;
         } else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
             clear_key_lifecycle(input);
+            if (input) input->pad_unfocused = true;
             focus_lost=1;
+        } else if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
+            if (input) input->pad_unfocused = false;
         } else if (event.type == SDL_EVENT_KEY_DOWN) {
             if ((event.key.mod & SDL_KMOD_CTRL) != 0 &&
                 (event.key.scancode == SDL_SCANCODE_C ||
@@ -458,7 +524,7 @@ void fd2_input_poll_host_events(fd2_input *input) {
         } else if(event.type==SDL_EVENT_KEY_UP && input &&
                 event.key.scancode>SDL_SCANCODE_UNKNOWN && event.key.scancode<SDL_SCANCODE_COUNT) {
             keyboard_transition(input,event.key.scancode,0,(uint16_t)event.key.mod,now);
-        }
+        } else if (input) gamepad_event(input, &event, now);
     }
     /* 当前Windows单窗SDL先ResetKeyboard再发LOST；其它/显式注入路径的
      * 本轮快照仍可能DOWN。只禁止本轮fallback复活，后续真实DOWN仍按上方入队。 */

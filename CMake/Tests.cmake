@@ -198,6 +198,9 @@ add_test(NAME tool_regressions COMMAND ${Python3_EXECUTABLE} -B -m unittest disc
     -s "${PROJECT_SOURCE_DIR}/tools/tests")
 set_tests_properties(tool_regressions PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" TIMEOUT 120)
 
+add_executable(fd2_gamepad_test tests/gamepad_test.c src/input.c)
+add_test(NAME gamepad COMMAND fd2_gamepad_test)
+
 add_executable(fd2_pacing_test tests/pacing_test.c src/field_play.c
     $<TARGET_OBJECTS:fd2sdl_core>)
 add_test(NAME pacing COMMAND fd2_pacing_test)

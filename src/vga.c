@@ -17,6 +17,7 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
     (void)win;
     memset(vga, 0, sizeof(*vga));
     fd2_input_init(&vga->input);
+    fd2_input_connect_gamepad(&vga->input);
     vga->renderer = ren;
     vga->texture = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                      SDL_TEXTUREACCESS_STREAMING,
@@ -295,6 +296,7 @@ int fd2_input_check(fd2_vga *vga) {
 
 void fd2_vga_close(fd2_vga *vga) {
     if(!vga)return;
+    fd2_input_close(&vga->input);
     fd2_field_page_destroy(vga->field_page);vga->field_page=NULL;
     if (vga->texture) SDL_DestroyTexture(vga->texture);
     vga->texture = NULL;

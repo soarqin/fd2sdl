@@ -1010,6 +1010,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD))
+        SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "gamepad unavailable: %s", SDL_GetError());
     if (fd2_bios_clock_init()!=0) {
         fprintf(stderr,"cannot initialize BIOS clock: %s\n",SDL_GetError());
         SDL_Quit();

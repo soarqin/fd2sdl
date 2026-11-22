@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include <SDL3/SDL.h>
+#include "bindings.h"
 
 /* 固定DOSBox-X b6abbd5 keyboard.cpp::KEYBOARD_Reset：整数1ms服务tick。
  * 不是BIOS 18.2Hz tick，也不是FD2内部常量；初始化/AL00均为500/33。 */
@@ -55,6 +56,10 @@ typedef struct {
     bool physical_down[SDL_SCANCODE_COUNT];
     uint16_t sources_down[SDL_SCANCODE_COUNT], chord_sources[3];
     SDL_Keymod chord_mods;
+    SDL_Gamepad *gamepad;
+    SDL_JoystickID pad_id;
+    bool pad_down[FD2_PAD_SOURCES], pad_unfocused;
+    int stick_x, stick_y, stick_source;
     bool previous_down[SDL_SCANCODE_COUNT]; /* 虚拟键生命周期，供 BIOS 及唯一重复源使用。 */
     uint64_t next_repeat_ms[SDL_SCANCODE_COUNT]; /* 仅repeat_key项非0；保既有观察接口。 */
     SDL_Scancode repeat_key; /* 原硬件只有一个last-key；release不恢复旧held。 */
@@ -100,6 +105,8 @@ typedef enum {
 } fd2_input_action;
 
 void fd2_input_init(fd2_input *input);
+void fd2_input_connect_gamepad(fd2_input *input);
+void fd2_input_close(fd2_input *input);
 void fd2_input_install_interrupt_handlers(void);
 int fd2_input_host_quit_requested(void);
 

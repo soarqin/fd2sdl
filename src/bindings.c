@@ -122,3 +122,76 @@ bool fd2_keyboard_write(SDL_IOStream *out) {
     }
     return true;
 }
+
+static const SDL_Scancode pad_defaults[FD2_PAD_SOURCES] = {
+    [SDL_GAMEPAD_BUTTON_DPAD_UP] = SDL_SCANCODE_UP,
+    [SDL_GAMEPAD_BUTTON_DPAD_DOWN] = SDL_SCANCODE_DOWN,
+    [SDL_GAMEPAD_BUTTON_DPAD_LEFT] = SDL_SCANCODE_LEFT,
+    [SDL_GAMEPAD_BUTTON_DPAD_RIGHT] = SDL_SCANCODE_RIGHT,
+    [SDL_GAMEPAD_BUTTON_SOUTH] = SDL_SCANCODE_RETURN,
+    [SDL_GAMEPAD_BUTTON_EAST] = SDL_SCANCODE_ESCAPE,
+    [SDL_GAMEPAD_BUTTON_WEST] = SDL_SCANCODE_F2,
+    [SDL_GAMEPAD_BUTTON_NORTH] = SDL_SCANCODE_F1,
+    [SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = SDL_SCANCODE_Z,
+    [SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = SDL_SCANCODE_Z,
+    [SDL_GAMEPAD_BUTTON_BACK] = SDL_SCANCODE_G,
+    [SDL_GAMEPAD_BUTTON_START] = SDL_SCANCODE_SPACE,
+    [FD2_STICK_UP] = SDL_SCANCODE_UP, [FD2_STICK_DOWN] = SDL_SCANCODE_DOWN,
+    [FD2_STICK_LEFT] = SDL_SCANCODE_LEFT, [FD2_STICK_RIGHT] = SDL_SCANCODE_RIGHT,
+};
+static fd2_binding pad[FD2_PAD_SOURCES];
+
+void fd2_pad_defaults(void) {
+    for (int i = 0; i < FD2_PAD_SOURCES; ++i) pad[i] = (fd2_binding){pad_defaults[i], 0};
+}
+fd2_binding fd2_pad_binding(int source) { return pad[source]; }
+void fd2_pad_bind(int source, fd2_binding target) { pad[source] = target; }
+const char *fd2_pad_name(int source) {
+    static const char *const stick[] = {"stick_up", "stick_down", "stick_left", "stick_right"};
+    return source < FD2_STICK_UP ? SDL_GetGamepadStringForButton((SDL_GamepadButton)source)
+                                : stick[source - FD2_STICK_UP];
+}
+int fd2_pad_source(const char *name) {
+    for (int i = 0; i < FD2_PAD_SOURCES; ++i)
+        if (!SDL_strcasecmp(fd2_pad_name(i), name)) return i;
+    return -1;
+}
+void fd2_pad_read(int source, const char *value) {
+    fd2_binding target = fd2_binding_parse(value);
+    if (!target.key && *value && SDL_strcasecmp(value, "none")) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "Invalid gamepad binding %s = %s", fd2_pad_name(source), value);
+        target.key = pad_defaults[source];
+    }
+    fd2_pad_bind(source, target);
+}
+bool fd2_pad_write(SDL_IOStream *out) {
+    for (int i = 0; i < FD2_PAD_SOURCES; ++i) {
+        char value[64];
+        fd2_binding_name(pad[i], value);
+        if (!SDL_IOprintf(out, "%s = %s\n", fd2_pad_name(i), *value ? value : "none")) return false;
+    }
+    return true;
+}
+
+/* 四向只保留一个主轴。退出死区及切轴各有 8% 回差，中心总是释放。 */
+int fd2_stick_direction(int x, int y, int previous, int deadzone) {
+    int level = 32767 * deadzone / 100;
+    const int margin = 32767 * 8 / 100;
+    int ax = SDL_abs(x), ay = SDL_abs(y);
+    int horizontal = x < 0 ? FD2_STICK_LEFT : FD2_STICK_RIGHT;
+    int vertical = y < 0 ? FD2_STICK_UP : FD2_STICK_DOWN;
+    int release = SDL_max(1, level - margin);
+    if (previous == horizontal && ax >= release && ay < ax + margin) return horizontal;
+    if (previous == vertical && ay >= release && ax < ay + margin) return vertical;
+    if (SDL_max(ax, ay) < SDL_max(1, level)) return -1;
+    return ax >= ay ? horizontal : vertical;
+}
+SDL_Gamepad *fd2_first_gamepad(SDL_JoystickID excluded) {
+    int count = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&count);
+    SDL_Gamepad *pad_handle = NULL;
+    for (int i = 0; ids && i < count && !pad_handle; ++i)
+        if (ids[i] != excluded) pad_handle = SDL_OpenGamepad(ids[i]);
+    SDL_free(ids);
+    return pad_handle;
+}

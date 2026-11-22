@@ -1,3 +1,4 @@
+#include "pacing.h"
 #include "animation.h"
 #include "bios_clock.h"
 
@@ -178,7 +179,7 @@ int fd2_animation_play_hooked(fd2_vga *vga, const fd2_archive *ani,
         /* 原20421没有承接其它宿主动画的deadline；此处仅提交当前帧。
          * 事件泵仍在下面的原毫秒等待，不额外推进FIFO采样相位。 */
         fd2_vga_upload_current_frame(vga);
-        if(fd2_vga_delay_ms(vga,frame_delay_ms)<0)return -1;
+        if(fd2_animation_wait_ms(vga,frame_delay_ms)<0)return -1;
         if (fd2_input_take_quit(&vga->input)) return -2;
         /* 原20421先10620 peek，skip直接返回且不消费；只有继续下一帧时
          * 才4e381。是否丢弃skip键由实际caller的后续原clear点决定。 */

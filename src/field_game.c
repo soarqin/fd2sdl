@@ -23,6 +23,7 @@
  * field_unit_can_equip_item @0x1c1c3（原sub_1C1C3）。
  */
 
+#include "pacing.h"
 #include "settings.h"
 #include "field_game.h"
 #include "bios_clock.h"
@@ -255,8 +256,9 @@ static int clamp_int(int value, int lo, int hi) {
  *   使用 disabled frame。原版读取 DS:0x3f22 的四个零 dword 到栈，
  *   再只改这两个动态项。 */
 static void init_option_values(fd2_field_game *game) {
-    static const uint8_t defaults[FD2_FIELD_SYSTEM_MENU_COUNT] = {
-        1, 1, 0, 1
+    const fd2_settings *settings = fd2_get_settings();
+    const uint8_t defaults[FD2_FIELD_SYSTEM_MENU_COUNT] = {
+        1, 1, (uint8_t)settings->new_game_battle_effect, (uint8_t)settings->new_game_info_board
     };
     if (game) memcpy(game->option_values, defaults, sizeof(defaults));
 }
@@ -3260,7 +3262,7 @@ int fd2_field_game_animate_system_menu(fd2_field_game *game, fd2_vga *vga,
     for (uint8_t phase = 1; phase <= 4u; phase++) {
         game->system_menu.animation_phase = phase;
         fd2_field_game_render(game, vga);
-        if(fd2_vga_present_timed(vga, frame_delay_ms)<0)return -1;
+        if(fd2_vga_present_timed(vga, fd2_animation_ms(frame_delay_ms))<0)return -1;
     }
     game->system_menu.animation_opening = 0;
     game->system_menu.animation_phase = 0;
@@ -3485,7 +3487,7 @@ int fd2_field_game_animate_command(fd2_field_game *game, fd2_vga *vga,
     for (uint8_t phase = 1; phase <= 4u; phase++) {
         game->command_animation_phase = phase;
         fd2_field_game_render(game, vga);
-        if(fd2_vga_present_timed(vga, frame_delay_ms)<0)return -1;
+        if(fd2_vga_present_timed(vga, fd2_animation_ms(frame_delay_ms))<0)return -1;
     }
     game->command_animation_opening = 0;
     game->command_animation_phase = 0;

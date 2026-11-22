@@ -6,6 +6,7 @@
  * 对应 renderer 生成 snapshot，避免按效果名称猜测像素。
  */
 
+#include "pacing.h"
 #include "field_effect.h"
 #include "bios_clock.h"
 
@@ -192,8 +193,8 @@ int fd2_field_effect_play_hooked(const fd2_field_effect_frames *frames,
         if(fd2_input_take_quit(&vga->input))return 1;
         if (frames->effect == FD2_FIELD_EFFECT_ACTOR_GROUP_FLASH) {
             /* 1c449/1c47f：十次绝对BIOS tick门，末尾原页不再等待。 */
-            if(frame<10 && fd2_vga_wait_ticks(vga,1)<0)return -1;
-        } else if(fd2_vga_delay_ms(vga,frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE ? 10u:5u)<0)return -1;
+            if(frame<10 && fd2_animation_wait_ticks(vga,1)<0)return -1;
+        } else if(fd2_animation_wait_ms(vga,frames->effect == FD2_FIELD_EFFECT_EARTHQUAKE ? 10u:5u)<0)return -1;
         if(fd2_input_take_quit(&vga->input))return 1;
     }
     return fd2_input_take_quit(&vga->input)?1:0;

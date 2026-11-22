@@ -9,6 +9,7 @@
  * docs/reverse-engineering/function-names.md
  */
 
+#include "pacing.h"
 #include "settings.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -347,8 +348,8 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
 
     /* FUN_000151f1(1) + FUN_000151f1(0x1e): 等 1+30 ticks (~1.7s) */
-    if(fd2_vga_wait_ticks(vga,1)<0)goto resource_error;
-    if(fd2_vga_wait_ticks(vga,0x1e)<0)goto resource_error;
+    if(fd2_animation_wait_ticks(vga,1)<0)goto resource_error;
+    if(fd2_animation_wait_ticks(vga,0x1e)<0)goto resource_error;
 
     /* FUN_0001cfca(): 渐出 (brightness 0->0x40, 亮->暗, 64步x2ms) */
     faded = fd2_scene_palette_fade(vga, 0, 0);
@@ -535,7 +536,7 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
                     goto resource_error;
                 }
                 /* 等 1+6 tick (FUN_000151f1) */
-                if(fd2_vga_wait_ticks(vga,1)<0 || fd2_vga_wait_ticks(vga,6)<0) { free(offscreen);goto resource_error; }
+                if(fd2_animation_wait_ticks(vga,1)<0 || fd2_animation_wait_ticks(vga,6)<0) { free(offscreen);goto resource_error; }
                 faded = fd2_scene_palette_fade(vga, 0, 0);
                 if (faded != FD2_SCENE_RESULT_OK) {
                     free(offscreen);
@@ -585,10 +586,10 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
             }
 
             fd2_vga_upload_current_frame(vga);
-            if(fd2_vga_delay_ms(vga,FD2_TITLE_SCROLL_DELAY_MS)<0) { free(offscreen);goto resource_error; } /* 原版 delay_ms(30) */
+            if(fd2_animation_wait_ms(vga,FD2_TITLE_SCROLL_DELAY_MS)<0) { free(offscreen);goto resource_error; } /* 原版 delay_ms(30) */
 
             /* iVar6==0 时额外等待 1000ms (反编译 L135) */
-            if(scroll_y==0 && fd2_vga_delay_ms(vga,1000)<0) { free(offscreen);goto resource_error; }
+            if(scroll_y==0 && fd2_animation_wait_ms(vga,1000)<0) { free(offscreen);goto resource_error; }
 
             /* 原10620仅peek；跳过仍进入LABEL_32淡出／100ms／clear。 */
             if (fd2_input_take_quit(&vga->input)) {
@@ -605,9 +606,9 @@ static fd2_title_action boot_intro_title(fd2_vga *vga,
     for (int step = 0x28; step >= 0; step--) {
         fd2_vga_palette_fade_to(vga, 0, step, 0x3f, 0, 0);
         fd2_vga_upload_current_frame(vga);
-        if(fd2_vga_delay_ms(vga,8)<0)goto resource_error;
+        if(fd2_animation_wait_ms(vga,8)<0)goto resource_error;
     }
-    if(fd2_vga_delay_ms(vga,100)<0)goto resource_error;
+    if(fd2_animation_wait_ms(vga,100)<0)goto resource_error;
     fd2_input_clear_keys(&vga->input);
     if (fd2_input_take_quit(&vga->input)) goto host_quit;
 
@@ -664,7 +665,7 @@ title_screen:
             for (int step = 0; step < 0x29; step++) {
                 fd2_vga_palette_fade_to(vga, 0, step, 0x38, 0x3c, 0x3f);
                 fd2_vga_upload_current_frame(vga);
-                if(fd2_vga_delay_ms(vga,8)<0) { fd2_image_free(&img_title);goto resource_error; }
+                if(fd2_animation_wait_ms(vga,8)<0) { fd2_image_free(&img_title);goto resource_error; }
             }
             /* 确保完整调色板 */
             fd2_vga_set_palette(vga, pal);
@@ -769,7 +770,7 @@ title_screen:
             (void)fd2_title_draw_menu_frame(menu_count, selection, highlight,
                                             draw_title_menu_item, &title_draw);
             fd2_vga_upload_current_frame(vga);
-            if(fd2_vga_delay_ms(vga,FD2_TITLE_CONFIRM_FLASH_DELAY_MS)<0)goto resource_error;
+            if(fd2_animation_wait_ms(vga,FD2_TITLE_CONFIRM_FLASH_DELAY_MS)<0)goto resource_error;
             if (fd2_input_take_quit(&vga->input)) {
                 selection = FD2_TITLE_ACTION_HOST_QUIT;
                 break;

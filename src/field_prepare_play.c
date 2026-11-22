@@ -12,6 +12,7 @@
  * field_church_promote_execute @0x2aa00（原sub_2AA00）、field_deployment_select_execute
  * @0x2af28（原sub_2AF28）及persistent_roster_selection_reorder @0x2b777（原sub_2B777）。
  * 取消/排序/物品和资金的分段写点见common-preparation-semantics.md，不能套统一无写取消。 */
+#include "pacing.h"
 #include "settings.h"
 #include "field_prepare_play.h"
 
@@ -1142,7 +1143,7 @@ static int hotel_run(prepare_ui *ui) {
             if (result == 0) {
                 if (text_draw(ui->vga, ui->assets, 416, 12, 138, 205, 74, ui->context->message_number) != 0) return -1;
                 {int copied=present_copy(ui);if(copied)return copied;}
-                if(fd2_vga_delay_ms(ui->vga,200)<0)return -1;
+                if(fd2_animation_wait_ms(ui->vga,200)<0)return -1;
                 if(quit(ui))return 1;
                 return 3;
             }

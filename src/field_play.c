@@ -14,6 +14,7 @@
  * 此处编排输入、呈现和场景退出；玩法记录与提交仍由field_game持有。
  */
 
+#include "pacing.h"
 #include "field_play.h"
 
 #include <limits.h>
@@ -164,7 +165,8 @@ void fd2_field_play_context_init(fd2_field_play_context *context,
     (void)fd2_field_rng_bootstrap(&context->rng, getenv("FD2SDL_FIELD_RNG_SEED"));
     context->bgm = bgm;
     context->music_enabled = context->sfx_enabled = 1;
-    context->camera_option=1;context->effect_option=0;
+    context->camera_option = (uint8_t)fd2_get_settings()->new_game_info_board;
+    context->effect_option = (uint8_t)fd2_get_settings()->new_game_battle_effect;
     context->initialized = 1;
 }
 
@@ -245,8 +247,8 @@ static int runtime_wait(fd2_vga *vga, uint32_t ms, unsigned ticks,
     if (runtime->host_quit) return 1;
     if(play_present_copy(vga)<0)return FD2_SCENE_RESULT_ERROR;
     if (!runtime->fast) {
-        if(ticks){if(fd2_vga_wait_ticks(vga,ticks)<0)return -1;}
-        else if(ms && fd2_vga_delay_ms(vga,ms)<0)return -1;
+        if(ticks){if(fd2_animation_wait_ticks(vga,ticks)<0)return -1;}
+        else if(ms && fd2_animation_wait_ms(vga,ms)<0)return -1;
     }
     if (fd2_input_take_quit(&vga->input)) runtime->host_quit=1;
     return runtime->host_quit?1:0;
@@ -321,7 +323,7 @@ static int play_runtime_step(fd2_field_game *game,
         if(step==FD2_FIELD_RUNTIME_FOCUS_STEP && value!=0 && value!=6) {
             /* 12cea本步已由方向helper刷新；runtime_wait还会present，
              * 此处只执行原17aa9(1)，不能重复上传/采输入。 */
-            if(!runtime->fast && fd2_vga_wait_ticks(vga,1)<0)return -1;
+            if(!runtime->fast && fd2_animation_wait_ticks(vga,1)<0)return -1;
             if(fd2_input_take_quit(&vga->input)){runtime->host_quit=1;return 1;}
         }
     } else if(step>=FD2_FIELD_RUNTIME_DEFEAT_BEGIN && step<=FD2_FIELD_RUNTIME_DEFEAT_WAIT) {
@@ -417,8 +419,8 @@ static int play_runtime_step(fd2_field_game *game,
         }
         /* 15055的独立17aa9/200ms；不压info、不预检round，也不添present。 */
         if(!runtime->fast) {
-            if(step==FD2_FIELD_RUNTIME_WAIT_TICKS){if(fd2_vga_wait_ticks(vga,(uint32_t)value)<0)return -1;}
-            else if(fd2_vga_delay_ms(vga,200)<0)return -1;
+            if(step==FD2_FIELD_RUNTIME_WAIT_TICKS){if(fd2_animation_wait_ticks(vga,(uint32_t)value)<0)return -1;}
+            else if(fd2_animation_wait_ms(vga,200)<0)return -1;
         }
         if(game->failure!=FD2_FIELD_FAILURE_NONE)return -1;
         if(fd2_input_take_quit(&vga->input) || game->runtime_host_quit)result=1;
@@ -746,7 +748,7 @@ static int field_text_play(field_progress_box *box, fd2_field_game *game,
                 if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return FD2_SCENE_RESULT_ERROR;
             }
             if (audio) {(void)fd2_field_audio_play(audio, FD2_FIELD_SFX_DIALOG_GLYPH);if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)){return FD2_SCENE_RESULT_ERROR;}}
-            if(fd2_vga_wait_ticks(vga,1)<0)return FD2_SCENE_RESULT_ERROR;
+            if(fd2_text_wait(vga)<0)return FD2_SCENE_RESULT_ERROR;
         }
     }
     return FD2_SCENE_RESULT_OK;
@@ -2029,7 +2031,7 @@ static int play_system_confirmation_text(fd2_field_game *game,fd2_vga *vga,
         terminal=play_field_terminal_result(game,vga);
         if (terminal!=FD2_SCENE_RESULT_OK) return terminal;
     }
-    if(!fast && fd2_vga_delay_ms(vga,200)<0)return FD2_SCENE_RESULT_ERROR;
+    if(!fast && fd2_animation_wait_ms(vga,200)<0)return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
     int box_closed=progress_box_close(box,game,vga,fast);
     return box_closed;
@@ -2049,7 +2051,7 @@ static int play_system_message(field_runtime_presentation *runtime,
 static int loot_fixed_wait(fd2_vga *vga, unsigned milliseconds, int fast) {
     if (!vga) return FD2_SCENE_RESULT_ERROR;
     if (fd2_input_take_quit(&vga->input)) return FD2_SCENE_RESULT_HOST_QUIT;
-    if(!fast && fd2_vga_delay_ms(vga,milliseconds)<0)return FD2_SCENE_RESULT_ERROR;
+    if(!fast && fd2_animation_wait_ms(vga,milliseconds)<0)return FD2_SCENE_RESULT_ERROR;
     return fd2_input_take_quit(&vga->input) ? FD2_SCENE_RESULT_HOST_QUIT : FD2_SCENE_RESULT_OK;
 }
 

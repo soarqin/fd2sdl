@@ -1,5 +1,6 @@
 /* VGA投影／调色及bios_tick_delay @0x17aa9（原FUN_000151f1）、
  * field_movement_tick_edge_wait @0x13460（原sub_13460）的共享等待边界。 */
+#include "pacing.h"
 #include "vga.h"
 #include "settings.h"
 #include "bios_clock.h"
@@ -264,6 +265,10 @@ int fd2_vga_wait_ticks(fd2_vga *vga,uint32_t ticks){
 }
 
 int fd2_vga_wait_movement_tick(fd2_vga *vga) {
+    if (vga && fd2_get_settings()->animation_speed != 100) {
+        if (fd2_animation_wait_ticks(vga, 1) < 0) return -1;
+        return fd2_input_take_quit(&vga->input) ? 1 : 0;
+    }
     if(!vga || fd2_bios_clock_error()<0)return -1;
     if(fd2_vga_output_error(vga)<0)return -1;
     for(;;) {

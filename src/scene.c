@@ -12,6 +12,7 @@
  * 编排唯一来源为 data/static/flows/scene.json 与 stage.json；本文件只提供领域原语。
  */
 
+#include "pacing.h"
 #include "settings.h"
 #include "scene.h"
 #include "bios_clock.h"
@@ -729,7 +730,7 @@ static int dialog_present_delay(fd2_vga *vga) {
     if(!vga || fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
     fd2_vga_upload_current_frame(vga);
     if(fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0)return -1;
-    if(!poll_scene_quit(vga) && fd2_vga_delay_ms(vga,FD2_DIALOG_TRANSITION_DELAY_MS)<0)return -1;
+    if(!poll_scene_quit(vga) && fd2_animation_wait_ms(vga,FD2_DIALOG_TRANSITION_DELAY_MS)<0)return -1;
     return 0;
 }
 
@@ -964,7 +965,7 @@ static int focus_camera_to_cell(fd2_vga *vga,
                 if(scene_render_error)return -1;
         if(scene_host_quit_requested)return 0;
             }
-            if(display_mode!=0 && display_mode!=6 && fd2_vga_wait_ticks(vga,1)<0)return -1;
+            if(display_mode!=0 && display_mode!=6 && fd2_animation_wait_ticks(vga,1)<0)return -1;
             if(poll_scene_quit(vga))return 0;
         }
         fd2_input_clear_keys(&vga->input);
@@ -989,7 +990,7 @@ static int focus_camera_to_cell(fd2_vga *vga,
                 if(scene_render_error)return -1;
         if(scene_host_quit_requested)return 0;
             }
-            if(display_mode!=0 && display_mode!=6 && fd2_vga_wait_ticks(vga,1)<0)return -1;
+            if(display_mode!=0 && display_mode!=6 && fd2_animation_wait_ticks(vga,1)<0)return -1;
             if(poll_scene_quit(vga))return 0;
         }
         fd2_input_clear_keys(&vga->input);
@@ -1038,7 +1039,7 @@ static int redraw_dialog(fd2_vga *vga,
 static int wait_for_dialog_step(fd2_vga *vga, int *skip) {
     if((fd2_bios_clock_error()<0 || fd2_vga_output_error(vga)<0))return -1;
     if (!vga || !skip || *skip) return 0;
-    if(fd2_vga_wait_ticks(vga,1)<0)return -1;
+    if(fd2_text_wait(vga)<0)return -1;
     if (fd2_input_take_quit(&vga->input)) {
         scene_host_quit_requested = 1;
         *skip = 1;
@@ -1597,7 +1598,7 @@ static int play_opening_move_script(fd2_vga *vga,
                 /* 1366a/1374b：原工作页指针-5472，即所选actor临时上抬12px。
                  * 按raw顺序画全表（不是普通深度排序），位置和frame_phase不写回。 */
                 if (!fast) {
-                    if(fd2_vga_wait_ticks(vga,1)<0)return -1;
+                    if(fd2_animation_wait_ticks(vga,1)<0)return -1;
                     if(poll_scene_quit(vga))return -1;
                     int camera_x=state->camera_cell_x,camera_y=state->camera_cell_y;
                     if(fd2_field_visual_terrain_step_live(vga,&vga->field_visual)<0)
@@ -1625,7 +1626,7 @@ static int play_opening_move_script(fd2_vga *vga,
                         fd2_field_page_project(vga->field_page,72,72,vga->framebuffer,
                             sizeof(vga->framebuffer))!=0) return -1;
                     if(scene_present_copy(vga)<0)return -1;
-                    if(fd2_vga_wait_ticks(vga,2)<0)return -1;
+                    if(fd2_animation_wait_ticks(vga,2)<0)return -1;
                     if(poll_scene_quit(vga))return -1;
                     if(present_base_frame(vga,terrain,map,sprites,state,0)<0)return -1;
                     if(scene_render_error || scene_host_quit_requested)return -1;
@@ -1638,7 +1639,7 @@ static int play_opening_move_script(fd2_vga *vga,
                 for (int frame = 0; frame < frames; frame++) {
                     if(present_base_frame(vga,terrain,map,sprites,state,0)<0)return -1;
                     if(scene_render_error || scene_host_quit_requested)return -1;
-                    if(fd2_vga_wait_ticks(vga,1)<0)return -1;
+                    if(fd2_animation_wait_ticks(vga,1)<0)return -1;
                     if(poll_scene_quit(vga))return -1;
                     fd2_input_clear_keys(&vga->input);
                     if(poll_scene_quit(vga))return -1;
@@ -1671,7 +1672,7 @@ static int play_opening_move_script(fd2_vga *vga,
                     }
                     /* 138fd wait1后13905是FIFO clear；无vsync/渲染补偿。 */
                     if(scene_present_copy(vga)<0)return -1;
-                    if(fd2_vga_wait_ticks(vga,1)<0)return -1;
+                    if(fd2_animation_wait_ticks(vga,1)<0)return -1;
                     if(scene_render_error || poll_scene_quit(vga))return -1;
                     fd2_input_clear_keys(&vga->input);
                     if(poll_scene_quit(vga))return -1;
@@ -1726,7 +1727,7 @@ static int opening_delay(fd2_vga *vga,
     (void)terrain;(void)map;(void)sprites;(void)state;
     if(scene_host_quit_requested || poll_scene_quit(vga))return 0;
     if (!fast) {
-        if(fd2_vga_delay_ms(vga,ms)<0)return -1;
+        if(fd2_animation_wait_ms(vga,ms)<0)return -1;
         (void)poll_scene_quit(vga);
     }
     return 0;
@@ -1904,7 +1905,7 @@ static int arrival_visual_play_view(fd2_scene_arrival_visual *scope,fd2_vga *vga
         } else if(!strcmp(node->op,"arrival_clear")) {
             fd2_input_clear_keys(&vga->input);
         } else if(!strcmp(node->op,"arrival_wait_ticks")) {
-            if(!fast && fd2_vga_wait_ticks(vga,(uint32_t)node->args[0])<0)return -1;
+            if(!fast && fd2_animation_wait_ticks(vga,(uint32_t)node->args[0])<0)return -1;
         }
         if(poll_scene_quit(vga))return FD2_SCENE_RESULT_HOST_QUIT;
         pc=fd2_static_flow_edge(flow,node,FD2_FLOW_NEXT);
@@ -2254,11 +2255,11 @@ static int scene_flow_run_nodes(scene_flow_context *c, const fd2_static_flow *fl
             if (c->source_flow || palette_flow) {
                 if(a[0]<0 || a[0]>65535)return -1;
                 /* 原3790a只等待；不能额外推进11cac、水色或actor视觉锚。 */
-                if(!c->fast && fd2_vga_delay_ms(c->vga,(uint32_t)a[0])<0)return -1;
+                if(!c->fast && fd2_animation_wait_ms(c->vga,(uint32_t)a[0])<0)return -1;
                 (void)poll_scene_quit(c->vga);
             } else if(opening_delay(c->vga,c->terrain,c->map,c->sprites,c->state,a[0],c->fast)<0)return -1;
         } else if (!strcmp(n->op, "sleep_ms")) {
-            if(!c->fast && fd2_vga_delay_ms(c->vga,(uint32_t)a[0])<0)return -1;
+            if(!c->fast && fd2_animation_wait_ms(c->vga,(uint32_t)a[0])<0)return -1;
         } else if (!strcmp(n->op, "clear_keys")) {
             if (!c->source_flow || !c->vga) return -1;
             fd2_input_clear_keys(&c->vga->input);
@@ -3080,7 +3081,7 @@ static int scene_common_raw_animation(fd2_vga *vga,const fd2_archive *fdother,
         }
         if(!fast) {
             if(scene_present_copy(vga)<0)goto done;
-            if(fd2_vga_wait_ticks(vga,(uint32_t)a[3])<0)goto done;
+            if(fd2_animation_wait_ticks(vga,(uint32_t)a[3])<0)goto done;
             if(poll_scene_quit(vga)){result=FD2_SCENE_RESULT_HOST_QUIT;goto done;}
         }
     }

@@ -5,6 +5,7 @@
  * 向同一fd2_input有界缓存交付，不因下一present丢未读确认/取消。
  */
 #include "input.h"
+#include "settings.h"
 
 #include <signal.h>
 #include <string.h>
@@ -289,14 +290,15 @@ static void update_repeat(fd2_input *input,uint64_t now_ms) {
     if(source==SDL_SCANCODE_UNKNOWN)return;
     uint64_t deadline=input->next_repeat_ms[source];
     if(now_ms<deadline)return;
-    uint64_t due=(now_ms-deadline)/FD2_INPUT_REPEAT_MS+1u;
+    uint64_t rate = (unsigned)fd2_get_settings()->key_repeat_rate_ms;
+    uint64_t due=(now_ms-deadline)/rate+1u;
     uint64_t limit=due<FD2_INPUT_KEY_QUEUE_CAPACITY?due:FD2_INPUT_KEY_QUEUE_CAPACITY;
     uint16_t mods=(uint16_t)(input->held_modifiers|input->lock_modifiers);
     for(uint64_t i=0;i<limit;i++)emit_make(input,source,1,mods);
-    uint64_t last=now_ms-(now_ms-deadline)%FD2_INPUT_REPEAT_MS;
-    if(UINT64_MAX-last<FD2_INPUT_REPEAT_MS) {
+    uint64_t last=now_ms-(now_ms-deadline)%rate;
+    if(UINT64_MAX-last<rate) {
         input->repeat_key=SDL_SCANCODE_UNKNOWN;input->next_repeat_ms[source]=0;
-    } else input->next_repeat_ms[source]=last+FD2_INPUT_REPEAT_MS;
+    } else input->next_repeat_ms[source]=last+rate;
 }
 
 static void key_transition(fd2_input *input,SDL_Scancode source,int down,
@@ -349,9 +351,10 @@ static void key_transition(fd2_input *input,SDL_Scancode source,int down,
     }
     /* 不可表示的500ms期限不是MAX处已到期；仍接受首make，停后续repeat。
      * 恰能在MAX到期则保留该次正常make，update_repeat随后停止owner。 */
-    int repeat_fits=UINT64_MAX-now_ms>=FD2_INPUT_INITIAL_REPEAT_MS;
+    uint64_t delay = (unsigned)fd2_get_settings()->key_repeat_delay_ms;
+    int repeat_fits=UINT64_MAX-now_ms>=delay;
     input->repeat_key=repeat_fits?source:SDL_SCANCODE_UNKNOWN;
-    input->next_repeat_ms[source]=repeat_fits?now_ms+FD2_INPUT_INITIAL_REPEAT_MS:0;
+    input->next_repeat_ms[source]=repeat_fits?now_ms+delay:0;
     if(source==SDL_SCANCODE_C && (mods&SDL_KMOD_CTRL)) {
         input->repeat_key=SDL_SCANCODE_UNKNOWN;input->next_repeat_ms[source]=0;
         request_host_quit();input->quit_requested=1;return;

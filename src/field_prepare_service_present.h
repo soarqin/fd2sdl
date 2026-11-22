@@ -42,7 +42,7 @@ static int prepare_service_present(prepare_ui *ui,unsigned ms) {
     if (prepare_service_host_quit(ui)) return 1;
     /* ms0是有限copy；4/10/200为源后等待，16只在空等轮作H节流。
      * 不履行先前owner的deadline，也不将上传代价抵扣源等待。 */
-    if(ms && fd2_vga_delay_ms(ui->vga,ms)<0)return -1;
+    if(ms && fd2_animation_wait_ms(ui->vga,ms)<0)return -1;
     return prepare_service_host_quit(ui);
 }
 /* 28b41的17aa9等待与4ms DOS delay分离；仍只上传当前页和检查HOST。 */
@@ -52,7 +52,7 @@ static int prepare_service_present_ticks(prepare_ui *ui,unsigned ticks) {
     fd2_vga_upload_current_frame(ui->vga);
     if(prepare_owner_failed(ui))return -1;
     if (prepare_service_host_quit(ui)) return 1;
-    if(fd2_vga_wait_ticks(ui->vga,ticks)<0)return -1;
+    if(fd2_animation_wait_ticks(ui->vga,ticks)<0)return -1;
     return prepare_service_host_quit(ui);
 }
 static int prepare_service_fade(prepare_ui *ui,int in) {

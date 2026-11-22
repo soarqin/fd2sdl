@@ -18,6 +18,7 @@
  * field_promotion_visual_execute @0x2fb2c（原登记 sub_2FB2C）。
  * field_promotion_idle_cycle @0x2fe14（原登记 sub_2FE14）。
  */
+#include "pacing.h"
 #include "settings.h"
 #include "battle_animation.h"
 #include "bios_clock.h"
@@ -304,7 +305,7 @@ static int present(fd2_battle_animation *ctx, uint32_t ticks) {
     fd2_input_begin_frame(&ctx->vga->input);
     fd2_vga_upload_current_frame(ctx->vga);
     if(fd2_bios_clock_error()<0 || fd2_vga_output_error(ctx->vga)<0)return -1;
-    if (!stopped(ctx) && ticks) {if(fd2_vga_wait_ticks(ctx->vga,ticks)<0){return -1;}}
+    if (!stopped(ctx) && ticks) {if(fd2_animation_wait_ticks(ctx->vga,ticks)<0){return -1;}}
     (void)stopped(ctx);
     return 0;
 }
@@ -454,7 +455,7 @@ static int fade(fd2_battle_animation *ctx, int in) {
     for (int i=0;i<(in ? 65:64) && !stopped(ctx);i++) {
         apply_darkness(ctx,in ? 64-i:i);
         {if(present(ctx,0)<0){return -1;}}
-        if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,2)<0){return -1;}}
+        if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,2)<0){return -1;}}
     }
     return 0;
 }
@@ -521,7 +522,7 @@ static int flash(fd2_battle_animation *ctx, uint8_t r, uint8_t g, uint8_t b) {
     ctx->vga->dac[0]=(uint8_t)((r<<2)|(r>>4));
     ctx->vga->dac[1]=(uint8_t)((g<<2)|(g>>4));
     ctx->vga->dac[2]=(uint8_t)((b<<2)|(b>>4)); {if(present(ctx,0)<0){return -1;}}
-    if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,20)<0){return -1;}}
+    if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,20)<0){return -1;}}
     memset(ctx->vga->dac,0,3);
     return 0;
 }
@@ -614,7 +615,7 @@ static int strike(const fd2_field_game *game, const fd2_field_physical_event *ev
                 if (event->result->critical) {
                     {if(flash(ctx,63,63,63)<0){return -1;}}
                     {if(present(ctx,0)<0){return -1;}} /* 原DAC黑写须先上传，不能让白纹理覆盖后40ms。 */
-                    if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,40)<0){return -1;}}
+                    if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,40)<0){return -1;}}
                 }
             }
             {if(present(ctx,1)<0){return -1;}}
@@ -842,7 +843,7 @@ static void restore_image_rect(uint8_t *dst,const uint8_t *saved,const battle_im
 
 static int map_present_ms(fd2_battle_animation *ctx,uint32_t delay) {
     {if(present(ctx,0)<0){return -1;}}
-    if (!stopped(ctx) && delay) {if(fd2_vga_delay_ms(ctx->vga,delay)<0){return -1;}}
+    if (!stopped(ctx) && delay) {if(fd2_animation_wait_ms(ctx->vga,delay)<0){return -1;}}
     (void)stopped(ctx);
     return 0;
 }
@@ -1083,7 +1084,7 @@ static int restore(fd2_battle_animation *ctx, const fd2_field_game *game, int an
             part_draw(e->work,640,200,640,&e->idle[1],0,0,0,-1);
             part_draw(e->work,640,200,640,&e->idle[0],0,0,0,-1);
             copy_view(ctx,640,0); {if(present(ctx,6)<0){goto source_failed;}}
-        } else if (!stopped(ctx)) {if(fd2_vga_wait_ticks(ctx->vga,6)<0){goto source_failed;}}
+        } else if (!stopped(ctx)) {if(fd2_animation_wait_ticks(ctx->vga,6)<0){goto source_failed;}}
         {if(fade(ctx,0)<0){goto source_failed;}}
     }
     (void)stopped(ctx);
@@ -1596,7 +1597,7 @@ static int magic_cast_intro_loop(const fd2_field_game *game,fd2_battle_animation
                 if (!stopped(ctx)) {
                     dac0(ctx,k_battle_cast_colors[e->id][0],k_battle_cast_colors[e->id][1],k_battle_cast_colors[e->id][2]);
                     {if(present(ctx,0)<0){return -1;}}
-                    if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,30)<0){return -1;}}
+                    if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,30)<0){return -1;}}
                     dac0(ctx,0,0,0);
                 }
                 flashes--;
@@ -1623,7 +1624,7 @@ static int magic_cast_full(const fd2_field_game *game,const fd2_field_magic_pres
             magic_work_part(e,320,&e->target_idle[0],0,0,0,-1);
             {if(magic_work_present(ctx,320,0)<0){return -1;}}
         }
-        if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,500)<0){return -1;}}
+        if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,500)<0){return -1;}}
     }
     int duration,native_return;
     if (magic_fx_step(&reader,0,&duration)!=0 || duration<0 || duration>UINT16_MAX) return -1;
@@ -1778,7 +1779,7 @@ static int magic_map_frames(const fd2_field_game *game,fd2_battle_animation *ctx
             for (unsigned frame=0;!result && frame<8 && !stopped(ctx);frame++) {
                 result=fd2_field_page_project(frame&1u ? alternate:ctx->vga->field_page,
                     72,72,ctx->vga->framebuffer,64000);
-                if (!result) {{if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,90)<0){return -1;}}}
+                if (!result) {{if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,90)<0){return -1;}}}
             }
             fd2_field_page_destroy(alternate);
             if (result) return -1;
@@ -1791,7 +1792,7 @@ static int magic_map_frames(const fd2_field_game *game,fd2_battle_animation *ctx
         for (unsigned frame=0;frame<8 && !stopped(ctx);frame++) {
             memcpy(ctx->vga->framebuffer,e->board.framebuffer,64000);
             for (size_t i=0;i<e->count;i++) map_actor_paint(e,game,ctx->vga->framebuffer,i,74+(int)(frame&1u));
-            {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,90)<0){return -1;}}
+            {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,90)<0){return -1;}}
         }
     } else if (style==MAP_ACTORS_SOLID) {
         memcpy(e->work,e->board.framebuffer,64000);
@@ -1832,7 +1833,7 @@ static int magic_map_quake(const fd2_field_game *game,fd2_battle_animation *ctx)
         if (frame<43 && frame%6u==0 && play_cue(ctx,&e->map_sound,e->sfx_enabled,13)!=0) return -1;
         memcpy(ctx->vga->framebuffer,e->earthquake.snapshots[source],64000);
         if (ctx->vga->field_page && fd2_field_effect_apply_page_frame(&e->earthquake,ctx->vga,frame)!=0) return -1;
-        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,10)<0){return -1;}}
+        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,10)<0){return -1;}}
     }
     /* 原21548恢复真实page指针后先11cac(0)，随后才进入HP/RNG写点。 */
     if (!stopped(ctx) && refresh_map(game,ctx,ctx->vga)!=0) return -1;
@@ -1994,11 +1995,11 @@ static int magic_ai_ray_item(const fd2_field_game *game,
                 part_draw(scope->work,320,200,320,&scope->casting,part,0,0,-1);
                 memcpy(ctx->vga->framebuffer,scope->work,64000);{if(present(ctx,0)<0){status=-1;goto done;}}
                 /* 2e19b每part一次，不把duration展开成重复帧；0也调用reader。 */
-                if(!stopped(ctx)){if(fd2_vga_wait_ticks(ctx->vga,p->duration)<0){status=-1;goto done;}}
+                if(!stopped(ctx)){if(fd2_animation_wait_ticks(ctx->vga,p->duration)<0){status=-1;goto done;}}
             }
             break;
         case 4:ai_ray_scope_close(&scope);break;
-        case 5:if(scope || op[1]!=6)status=-1;else {if(fd2_vga_wait_ticks(ctx->vga,(uint32_t)op[1])<0){status=-1;goto done;}}break;
+        case 5:if(scope || op[1]!=6)status=-1;else {if(fd2_animation_wait_ticks(ctx->vga,(uint32_t)op[1])<0){status=-1;goto done;}}break;
         case 6:memset(ctx->vga->framebuffer,0,64000);break;
         case 7:
             if(op[1]!=3 || battle_field_return(game,ctx,0,0)!=0)status=-1;
@@ -2008,11 +2009,11 @@ static int magic_ai_ray_item(const fd2_field_game *game,
             if(ctx->primary && enabled && battle_audio_stop(ctx,ctx->primary)!=0)status=-1;
             stopped_voice=1;break;
         case 9:status=map_actor_circle(game,ctx,event->actor_index,op[1],op[2]);break;
-        case 10:{if(fd2_vga_delay_ms(ctx->vga,(uint32_t)op[1])<0){status=-1;goto done;}}break;
+        case 10:{if(fd2_animation_wait_ms(ctx->vga,(uint32_t)op[1])<0){status=-1;goto done;}}break;
         case 11:
             for(int level=op[1];level>=0 && !stopped(ctx);level--) {
                 if(fd2_vga_palette_add(ctx->vga,0,255,level)!=0){status=-1;break;}
-                {if(present(ctx,0)<0){status=-1;goto done;}}if(!stopped(ctx)){if(fd2_vga_delay_ms(ctx->vga,(uint32_t)op[2])<0){status=-1;goto done;}}
+                {if(present(ctx,0)<0){status=-1;goto done;}}if(!stopped(ctx)){if(fd2_animation_wait_ms(ctx->vga,(uint32_t)op[2])<0){status=-1;goto done;}}
             }
             break;
         default:status=-1;break;
@@ -2040,17 +2041,17 @@ static int magic_heal_prelude(const fd2_field_game *game,fd2_battle_animation *c
         int radius=start+(9-i)*step;
         if (e->map_base ? fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,radius,0,0)!=0:
             fd2_field_game_render_transition_mask(game,ctx->vga,lut,x,y,radius)!=0) return -1;
-        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,5)<0){return -1;}}
+        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,5)<0){return -1;}}
     }
-    if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,200)<0){return -1;}}
+    if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,200)<0){return -1;}}
     for (int i=3;i<10 && !stopped(ctx);i++) {
         const uint8_t *lut=fd2_field_lut_frame(&game->visuals,(size_t)i);
         if (e->map_base ? fd2_field_game_effect_mask_frame(game,ctx->vga,e->map_base,lut,x,y,start+8*step,0,0)!=0:
             fd2_field_game_render_transition_mask(game,ctx->vga,lut,x,y,start+8*step)!=0) return -1;
-        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,5)<0){return -1;}}
+        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,5)<0){return -1;}}
     }
     if (!stopped(ctx) && refresh_map(game,ctx,ctx->vga)!=0) return -1;
-    {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,200)<0){return -1;}}
+    {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,200)<0){return -1;}}
     return 0;
 }
 
@@ -2082,7 +2083,7 @@ static int magic_composite_cast(const fd2_field_game *game,
         const fd2_field_magic_present_event *event,fd2_battle_animation *ctx) {
     fd2_battle_magic_exchange *e=ctx->magic_exchange;
     if (magic_special_intro(game,event,ctx)!=0) return -1;
-    if (!stopped(ctx)) {if(fd2_vga_wait_ticks(ctx->vga,6)<0){return -1;}}
+    if (!stopped(ctx)) {if(fd2_animation_wait_ticks(ctx->vga,6)<0){return -1;}}
     for (int i=0;i<8 && !stopped(ctx);i++) {
         copy_pixels(e->work,640,e->board.framebuffer,320);
         part_draw(e->work,640,200,640,&e->caster_idle,0,20*i,0,-1);
@@ -2104,7 +2105,7 @@ static int magic_composite_cast(const fd2_field_game *game,
         } else if ((e->id==32 || e->id==35) && i==1 && ctx->secondary && e->sfx_enabled) {
             if (battle_audio_play(ctx,ctx->secondary,&e->sound,2)!=0) return -1;
         }
-        if (!stopped(ctx)) {if(fd2_vga_wait_ticks(ctx->vga,2)<0){return -1;}}
+        if (!stopped(ctx)) {if(fd2_animation_wait_ticks(ctx->vga,2)<0){return -1;}}
     }
     if (e->id==32 || e->id==35) for (unsigned i=0;i<=10 && !stopped(ctx);i++) {
         if (!(i&1u) && play_cue(ctx,&e->sound,e->sfx_enabled,1)!=0) return -1;
@@ -2120,7 +2121,7 @@ static int magic_composite_cast(const fd2_field_game *game,
          * 的首轮上传承担同一页/DAC提交，不在41个源wait前另pump/upload。 */
         if (battle_field_return(game,ctx,0,1)!=0) return -1;
         for (unsigned i=0;i<=40 && !stopped(ctx);i++) {
-            composite_palette(ctx,i);{if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,6)<0){return -1;}}
+            composite_palette(ctx,i);{if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,6)<0){return -1;}}
         }
     }
     if (!stopped(ctx)) {
@@ -2231,9 +2232,9 @@ static int magic_teleport(const fd2_field_game *game,
         int center_y=(e->teleport_y-game->camera_cell_y)*24+15;
         for (int i=5;i>=0 && !stopped(ctx);i--) {
             if (teleport_mask(game,ctx,(size_t)i,(center_y/5)*i)!=0) return -1;
-            {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,10)<0){return -1;}}
+            {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,10)<0){return -1;}}
         }
-        if (!stopped(ctx)) {if(fd2_vga_wait_ticks(ctx->vga,2)<0){return -1;}}
+        if (!stopped(ctx)) {if(fd2_animation_wait_ticks(ctx->vga,2)<0){return -1;}}
         return 0;
     }
     memcpy(e->work+64000,ctx->vga->framebuffer,64000);
@@ -2249,7 +2250,7 @@ static int magic_teleport(const fd2_field_game *game,
             int xx=x+col;
             if (xx>=4 && xx<316) ctx->vga->framebuffer[yy*320+xx]=e->work[yy*320+xx];
         }
-        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,10)<0){return -1;}}
+        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,10)<0){return -1;}}
     }
     for (size_t frame=0;frame<10 && !stopped(ctx);frame++) {
         if (teleport_mask(game,ctx,frame,0)!=0) return -1;
@@ -2423,9 +2424,9 @@ static int floating_values(const fd2_field_game *game,fd2_battle_animation *ctx)
             }
         }
         if (e->map_base && magic_map_project(ctx->vga)!=0) return -1;
-        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,2)<0){return -1;}}
+        {if(present(ctx,0)<0){return -1;}}if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,2)<0){return -1;}}
     }
-    if (!stopped(ctx)) {if(fd2_vga_delay_ms(ctx->vga,500)<0){return -1;}}
+    if (!stopped(ctx)) {if(fd2_animation_wait_ms(ctx->vga,500)<0){return -1;}}
     return 0;
 }
 
@@ -2496,7 +2497,7 @@ static int magic_restore(fd2_battle_animation *ctx,const fd2_field_game *game,in
     /* MAP/Item的1d4cb→1d4f6同样拥有primary尾停，不让bank释放后仍悬挂本轮声源。 */
     if (ctx->primary && e->sfx_enabled) {(void)battle_audio_stop(ctx,ctx->primary);if(output_failed(ctx)){goto source_failed;}}
     if (normal && status==0 && (full || derived) && e->started && !stopped(ctx)) {
-        {if(fd2_vga_wait_ticks(ctx->vga,derived ? 6u:8u)<0){goto source_failed;}}{if(fade(ctx,0)<0){goto source_failed;}}
+        {if(fd2_animation_wait_ticks(ctx->vga,derived ? 6u:8u)<0){goto source_failed;}}{if(fade(ctx,0)<0){goto source_failed;}}
     }
     if (cinematic || skipped_composite || !normal || ctx->host_quit || status<0) {
         memcpy(ctx->vga->palette,e->palette,768);
@@ -2626,7 +2627,7 @@ static int promotion_present(fd2_prepare_promotion *scope,unsigned wait) {
     if (promotion_quit(scope)) return scope->status;
     fd2_input_begin_frame(&scope->vga->input);
     fd2_vga_upload_current_frame(scope->vga);
-    if (!promotion_quit(scope) && wait) {if(fd2_vga_wait_ticks(scope->vga,wait)<0){scope->status=-1;return -1;}}
+    if (!promotion_quit(scope) && wait) {if(fd2_animation_wait_ticks(scope->vga,wait)<0){scope->status=-1;return -1;}}
     return promotion_quit(scope);
 }
 
@@ -2635,7 +2636,7 @@ static int promotion_fade(fd2_prepare_promotion *scope,int in) {
         if (promotion_quit(scope)) return scope->status;
         apply_darkness_vga(scope->vga,in ? 64-i:i);
         if (promotion_present(scope,0)) return scope->status;
-        {if(fd2_vga_delay_ms(scope->vga,2)<0){scope->status=-1;return -1;}}
+        {if(fd2_animation_wait_ms(scope->vga,2)<0){scope->status=-1;return -1;}}
     }
     return promotion_quit(scope);
 }
@@ -2693,7 +2694,7 @@ int fd2_prepare_promotion_step(fd2_prepare_promotion *scope,
         if (promotion_fade(scope,0)) return scope->status;
         for (unsigned i=0;i<value;i++) {
             if (promotion_quit(scope)) return scope->status;
-            {if(fd2_vga_wait_ticks(scope->vga,1)<0){scope->status=-1;return -1;}}
+            {if(fd2_animation_wait_ticks(scope->vga,1)<0){scope->status=-1;return -1;}}
         }
     } else if (phase==FD2_PREPARE_PROMOTION_OLD_ENTER) {
         unsigned background=0;
@@ -2726,7 +2727,7 @@ int fd2_prepare_promotion_step(fd2_prepare_promotion *scope,
                 scope->vga->dac[i]=(uint8_t)((channel<<2)|(channel>>4));
             }
             if (promotion_present(scope,0)) return scope->status;
-            {if(fd2_vga_delay_ms(scope->vga,10)<0){scope->status=-1;return -1;}}
+            {if(fd2_animation_wait_ms(scope->vga,10)<0){scope->status=-1;return -1;}}
         }
     } else if (phase==FD2_PREPARE_PROMOTION_NEW_FRAME) {
         promotion_frame(scope,&scope->new_idle,0,0,value);

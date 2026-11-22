@@ -2,6 +2,8 @@
 #include <string.h>
 
 #include "input.h"
+#include "settings.h"
+#include "bindings.h"
 
 #define CHECK(expr) do { \
     if (!(expr)) { \
@@ -1026,10 +1028,48 @@ static int test_printscreen_polled_make_key_break_preserves_fifo_not_repeat(void
     SDL_Quit();return 0;
 }
 
+static int test_mapped_keyboard(void) {
+    fd2_settings_defaults();
+    CHECK(SDL_Init(SDL_INIT_EVENTS));
+    fd2_binding enter = fd2_binding_parse("Enter");
+    CHECK(enter.key == SDL_SCANCODE_RETURN && fd2_keyboard_bind(SDL_SCANCODE_J, enter));
+    CHECK(!fd2_keyboard_bind(SDL_SCANCODE_LSHIFT, enter));
+    CHECK(fd2_keyboard_bind(SDL_SCANCODE_K, fd2_binding_parse("Ctrl+F2")));
+    fd2_input input;
+    fd2_input_event e;
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_J, 1);
+    fd2_input_begin_test_frame(&input, 0);
+    CHECK(fd2_input_take_key(&input, &e) && e.bios_code == 0x1c0d && !e.repeat);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 1);
+    fd2_input_begin_test_frame(&input, 200);
+    CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_J, 0);
+    fd2_input_begin_test_frame(&input, 500);
+    CHECK(fd2_input_take_key(&input, &e) && e.repeat && e.source == SDL_SCANCODE_RETURN);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_RETURN, 0);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_K, 1);
+    fd2_input_begin_test_frame(&input, 510);
+    CHECK(fd2_input_take_key(&input, &e) && e.bios_code == 0x5f00);
+    fd2_input_begin_test_frame(&input, 1010);
+    CHECK(fd2_input_take_key(&input, &e) && e.repeat && e.bios_code == 0x5f00);
+    SDL_Event lost = {0}; lost.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+    CHECK(SDL_PushEvent(&lost));
+    fd2_input_poll_host_events(&input);
+    CHECK(!input.chord_mods && !input.sources_down[SDL_SCANCODE_F2] && !input.repeat_key);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_K, 0);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_A, 1);
+    fd2_input_begin_test_frame(&input, 1100);
+    CHECK(fd2_input_take_key(&input, &e) && e.bios_code == 0x1e61);
+    fd2_settings_defaults();
+    SDL_Quit();
+    return 0;
+}
+
 int main(int argc,char **argv) {
     if(argc==3 && !strcmp(argv[1],"--buffer-case"))return buffer_regression(argv[2])?1:0;
     if(argc!=1)return 1;
-    if (test_context_mappings() != 0 ||
+    if (test_mapped_keyboard() != 0 || test_context_mappings() != 0 ||
         test_movement_cancel_scancodes() != 0 ||
         test_target_scancodes() != 0 ||
         test_detail_any_ordinary_key() != 0 ||

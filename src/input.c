@@ -6,6 +6,7 @@
  */
 #include "input.h"
 #include "settings.h"
+#include "bindings.h"
 
 #include <signal.h>
 #include <string.h>
@@ -245,6 +246,10 @@ void fd2_input_init(fd2_input *input) {
 
 static void clear_key_lifecycle(fd2_input *input) {
     if (!input) return;
+    memset(input->physical_down, 0, sizeof(input->physical_down));
+    memset(input->sources_down, 0, sizeof(input->sources_down));
+    memset(input->chord_sources, 0, sizeof(input->chord_sources));
+    input->chord_mods = 0;
     memset(input->previous_down, 0, sizeof(input->previous_down));
     input->queued_head=input->queued_count=0;
     memset(input->next_repeat_ms, 0, sizeof(input->next_repeat_ms));
@@ -269,7 +274,7 @@ static void emit_make(fd2_input *input,SDL_Scancode source,int repeat,uint16_t m
     input->held_modifiers|=modifier_bit(source);
     if(source>=SDL_SCANCODE_F13 && source<=SDL_SCANCODE_F24)
         input->held_modifiers|=SDL_KMOD_LSHIFT;
-    modifiers|=input->held_modifiers;
+    modifiers |= input->held_modifiers | input->chord_mods;
     if(source==SDL_SCANCODE_C && (modifiers&SDL_KMOD_CTRL)) {
         request_host_quit();input->quit_requested=1;return;
     }
@@ -366,14 +371,49 @@ static void key_transition(fd2_input *input,SDL_Scancode source,int down,
     emit_make(input,source,0,(uint16_t)(mods|input->held_modifiers|input->lock_modifiers));
 }
 
+/* 每个物理源先去重；同一虚拟键只在首个 DOWN 和最后一个 UP 进入 BIOS 层。 */
+static void binding_transition(fd2_input *input, fd2_binding target, bool down,
+                               uint16_t mods, uint64_t now_ms) {
+    if (!target.key) return;
+    if (target.mods) {
+        static const SDL_Keymod bits[] = {SDL_KMOD_LSHIFT, SDL_KMOD_LCTRL, SDL_KMOD_LALT};
+        for (size_t i = 0; i < SDL_arraysize(bits); ++i) {
+            if (!(target.mods & bits[i])) continue;
+            if (down) {
+                ++input->chord_sources[i];
+                input->chord_mods |= bits[i];
+            } else if (!--input->chord_sources[i]) input->chord_mods &= (SDL_Keymod)~bits[i];
+        }
+    }
+    uint16_t *held = &input->sources_down[target.key];
+    if (down) {
+        if (++*held != 1) return;
+    } else if (--*held != 0) return;
+    key_transition(input, target.key, down, mods, now_ms);
+}
+
+static void keyboard_transition(fd2_input *input, SDL_Scancode source, bool down,
+                                uint16_t mods, uint64_t now_ms) {
+    if (source <= SDL_SCANCODE_UNKNOWN || source >= SDL_SCANCODE_COUNT ||
+        input->physical_down[source] == down) return;
+    input->physical_down[source] = down;
+    binding_transition(input, fd2_keyboard_binding(source), down, mods, now_ms);
+}
+
 static void sample_key_state(fd2_input *input,const bool *state,uint64_t now_ms) {
     update_repeat(input,now_ms);
+    /* 两帧间同一虚拟键换物理源时，先接住仍按下的键，避免产生伪 UP/DOWN。 */
+    for (int i = 1; i < SDL_SCANCODE_COUNT; ++i) {
+        if (state[i] && !input->physical_down[i] &&
+            input->sources_down[fd2_keyboard_binding((SDL_Scancode)i).key])
+            keyboard_transition(input, (SDL_Scancode)i, true, physical_modifier_bits(input), now_ms);
+    }
     /* 无事件先后的物理快照只作fallback；modifier先建立，再按scan稳定处理。
      * 真DOWN/UP始终在poll中按到达序处理，不能用这次快照回写已接受修饰位。 */
     for(int pass=0;pass<2;pass++)for(int i=1;i<SDL_SCANCODE_COUNT;i++) {
         SDL_Scancode source=(SDL_Scancode)i;
         if((is_state_only_scancode(source)!=0)!=(pass==0))continue;
-        key_transition(input,source,state[i],
+        keyboard_transition(input,source,state[i],
             (uint16_t)(physical_modifier_bits(input)|input->lock_modifiers),now_ms);
     }
 }
@@ -404,7 +444,7 @@ void fd2_input_poll_host_events(fd2_input *input) {
                  event.key.scancode == SDL_SCANCODE_PAUSE)) {
                 request_host_quit();
                 if (input) input->quit_requested = 1;
-                if(input && !event.key.repeat)key_transition(input,event.key.scancode,1,
+                if(input && !event.key.repeat)keyboard_transition(input,event.key.scancode,1,
                     (uint16_t)event.key.mod,now);
             } else if (event.key.scancode == SDL_SCANCODE_PAUSE) {
                 request_host_quit();
@@ -412,12 +452,12 @@ void fd2_input_poll_host_events(fd2_input *input) {
             } else if(input && !event.key.repeat) {
                 /* 先按SDL事件到达序接受首按；Windows全局Shift修正不改变
                  * 已接受event的修饰位。UP也不能删除这条BIOS式待取记录。 */
-                key_transition(input,event.key.scancode,1,(uint16_t)(event.key.mod &
+                keyboard_transition(input,event.key.scancode,1,(uint16_t)(event.key.mod &
                     (SDL_KMOD_SHIFT|SDL_KMOD_CTRL|SDL_KMOD_ALT)),now);
             }
         } else if(event.type==SDL_EVENT_KEY_UP && input &&
                 event.key.scancode>SDL_SCANCODE_UNKNOWN && event.key.scancode<SDL_SCANCODE_COUNT) {
-            key_transition(input,event.key.scancode,0,(uint16_t)event.key.mod,now);
+            keyboard_transition(input,event.key.scancode,0,(uint16_t)event.key.mod,now);
         }
     }
     /* 当前Windows单窗SDL先ResetKeyboard再发LOST；其它/显式注入路径的

@@ -52,7 +52,10 @@ typedef struct {
 
 typedef struct {
     /* 物理生命周期用于首按去重与唯一repeat源；普通待取键只有下方ring。 */
-    bool previous_down[SDL_SCANCODE_COUNT];
+    bool physical_down[SDL_SCANCODE_COUNT];
+    uint16_t sources_down[SDL_SCANCODE_COUNT], chord_sources[3];
+    SDL_Keymod chord_mods;
+    bool previous_down[SDL_SCANCODE_COUNT]; /* 虚拟键生命周期，供 BIOS 及唯一重复源使用。 */
     uint64_t next_repeat_ms[SDL_SCANCODE_COUNT]; /* 仅repeat_key项非0；保既有观察接口。 */
     SDL_Scancode repeat_key; /* 原硬件只有一个last-key；release不恢复旧held。 */
     uint64_t repeat_sample_ms;

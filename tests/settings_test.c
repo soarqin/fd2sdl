@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "bindings.h"
 #include "host_files.h"
 #include <assert.h>
 #include <string.h>
@@ -13,7 +14,7 @@ int main(void) {
     char *explicit_args[] = {"fd2sdl", "--field-play", "2", "--config", "chosen.cfg", NULL};
     const char config[] = "# header\n[VIDEO]\nWindow_Scale=900\nfilter=bad\nOther = Keep\r\n"
         "[paths]\ngame_dir = resources\nsave_path = 用户.SAV\n[extra]\nUntouched= value \n"
-        "[pacing]\ntext_speed=fast\n";
+        "[pacing]\ntext_speed=fast\n[keyboard]\nEnter = Space, J\nShift+F1 = K\nFutureKey = Q\n";
     assert(SDL_SaveFile("chosen.cfg", config, sizeof(config)-1));
     fd2_config_file file = load(5, explicit_args);
     assert(file.found && !strcmp(file.path, "chosen.cfg") && explicit_args[3] == NULL);
@@ -33,6 +34,10 @@ int main(void) {
     assert(SDL_setenv_unsafe("FD2SDL_CONFIG", "chosen.cfg", 1) == 0);
     file = load(1, args);
     assert(file.found && s->text_speed == 1 && !strcmp(s->save_path, "用户.SAV"));
+    assert(fd2_keyboard_binding(SDL_SCANCODE_J).key == SDL_SCANCODE_RETURN);
+    assert(fd2_keyboard_binding(SDL_SCANCODE_SPACE).key == SDL_SCANCODE_RETURN);
+    assert(fd2_keyboard_binding(SDL_SCANCODE_K).mods == SDL_KMOD_LSHIFT);
+    assert(strstr(file.source, "FutureKey = Q"));
     fd2_settings_defaults();
     assert(fd2_settings_original() && s->window_scale == 3);
     fd2_config_close(&file);

@@ -1,6 +1,7 @@
 /* 宿主设置。等级、默认值、范围和界面共用同一张表；存档选项仍归游戏。 */
 #include "settings.h"
 #include "host_files.h"
+#include "bindings.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,6 +90,7 @@ const char *fd2_setting_text(const fd2_setting *item, char number[32]) {
 
 void fd2_settings_defaults(void) {
     for (size_t i = 0; i < SDL_arraysize(items); ++i) assign(&items[i], items[i].initial);
+    fd2_keyboard_defaults();
     initialized = true;
 }
 const fd2_settings *fd2_get_settings(void) {
@@ -156,6 +158,7 @@ static bool process_text(const char *source, SDL_IOStream *out) {
         if (out && SDL_WriteIO(out, line, 3) != 3) return false;
         line += 3;
     }
+    bool wrote_keyboard = false;
     while (*line) {
         size_t len = strcspn(line, "\n");
         size_t bytes = len + (line[len] == '\n');
@@ -164,16 +167,23 @@ static bool process_text(const char *source, SDL_IOStream *out) {
         char *key = trim(copy);
         char *equal = strchr(key, '=');
         const fd2_setting *item = NULL;
+        bool binding_line = false, keyboard_header = false;
         if (*key == '[') {
             size_t n = strlen(key);
             section[0] = 0;
             if (n > 2 && key[n-1] == ']') {
                 key[n-1] = 0;
                 SDL_strlcpy(section, trim(key + 1), sizeof(section));
+                keyboard_header = !SDL_strcasecmp(section, "keyboard");
             }
         } else if (*key && *key != '#' && equal) {
             *equal = 0;
             key = trim(key);
+            if (!SDL_strcasecmp(section, "keyboard")) {
+                fd2_binding target = fd2_binding_parse(key);
+                binding_line = target.key != SDL_SCANCODE_UNKNOWN;
+                if (binding_line && !out) fd2_keyboard_read(target, trim(equal + 1));
+            }
             for (size_t i = 0; i < SDL_arraysize(items); ++i) {
                 if (!SDL_strcasecmp(items[i].section, section) && !SDL_strcasecmp(items[i].key, key)) {
                     item = &items[i];
@@ -184,11 +194,18 @@ static bool process_text(const char *source, SDL_IOStream *out) {
             }
         }
         SDL_free(copy);
-        if (out && !(item ? write_item(out, item) : SDL_WriteIO(out, line, bytes) == bytes))
+        if (out && !binding_line && !(item ? write_item(out, item) : SDL_WriteIO(out, line, bytes) == bytes))
             return false;
+        if (out && keyboard_header && !wrote_keyboard) {
+            if (line[bytes-1] != '\n' && !SDL_WriteU8(out, '\n')) return false;
+            if (!fd2_keyboard_write(out)) return false;
+            wrote_keyboard = true;
+        }
         line += bytes;
     }
     if (out) {
+        if (!wrote_keyboard && (!SDL_IOprintf(out, "\n[keyboard]\n") || !fd2_keyboard_write(out)))
+            return false;
         const char *group = NULL;
         for (size_t i = 0; i < SDL_arraysize(items); ++i) {
             if (seen[i]) continue;

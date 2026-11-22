@@ -37,6 +37,7 @@ static const fd2_setting items[] = {
 #undef STR
 
 const fd2_setting *fd2_settings_table(size_t *count) {
+    fd2_get_settings();
     *count = SDL_arraysize(items);
     return items;
 }
@@ -99,6 +100,7 @@ const fd2_settings *fd2_get_settings(void) {
     return &current;
 }
 bool fd2_settings_original(void) {
+    fd2_get_settings();
     char number[32];
     for (size_t i = 0; i < SDL_arraysize(items); ++i)
         if (items[i].grade != 'H' && strcmp(fd2_setting_text(&items[i], number), items[i].initial))
@@ -166,51 +168,54 @@ static bool process_text(const char *source, SDL_IOStream *out) {
         char *copy = SDL_strndup(line, len);
         if (!copy) return false;
         char *key = trim(copy);
-        char *equal = strchr(key, '=');
-        const fd2_setting *item = NULL;
-        bool binding_line = false, keyboard_header = false, pad_header = false;
-        if (*key == '[') {
+        bool header = *key == '[', known = false;
+        if (header) {
             size_t n = strlen(key);
             section[0] = 0;
             if (n > 2 && key[n-1] == ']') {
                 key[n-1] = 0;
                 SDL_strlcpy(section, trim(key + 1), sizeof(section));
-                pad_header = !SDL_strcasecmp(section, "gamepad");
-                keyboard_header = !SDL_strcasecmp(section, "keyboard");
             }
-        } else if (*key && *key != '#' && equal) {
-            *equal = 0;
-            key = trim(key);
-            if (!SDL_strcasecmp(section, "keyboard")) {
-                fd2_binding target = fd2_binding_parse(key);
-                binding_line = target.key != SDL_SCANCODE_UNKNOWN;
-                if (binding_line && !out) fd2_keyboard_read(target, trim(equal + 1));
-            } else if (!SDL_strcasecmp(section, "gamepad")) {
-                int source_index = fd2_pad_source(key);
-                binding_line = source_index >= 0;
-                if (binding_line && !out) fd2_pad_read(source_index, trim(equal + 1));
-            }
-            for (size_t i = 0; i < SDL_arraysize(items); ++i) {
-                if (!SDL_strcasecmp(items[i].section, section) && !SDL_strcasecmp(items[i].key, key)) {
-                    item = &items[i];
-                    seen[i] = true;
-                    if (!out) fd2_setting_set(item, trim(equal + 1));
-                    break;
+        } else if (*key && *key != '#') {
+            char *equal = strchr(key, '=');
+            if (equal) {
+                *equal = 0;
+                key = trim(key);
+                char *value = trim(equal + 1);
+                if (!SDL_strcasecmp(section, "keyboard")) {
+                    fd2_binding target = fd2_binding_parse(key);
+                    known = target.key != SDL_SCANCODE_UNKNOWN;
+                    if (known && !out) fd2_keyboard_read(target, value);
+                } else if (!SDL_strcasecmp(section, "gamepad")) {
+                    int index = fd2_pad_source(key);
+                    known = index >= 0;
+                    if (known && !out) fd2_pad_read(index, value);
+                } else for (size_t i = 0; i < SDL_arraysize(items); ++i) {
+                    if (!SDL_strcasecmp(items[i].section, section) && !SDL_strcasecmp(items[i].key, key)) {
+                        known = true;
+                        if (!out) fd2_setting_set(&items[i], value);
+                        break;
+                    }
                 }
             }
         }
         SDL_free(copy);
-        if (out && !binding_line && !(item ? write_item(out, item) : SDL_WriteIO(out, line, bytes) == bytes))
-            return false;
-        if (out && keyboard_header && !wrote_keyboard) {
+        if (out && !known && SDL_WriteIO(out, line, bytes) != bytes) return false;
+        if (out && header && *section) {
+            /* 每个已知节原地写全，用户的部分配置也不会产生重复节头。 */
             if (line[bytes-1] != '\n' && !SDL_WriteU8(out, '\n')) return false;
-            if (!fd2_keyboard_write(out)) return false;
-            wrote_keyboard = true;
-        }
-        if (out && pad_header && !wrote_pad) {
-            if (line[bytes-1] != '\n' && !SDL_WriteU8(out, '\n')) return false;
-            if (!fd2_pad_write(out)) return false;
-            wrote_pad = true;
+            if (!wrote_keyboard && !SDL_strcasecmp(section, "keyboard")) {
+                if (!fd2_keyboard_write(out)) return false;
+                wrote_keyboard = true;
+            } else if (!wrote_pad && !SDL_strcasecmp(section, "gamepad")) {
+                if (!fd2_pad_write(out)) return false;
+                wrote_pad = true;
+            } else for (size_t i = 0; i < SDL_arraysize(items); ++i) {
+                if (!seen[i] && !SDL_strcasecmp(items[i].section, section)) {
+                    if (!write_item(out, &items[i])) return false;
+                    seen[i] = true;
+                }
+            }
         }
         line += bytes;
     }

@@ -67,6 +67,17 @@ static bool same(fd2_binding a, fd2_binding b) {
     return a.key == b.key && a.mods == b.mods;
 }
 
+/* SDL 有同名 Return，也有含列表分隔符的 Keypad ,；数字写法可无损往返。 */
+static SDL_Scancode physical_key(const char *name) {
+    if (!SDL_strcasecmp(name, "Comma")) return SDL_SCANCODE_COMMA;
+    if (!SDL_strncasecmp(name, "Scancode:", 9)) {
+        char *end;
+        long code = SDL_strtol(name + 9, &end, 10);
+        return !*end && code > 0 && code < SDL_SCANCODE_COUNT ? (SDL_Scancode)code : SDL_SCANCODE_UNKNOWN;
+    }
+    return SDL_GetScancodeFromName(name);
+}
+
 void fd2_keyboard_read(fd2_binding target, char *sources) {
     bool selected[SDL_SCANCODE_COUNT] = {false};
     char *at = sources;
@@ -77,8 +88,7 @@ void fd2_keyboard_read(fd2_binding target, char *sources) {
         at += strspn(at, " \t");
         size_t n = strlen(at);
         while (n && (at[n-1] == ' ' || at[n-1] == '\t')) at[--n] = 0;
-        SDL_Scancode key = !SDL_strcasecmp(at, "Comma") ? SDL_SCANCODE_COMMA :
-                           SDL_GetScancodeFromName(at);
+        SDL_Scancode key = physical_key(at);
         if (!bindable(key)) {
             SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "Invalid keyboard source '%s'; using passthrough", at);
             valid = false;
@@ -100,6 +110,11 @@ bool fd2_keyboard_list(fd2_binding target, char *buffer, size_t size) {
     for (int i = 1; i < SDL_SCANCODE_COUNT; ++i) {
         if (!same(fd2_keyboard_binding((SDL_Scancode)i), target)) continue;
         const char *name = i == SDL_SCANCODE_COMMA ? "Comma" : SDL_GetScancodeName((SDL_Scancode)i);
+        char numeric[24];
+        if (strchr(name, ',') || physical_key(name) != (SDL_Scancode)i) {
+            SDL_snprintf(numeric, sizeof(numeric), "Scancode:%d", i);
+            name = numeric;
+        }
         int written = SDL_snprintf(buffer + used, size - used, "%s%s", used ? ", " : "", name);
         if (written < 0 || (size_t)written >= size - used) return false;
         used += (size_t)written;

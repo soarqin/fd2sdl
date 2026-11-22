@@ -17,6 +17,10 @@
 #include <errno.h>
 
 #include <SDL3/SDL.h>
+#if defined(_WIN32) && !defined(main)
+/* 正式入口由 SDL 从 Windows 宽字符命令行生成 UTF-8 argv。 */
+#include <SDL3/SDL_main.h>
+#endif
 
 #include "archive.h"
 #include "version.h"
@@ -966,15 +970,16 @@ static int play_app_prologue(fd2_vga *vga,const fd2_archive *fdother,
 }
 
 int main(int argc, char **argv) {
-    if (argc > 1 && !strcmp(argv[1], "--version")) {
-        puts("fd2sdl " FD2_VERSION);
-        return 0;
-    }
     fd2_config_file config;
     if (!fd2_config_open(&config, &argc, argv)) {
         fprintf(stderr, "%s\n", SDL_GetError());
         fd2_config_close(&config);
         return 1;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--version")) {
+        puts("fd2sdl " FD2_VERSION);
+        fd2_config_close(&config);
+        return 0;
     }
     fd2_input_install_interrupt_handlers();
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");

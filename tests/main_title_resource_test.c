@@ -379,9 +379,9 @@ static int title_test_wait_ticks(uint32_t ticks) {
 #define fd2_vga_present title_test_present
 #define fd2_vga_upload_current_frame title_test_upload
 #define fd2_delay_ms title_test_delay
-#define fd2_vga_delay_ms(vga,value) title_test_delay(value)
+#define fd2_vga_delay_ms(vga,value) ((void)(vga), title_test_delay(value))
 #define fd2_wait_ticks title_test_wait_ticks
-#define fd2_vga_wait_ticks(vga,value) title_test_wait_ticks(value)
+#define fd2_vga_wait_ticks(vga,value) ((void)(vga), title_test_wait_ticks(value))
 #define fd2_input_take_quit title_test_quit
 #define fd2_input_take_action title_test_action
 #define fd2_input_has_any_key title_test_observe

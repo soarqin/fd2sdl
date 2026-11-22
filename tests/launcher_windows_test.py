@@ -20,7 +20,7 @@ def run(game, driver, artifacts):
         raise ValueError("artifact path inside original resources")
     artifacts.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="launcher-", dir=artifacts))
-    config = work / "fd2sdl.cfg"
+    config = work / "启动设置.cfg"
     env = dict(os.environ, SDL_AUDIODRIVER="dummy", FD2SDL_SAVE_PATH=str(work / "FD2.SAV"))
     report = {"processes": [], "checkpoints": [], "exe_sha256": hashlib.sha256(game.read_bytes()).hexdigest()}
     font = {}
@@ -122,6 +122,15 @@ def run(game, driver, artifacts):
             assert len(image.getcolors(640*400)) >= 32
             controls.key("A")
             assert p.wait(timeout=5) == 0
+        always = work / "always.cfg"
+        always.write_text("[launcher]\nshow_on_start=on\n", encoding="utf-8")
+        with launch("show-on-start", [], always) as p:
+            glyphs(frame(p, "show-on-start"), 206, 93, "路径")
+            Capture(driver, p, work).key("ESC")
+            assert p.wait(timeout=5) == 0
+        with launch("no-config", [], None) as p:
+            frame(p, "default-game", (960, 600))
+        assert "config=none parity=original" in (work / "no-config.log").read_text(encoding="utf-8")
         report["passed"] = True
     finally:
         (work / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

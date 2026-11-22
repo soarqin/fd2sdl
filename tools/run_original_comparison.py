@@ -169,8 +169,9 @@ def quiet_game_command(command: list[str], env: dict, settings: Path | None = No
     """仅本轮游戏测试静音输出，保留仿真／混音；不改用户设置。"""
     command, env = list(command), dict(env)
     program = Path(command[0]).name.casefold()
-    native = program in ("dosbox-x", "dosbox-x.exe")
-    sdl = program in ("fd2sdl", "fd2sdl.exe")
+    # 所有调用者启动 DOSBox 的 -conf 或受测 SDL 候选；候选可以重命名。
+    native = program in ("dosbox-x", "dosbox-x.exe") or "-conf" in command[1:]
+    sdl = not native
     identity = None
     if sdl:
         if settings is None:

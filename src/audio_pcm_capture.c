@@ -6,6 +6,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 #include "audio_pcm_capture.h"
+#include "host_files.h"
+#include "settings.h"
 #include <SDL3/SDL.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -61,37 +63,6 @@ static char *joined(const char *dir,const char *name) {
 }
 static int exists(const char *p) {
     SDL_PathInfo info;return SDL_GetPathInfo(p,&info);
-}
-static char *resolved_directory(const char *path) {
-#ifdef _WIN32
-    wchar_t wide[32768],real[32768];
-    if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,wide,32768))return NULL;
-    HANDLE h=CreateFileW(wide,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
-        NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
-    if(h==INVALID_HANDLE_VALUE)return NULL;
-    DWORD n=GetFinalPathNameByHandleW(h,real,32768,FILE_NAME_NORMALIZED);CloseHandle(h);
-    if(!n||n>=32768)return NULL;
-    for(wchar_t *s=real;*s;) {
-        while(*s==L'/'||*s==L'\\')s++;
-        wchar_t *end=s;while(*end&&*end!=L'/'&&*end!=L'\\')end++;
-        if(end-s==13&&!_wcsnicmp(s,L"original_game",13))return NULL;
-        s=end;
-    }
-    int bytes=WideCharToMultiByte(CP_UTF8,0,real,-1,NULL,0,NULL,NULL);
-    char *out=bytes>0?malloc((size_t)bytes):NULL;
-    if(out&&!WideCharToMultiByte(CP_UTF8,0,real,-1,out,bytes,NULL,NULL)){free(out);out=NULL;}
-    return out;
-#else
-    char *out=realpath(path,NULL);if(!out)return NULL;
-    for(char *s=out;*s;) {
-        while (*s == '/') s++;
-        char *end = s;
-        while (*end && *end != '/') end++;
-        if(end-s==13&&!strncmp(s,"original_game",13)){free(out);return NULL;}
-        s=end;
-    }
-    return out;
-#endif
 }
 static FILE *new_file(const char *path) {
 #ifdef _WIN32
@@ -231,7 +202,7 @@ done:;
 fd2_audio_pcm_capture *fd2_audio_pcm_capture_open(const char *directory,int rate,unsigned max_ms,int suppress_device_output) {
     if(!directory||rate!=48000||!max_ms||max_ms>120000||(suppress_device_output!=0&&suppress_device_output!=1)){SDL_SetError("app PCM requires48000Hz and1..120000ms");return NULL;}
     fd2_audio_pcm_capture *c=calloc(1,sizeof(*c));if(!c)return NULL;
-    c->directory=resolved_directory(directory);if(!c->directory)goto bad;
+    c->directory=fd2_capture_directory(directory,fd2_get_settings()->game_dir);if(!c->directory)goto bad;
     SDL_PathInfo directory_info;
     if(!SDL_GetPathInfo(c->directory,&directory_info)||directory_info.type!=SDL_PATHTYPE_DIRECTORY)goto bad;
     c->suppress_device_output=suppress_device_output;

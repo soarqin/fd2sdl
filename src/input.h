@@ -56,6 +56,7 @@ typedef struct {
     bool physical_down[SDL_SCANCODE_COUNT];
     uint16_t sources_down[SDL_SCANCODE_COUNT], chord_sources[3];
     SDL_Keymod chord_mods;
+    bool host_ctrl_c; /* 宿主中断占用物理 C，直至它松开。 */
     SDL_Gamepad *gamepad;
     SDL_JoystickID pad_id;
     bool pad_down[FD2_PAD_SOURCES], pad_unfocused;

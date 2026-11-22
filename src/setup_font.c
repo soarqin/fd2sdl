@@ -41,6 +41,10 @@ static int glyph_index(Uint32 code) {
     return low < (int)SDL_arraysize(glyphs) && glyphs[low].code == code ? low : '?' - 32;
 }
 
+int fd2_setup_glyph_width(Uint32 code) {
+    return glyphs[glyph_index(code)].width;
+}
+
 void fd2_setup_text(SDL_Renderer *renderer, SDL_Texture *atlas, int x, int y,
                     int width, int scale, SDL_Color color, const char *text) {
     SDL_SetTextureColorMod(atlas, color.r, color.g, color.b);

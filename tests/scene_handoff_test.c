@@ -508,9 +508,9 @@ static int scene_test_movement_tick(fd2_vga *vga) {
 #define fd2_vga_palette_subtract scene_test_palette_subtract
 #define fd2_vga_palette_add scene_test_palette_add
 #define fd2_delay_ms scene_test_delay
-#define fd2_vga_delay_ms(vga,value) scene_test_delay(value)
+#define fd2_vga_delay_ms(vga,value) ((void)(vga), scene_test_delay(value))
 #define fd2_wait_ticks scene_test_wait_ticks
-#define fd2_vga_wait_ticks(vga,value) scene_test_wait_ticks(value)
+#define fd2_vga_wait_ticks(vga,value) ((void)(vga), scene_test_wait_ticks(value))
 #define fd2_vga_wait_movement_tick scene_test_movement_tick
 #define fd2_input_clear_keys scene_test_clear_keys
 #define fd2_input_take_key scene_test_take_key

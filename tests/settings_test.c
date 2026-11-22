@@ -11,6 +11,7 @@ static fd2_config_file load(int argc, char **argv) {
 }
 
 int main(void) {
+    assert(fd2_settings_original());
     char *explicit_args[] = {"fd2sdl", "--field-play", "2", "--config", "chosen.cfg", NULL};
     const char config[] = "# header\n[VIDEO]\nWindow_Scale=900\nfilter=bad\nOther = Keep\r\n"
         "[paths]\ngame_dir = resources\nsave_path = 用户.SAV\n[extra]\nUntouched= value \n"
@@ -24,17 +25,23 @@ int main(void) {
     assert(!fd2_settings_original());
     assert(SDL_setenv_unsafe("FD2SDL_SAVE_PATH", "override.sav", 1) == 0);
     assert(!strcmp(fd2_save_path(), "override.sav") && !strcmp(s->save_path, "用户.SAV"));
+    fd2_binding enter = fd2_binding_parse("Enter");
+    assert(fd2_keyboard_bind(SDL_SCANCODE_RETURN2, enter));
+    assert(fd2_keyboard_bind(SDL_SCANCODE_KP_COMMA, enter));
     assert(fd2_config_write(&file));
     fd2_config_close(&file);
     char *written = SDL_LoadFile("chosen.cfg", NULL);
     assert(written && strstr(written, "Other = Keep\r\n") &&
            strstr(written, "[extra]\nUntouched= value \n"));
+    assert(!strstr(written, "[video]") && strstr(written, "[VIDEO]"));
     SDL_free(written);
     char *args[] = {"fd2sdl", NULL};
     assert(SDL_setenv_unsafe("FD2SDL_CONFIG", "chosen.cfg", 1) == 0);
     file = load(1, args);
     assert(file.found && s->text_speed == 1 && !strcmp(s->save_path, "用户.SAV"));
     assert(fd2_keyboard_binding(SDL_SCANCODE_J).key == SDL_SCANCODE_RETURN);
+    assert(fd2_keyboard_binding(SDL_SCANCODE_KP_COMMA).key == enter.key);
+    assert(fd2_keyboard_binding(SDL_SCANCODE_RETURN2).key == enter.key);
     assert(fd2_keyboard_binding(SDL_SCANCODE_SPACE).key == SDL_SCANCODE_RETURN);
     assert(fd2_keyboard_binding(SDL_SCANCODE_K).mods == SDL_KMOD_LSHIFT);
     assert(strstr(file.source, "FutureKey = Q"));
@@ -62,6 +69,17 @@ int main(void) {
     assert(kept && !strcmp(kept, "original"));
     SDL_free(kept);
     assert(!SDL_GetPathInfo("resources/new", NULL));
+    assert(!fd2_capture_directory("alias", "resources"));
+#ifdef _WIN32
+    assert(fd2_replace_file("C:relative.cfg", "bad", 3, "resources") < 0);
+    assert(fd2_replace_file("chosen.cfg:alternate", "bad", 3, "resources") < 0);
+#endif
+    const char broken[] = "[video]\nwindow_scale=1\0end";
+    assert(SDL_SaveFile("broken.cfg", broken, sizeof(broken)));
+    char *broken_args[] = {"app", "--config", "broken.cfg", NULL};
+    file = load(3, broken_args);
+    assert(file.unreadable && fd2_get_settings()->window_scale == 3 && !fd2_config_write(&file));
+    fd2_config_close(&file);
     assert(fd2_replace_file("用户.cfg", "first", 5, "resources") == 0);
     assert(fd2_replace_file("用户.cfg", "second", 6, "resources") == 0);
     FILE *unicode = fd2_open_read("用户.cfg");

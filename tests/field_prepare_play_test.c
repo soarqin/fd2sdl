@@ -107,11 +107,11 @@ int prepare_live_transition_lut_circle(fd2_vga *,const uint8_t [256],int,int,int
 #define fd2_vga_present prepare_test_present
 #define fd2_vga_upload_current_frame prepare_test_upload
 #define fd2_delay_ms prepare_test_delay
-#define fd2_vga_delay_ms(vga,value) prepare_test_delay(value)
+#define fd2_vga_delay_ms(vga,value) ((void)(vga), prepare_test_delay(value))
 #define fd2_vga_present_timed prepare_test_present_timed
 #define fd2_vga_wait_frame_deadline prepare_test_deadline
 #define fd2_wait_ticks prepare_test_wait_ticks
-#define fd2_vga_wait_ticks(vga,value) prepare_test_wait_ticks(value)
+#define fd2_vga_wait_ticks(vga,value) ((void)(vga), prepare_test_wait_ticks(value))
 #define calloc prepare_test_calloc
 #define fd2_pcm_play_replace prepare_test_pcm_replace
 #define fd2_bgm_set_music_enabled prepare_test_bgm_option

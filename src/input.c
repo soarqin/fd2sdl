@@ -6,7 +6,6 @@
  */
 #include "input.h"
 #include "settings.h"
-#include "bindings.h"
 
 #include <signal.h>
 #include <string.h>
@@ -238,6 +237,7 @@ static int is_state_only_scancode(SDL_Scancode scancode) {
 
 void fd2_input_init(fd2_input *input) {
     if (!input) return;
+    fd2_get_settings();
     memset(input, 0, sizeof(*input));
     if(SDL_WasInit(SDL_INIT_EVENTS))input->lock_modifiers=(uint16_t)(SDL_GetModState()&
         (SDL_KMOD_CAPS|SDL_KMOD_NUM|SDL_KMOD_SCROLL));
@@ -251,6 +251,7 @@ static void clear_key_lifecycle(fd2_input *input) {
     memset(input->sources_down, 0, sizeof(input->sources_down));
     memset(input->chord_sources, 0, sizeof(input->chord_sources));
     input->chord_mods = 0;
+    input->host_ctrl_c = false;
     memset(input->pad_down, 0, sizeof(input->pad_down));
     input->stick_x = input->stick_y = 0;
     input->stick_source = -1;
@@ -401,25 +402,39 @@ static void keyboard_transition(fd2_input *input, SDL_Scancode source, bool down
     if (source <= SDL_SCANCODE_UNKNOWN || source >= SDL_SCANCODE_COUNT ||
         input->physical_down[source] == down) return;
     input->physical_down[source] = down;
-    binding_transition(input, fd2_keyboard_binding(source), down, mods, now_ms);
+    fd2_binding target = fd2_keyboard_binding(source);
+    if (source == SDL_SCANCODE_C && target.key != source) {
+        if (down && (mods & SDL_KMOD_CTRL)) {
+            input->host_ctrl_c = true;
+            request_host_quit();
+            input->quit_requested = 1;
+        }
+        if (input->host_ctrl_c) {
+            if (!down) input->host_ctrl_c = false;
+            return;
+        }
+    }
+    binding_transition(input, target, down, mods, now_ms);
 }
 
 static void sample_key_state(fd2_input *input,const bool *state,uint64_t now_ms) {
     update_repeat(input,now_ms);
-    /* 两帧间同一虚拟键换物理源时，先接住仍按下的键，避免产生伪 UP/DOWN。 */
+    /* 快照缺少事件顺序：先建立修饰键，再接住同一虚拟键的新物理源，
+     * 最后按扫描码处理其余变化；避免源交接产生伪 UP/DOWN。 */
     for (int i = 1; i < SDL_SCANCODE_COUNT; ++i) {
-        if (state[i] && !input->physical_down[i] &&
-            input->sources_down[fd2_keyboard_binding((SDL_Scancode)i).key])
-            keyboard_transition(input, (SDL_Scancode)i, true, physical_modifier_bits(input), now_ms);
+        SDL_Scancode source = (SDL_Scancode)i;
+        if (input->physical_down[i] != state[i] && is_state_only_scancode(source))
+            keyboard_transition(input, source, state[i], physical_modifier_bits(input), now_ms);
     }
-    /* 无事件先后的物理快照只作fallback；modifier先建立，再按scan稳定处理。
-     * 真DOWN/UP始终在poll中按到达序处理，不能用这次快照回写已接受修饰位。 */
-    for(int pass=0;pass<2;pass++)for(int i=1;i<SDL_SCANCODE_COUNT;i++) {
-        SDL_Scancode source=(SDL_Scancode)i;
-        if((is_state_only_scancode(source)!=0)!=(pass==0))continue;
-        keyboard_transition(input,source,state[i],
-            (uint16_t)(physical_modifier_bits(input)|input->lock_modifiers),now_ms);
+    uint16_t mods = (uint16_t)(physical_modifier_bits(input) | input->lock_modifiers);
+    for (int i = 1; i < SDL_SCANCODE_COUNT; ++i) {
+        SDL_Scancode source = (SDL_Scancode)i;
+        if (state[i] && !input->physical_down[i] && input->sources_down[fd2_keyboard_binding(source).key])
+            keyboard_transition(input, source, true, mods, now_ms);
     }
+    for (int i = 1; i < SDL_SCANCODE_COUNT; ++i)
+        if (input->physical_down[i] != state[i])
+            keyboard_transition(input, (SDL_Scancode)i, state[i], mods, now_ms);
 }
 
 static void connect_gamepad(fd2_input *input, SDL_JoystickID removed) {

@@ -78,7 +78,7 @@ static bool within(const char *path, const char *root) {
 #endif
                  )) --n;
 #ifdef _WIN32
-    return SDL_strncasecmp(path, root, n) == 0 && (path[n] == '\\' || !path[n]);
+    return strlen(path) >= n && SDL_strncasecmp(path, root, n) == 0 && (path[n] == '\\' || !path[n]);
 #else
     return strncmp(path, root, n) == 0 && (path[n] == '/' || !path[n]);
 #endif
@@ -93,19 +93,60 @@ static char *parent_directory(const char *path) {
     return slash ? SDL_strndup(path, (size_t)(slash - path) + 1) : SDL_strdup(".");
 }
 
+static bool outside_game(const char *directory, const char *existing, const char *game_dir) {
+    const char *roots[] = {"original_game", game_dir};
+    for (size_t i = 0; i < SDL_arraysize(roots); ++i) {
+        bool missing;
+        char *root = resolved(roots[i], &missing);
+        bool ok = root ? !within(directory, root) && (!existing || !within(existing, root)) : missing;
+        free(root);
+        if (!ok) return false;
+    }
+    return true;
+}
+
+char *fd2_capture_directory(const char *path, const char *game_dir) {
+    bool missing;
+    char *dir = resolved(path, &missing);
+    if (!dir) return NULL;
+    /* 既有 PCM 证据协议还保护任一名为 original_game 的祖先目录。 */
+#ifdef _WIN32
+    const char *separators = "/\\";
+#else
+    const char *separators = "/";
+#endif
+    bool ok = outside_game(dir, NULL, game_dir);
+    for (const char *at = dir; ok && *at;) {
+        at += strspn(at, separators);
+        size_t n = strcspn(at, separators);
+#ifdef _WIN32
+        ok = n != 13 || SDL_strncasecmp(at, "original_game", n) != 0;
+#else
+        ok = n != 13 || strncmp(at, "original_game", n) != 0;
+#endif
+        at += n;
+    }
+    if (ok) return dir;
+    SDL_SetError("protected capture directory: %s", path);
+    free(dir);
+    return NULL;
+}
+
 static bool writable_destination(const char *path, const char *game_dir) {
+#ifdef _WIN32
+    /* C:name 的父目录取决于每盘当前目录。拒绝该写法及 NTFS 命名流。 */
+    const char *name = !strncmp(path, "\\\\?\\", 4) ? path + 4 : path;
+    const char *colon = strchr(name, ':');
+    if (colon && (colon != name + 1 || !SDL_isalpha((unsigned char)*name) ||
+        (colon[1] != '/' && colon[1] != '\\') || strchr(colon + 1, ':')))
+        return SDL_SetError("output path requires a regular file: %s", path);
+#endif
     char *parent = parent_directory(path);
     bool missing;
     char *directory = parent ? resolved(parent, &missing) : NULL;
     SDL_free(parent);
     char *existing = resolved(path, &missing);
-    bool ok = directory && (existing || missing);
-    const char *roots[] = { "original_game", game_dir };
-    for (size_t i = 0; ok && i < SDL_arraysize(roots); ++i) {
-        char *root = resolved(roots[i], &missing);
-        ok = root ? !within(directory, root) && (!existing || !within(existing, root)) : missing;
-        free(root);
-    }
+    bool ok = directory && (existing || missing) && outside_game(directory, existing, game_dir);
     free(directory);
     free(existing);
     if (!ok) SDL_SetError("protected or inaccessible output path: %s", path);
@@ -115,27 +156,14 @@ static bool writable_destination(const char *path, const char *game_dir) {
 #if !defined(_WIN32)
 static int sync_parent_directory(const char *path) {
     if (!path || path[0] == '\0') return -1;
-    const char *slash = strrchr(path, '/');
-    char *directory = NULL;
-    if (!slash) {
-        directory = strdup(".");
-    } else if (slash == path) {
-        directory = strdup("/");
-    } else {
-        size_t length = (size_t)(slash - path);
-        directory = malloc(length + 1u);
-        if (directory) {
-            memcpy(directory, path, length);
-            directory[length] = '\0';
-        }
-    }
+    char *directory = parent_directory(path);
     if (!directory) return -1;
     int flags = O_RDONLY;
 #ifdef O_DIRECTORY
     flags |= O_DIRECTORY;
 #endif
     int fd = open(directory, flags);
-    free(directory);
+    SDL_free(directory);
     if (fd < 0) return -1;
     int sync_result = fsync(fd);
     int close_result = close(fd);

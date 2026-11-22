@@ -166,16 +166,18 @@ static void row_text(setup *ui, const row *r, char label[96], char *value, size_
     }
     }
 }
-static const char *edit_tail(const setup *ui) {
+static const char *edit_tail(const setup *ui, int *caret_x) {
     const char *end = ui->edit + ui->caret, *at = end;
     int width = 0;
     while (at > ui->edit) {
         const char *prev = at;
         Uint32 cp = SDL_StepBackUTF8(ui->edit, &prev);
-        width += cp < 128 ? 8 : 16;
-        if (width > 226) break;
+        int next = width + fd2_setup_glyph_width(cp);
+        if (next > 226) break;
+        width = next;
         at = prev;
     }
+    *caret_x = width;
     return at;
 }
 static void draw(setup *ui) {
@@ -215,7 +217,10 @@ static void draw(setup *ui) {
         row_text(ui, r, label, value, sizeof(value));
         text(ui, 214, y + 10, 238, focus ? gold : ink, label);
         if (focus && ui->editing) {
-            text(ui, 464, y + 10, 302, ui->selected_all ? gold : ink, edit_tail(ui));
+            int caret_x;
+            const char *value_start = edit_tail(ui, &caret_x);
+            text(ui, 464, y + 10, 302, ui->selected_all ? gold : ink, value_start);
+            fill(ui, 464 + caret_x, y + 9, 1, 18, gold);
         } else if (focus && ui->capture) {
             text(ui, 464, y + 10, 300, gold, tr(ui, "等待输入...", "Listening..."));
         } else {

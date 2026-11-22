@@ -11,10 +11,6 @@
  * 不是原版全文件初始化写集，不声称复现任意旧heap。
  */
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
-#define _POSIX_C_SOURCE 200809L
-#endif
-
 #include "save.h"
 #include "host_files.h"
 #include "settings.h"
@@ -23,14 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <fcntl.h>
-#include <unistd.h>
-#endif
 
 static uint32_t rd_u32_le(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |

@@ -627,6 +627,22 @@ static int test_ctrl_c_quit_never_becomes_physical_fallback_other(void) {
     CHECK(buffer_push_key(SDL_EVENT_KEY_DOWN,SDL_SCANCODE_C,SDL_KMOD_CTRL));
     fd2_input_poll_host_events(&input);fd2_input_begin_test_frame(&input,1000);
     CHECK(!fd2_input_has_any_key(&input) && fd2_input_take_quit(&input));
+    /* 重绑后的物理 Ctrl+C 也由宿主消费；普通 C 松开再按才执行绑定。 */
+    CHECK(fd2_keyboard_bind(SDL_SCANCODE_C, fd2_binding_parse("Enter")));
+    fd2_input_init(&input);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_LCTRL, 1);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_C, 1);
+    fd2_input_begin_test_frame(&input, 0);
+    CHECK(input.quit_requested && !fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_LCTRL, 0);
+    fd2_input_begin_test_frame(&input, 1000);
+    CHECK(!fd2_input_has_any_key(&input));
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_C, 0);
+    fd2_input_begin_test_frame(&input, 1010);
+    fd2_input_set_test_key_state(&input, SDL_SCANCODE_C, 1);
+    fd2_input_begin_test_frame(&input, 1020);
+    CHECK(fd2_input_take_key(&input, &event) && event.bios_code == 0x1c0d);
+    fd2_keyboard_defaults();
     SDL_Quit();return 0;
 }
 

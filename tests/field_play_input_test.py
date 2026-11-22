@@ -196,7 +196,7 @@ def run_case(args, name, mode, seed, expected):
     process = None
     with log.open("wb") as output:
         try:
-            process = subprocess.Popen([str(args.game), "--field-play", "0"],
+            process = subprocess.Popen([str(args.game), "--no-config", "--field-play", "0"],
                                        cwd=args.root, env=env, stdout=output,
                                        stderr=subprocess.STDOUT)
             wait_log(process, log, "field input ready: stage=0 turn=1 phase=2")

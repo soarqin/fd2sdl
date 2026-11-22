@@ -7,7 +7,8 @@ if(fd2_build_root STREQUAL fd2_source_root OR fd2_build_root STREQUAL fd2_source
     message(FATAL_ERROR "Choose a separate build directory with cmake -S . -B <build-dir>.")
 endif()
 
-project(fd2sdl LANGUAGES C CXX)
+project(fd2sdl VERSION 0.2.0 LANGUAGES C CXX)
+configure_file(src/version.h.in generated/version.h @ONLY)
 
 set(FD2_SRC "${PROJECT_SOURCE_DIR}/src")
 option(BUILD_TESTING "Build and register fd2sdl tests" OFF)

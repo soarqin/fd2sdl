@@ -1,0 +1,2 @@
+#pragma once
+#define FD2_VERSION "@PROJECT_VERSION@"

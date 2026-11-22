@@ -198,6 +198,9 @@ add_test(NAME tool_regressions COMMAND ${Python3_EXECUTABLE} -B -m unittest disc
     -s "${PROJECT_SOURCE_DIR}/tools/tests")
 set_tests_properties(tool_regressions PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" TIMEOUT 120)
 
+get_directory_property(fd2_tests TESTS)
+set_property(TEST ${fd2_tests} APPEND PROPERTY ENVIRONMENT "FD2SDL_CONFIG=none")
+
 # 测试中的 assert 包含实际调用，Release 不得空跑。
 get_directory_property(fd2_targets BUILDSYSTEM_TARGETS)
 foreach(target IN LISTS fd2_targets)

@@ -172,6 +172,8 @@ def quiet_game_command(command: list[str], env: dict):
     native = program in ("dosbox-x", "dosbox-x.exe")
     sdl = program in ("fd2sdl", "fd2sdl.exe")
     if sdl:
+        command.insert(1, "--no-config")
+        env["FD2SDL_CONFIG"] = "none"
         env.setdefault("FD2SDL_TEST_AUDIO_QUIET", "1")
         if env["FD2SDL_TEST_AUDIO_QUIET"] not in ("0", "1"):
             raise ValueError("FD2SDL_TEST_AUDIO_QUIET只接受0或1")
@@ -186,6 +188,7 @@ def quiet_game_command(command: list[str], env: dict):
     return command, env, {"native_quiet_requested": native,
         "native_quiet_backend": "DOSBox-X mixer nosound" if native else None,
         "application_quiet_requested": sdl and env.get("FD2SDL_TEST_AUDIO_QUIET") == "1",
+        "settings_identity": "none" if sdl else None,
         "ignored_native_quiet_overrides": ignored}
 
 

@@ -17,6 +17,7 @@
 #include <SDL3/SDL.h>
 
 #include "archive.h"
+#include "version.h"
 #include "app_flow.h"
 #include "bgm.h"
 #include "image.h"
@@ -964,6 +965,11 @@ static int play_app_prologue(fd2_vga *vga,const fd2_archive *fdother,
 }
 
 int main(int argc, char **argv) {
+    if (argc > 1 && !strcmp(argv[1], "--version")) {
+        puts("fd2sdl " FD2_VERSION);
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--no-config")) { --argc; ++argv; }
     int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
     int prologue_preview = (argc > 1 && strcmp(argv[1], "--prologue-preview") == 0);

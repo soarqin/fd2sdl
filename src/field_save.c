@@ -12,6 +12,7 @@
  * 其余meta和unit-area尾保持目标字节，roster归session。
  */
 
+#include "settings.h"
 #include "field_game.h"
 
 #include <stdlib.h>
@@ -542,11 +543,11 @@ static void manual_resources_close(manual_resources *resources) {
 }
 
 static int manual_resources_open(manual_resources *resources,const fd2_archive *fdother) {
-    if (fd2_archive_open(&resources->dato_archive,"original_game/DATO.DAT")!=0 ||
-        fd2_archive_open(&resources->fdtxt_archive,"original_game/FDTXT.DAT")!=0 ||
+    if (fd2_archive_open(&resources->dato_archive,fd2_asset_path(FD2_DATO))!=0 ||
+        fd2_archive_open(&resources->fdtxt_archive,fd2_asset_path(FD2_FDTXT))!=0 ||
         fd2_text_entry_open_entry(&resources->ui_text,&resources->fdtxt_archive,0)!=0 ||
         fd2_font_open_fdother(&resources->font,fdother,4)!=0 ||
-        fd2_map_sprite_bank_open(&resources->sprites,"original_game/FDICON.B24")!=0 ||
+        fd2_map_sprite_bank_open(&resources->sprites,fd2_asset_path(FD2_FDICON))!=0 ||
         fd2_field_info_assets_open(&resources->info_assets,fdother)!=0) return -1;
     const uint8_t *palette;size_t size;
     if (fd2_archive_get(fdother,0,&palette,&size)!=0 || size<768) return -1;
@@ -560,7 +561,7 @@ int fd2_field_game_validate_manual_state(const fd2_save_manual_state *state) {
     fd2_archive fdother = {0};
     manual_resources *resources = calloc(1, sizeof(*resources));
     if (!resources) return -1;
-    int result = fd2_archive_open(&fdother, "original_game/FDOTHER.DAT");
+    int result = fd2_archive_open(&fdother, fd2_asset_path(FD2_FDOTHER));
     if (result == 0)
         result = manual_resources_open(resources,&fdother);
     fd2_vga *checked = result == 0 && state->unit_count ? calloc(1, sizeof(*checked)) : NULL;

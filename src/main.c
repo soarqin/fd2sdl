@@ -9,6 +9,7 @@
  * docs/reverse-engineering/function-names.md
  */
 
+#include "settings.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -813,11 +814,11 @@ static int run_map_preview(fd2_vga *vga, int once, size_t stage) {
     fd2_field_map map = {0};
     int result = -1;
 
-    if (fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0) {
+    if (fd2_archive_open(&fdshap, fd2_asset_path(FD2_FDSHAP)) != 0) {
         fprintf(stderr, "cannot open FDSHAP.DAT\n");
         goto done;
     }
-    if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0) {
+    if (fd2_archive_open(&field, fd2_asset_path(FD2_FDFIELD)) != 0) {
         fprintf(stderr, "cannot open FDFIELD.DAT\n");
         goto done;
     }
@@ -909,7 +910,7 @@ static int check_startup_resources(unsigned mode, const char *directory,
     int failed = 0;
     for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
         if (!(files[i].modes & mode)) continue;
-        char path[1024];
+        char path[FD2_PATH_SIZE + 32];
         int written = snprintf(path, sizeof(path), "%s/%s", directory, files[i].name);
         int opened = -1, error = ENAMETOOLONG;
         if (written >= 0 && (size_t)written < sizeof(path)) {
@@ -969,7 +970,15 @@ int main(int argc, char **argv) {
         puts("fd2sdl " FD2_VERSION);
         return 0;
     }
-    if (argc > 1 && !strcmp(argv[1], "--no-config")) { --argc; ++argv; }
+    fd2_config_file config;
+    if (!fd2_config_open(&config, &argc, argv)) {
+        fprintf(stderr, "%s\n", SDL_GetError());
+        fd2_config_close(&config);
+        return 1;
+    }
+    fprintf(stderr, "fd2sdl %s config=%s parity=%s\n", FD2_VERSION,
+            config.path ? config.path : "none", fd2_settings_original() ? "original" : "modified");
+    fd2_config_close(&config);
     int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
     int prologue_preview = (argc > 1 && strcmp(argv[1], "--prologue-preview") == 0);
@@ -984,9 +993,7 @@ int main(int argc, char **argv) {
     int new_game_play_once =
         (argc > 1 && strcmp(argv[1], "--new-game-play-once") == 0);
     size_t preview_stage = (argc > 2) ? (size_t)strtoul(argv[2], NULL, 0) : 0;
-    const char *save_path = getenv("FD2SDL_SAVE_PATH");
-    if (!save_path || save_path[0] == '\0')
-        save_path = "FD2.SAV";
+    const char *save_path = fd2_save_path();
 
     unsigned startup_mode = map_preview || map_preview_once ? STARTUP_MAP
         : field_preview || field_preview_once || field_effect_play ||
@@ -994,7 +1001,7 @@ int main(int argc, char **argv) {
             ? STARTUP_FIELD
         : prologue_preview || prologue_preview_once ? STARTUP_PROLOGUE
         : STARTUP_TITLE;
-    if (check_startup_resources(startup_mode, "original_game", stderr) != 0)
+    if (check_startup_resources(startup_mode, fd2_get_settings()->game_dir, stderr) != 0)
         return 1;
 
     fd2_input_install_interrupt_handlers();
@@ -1030,7 +1037,7 @@ int main(int argc, char **argv) {
                                      SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
     /* 打开 FDOTHER.DAT（对应 &DAT_00001a4d 全局槽初始化） */
-    if (fd2_archive_open(&g_fdother, "original_game/FDOTHER.DAT") != 0) {
+    if (fd2_archive_open(&g_fdother, fd2_asset_path(FD2_FDOTHER)) != 0) {
         fprintf(stderr, "cannot open FDOTHER.DAT\n");
         SDL_DestroyRenderer(ren);
         SDL_DestroyWindow(win);
@@ -1085,8 +1092,8 @@ int main(int argc, char **argv) {
     if(title_owner_failed(&vga)){rc=-1;goto cleanup;}
     if (audio) {
         fd2_bgm_config bgm_config = {
-            .fdmus_path = "original_game/FDMUS.DAT",
-            .ail_bank_path = "original_game/SAMPLE.AD",
+            .fdmus_path = fd2_asset_path(FD2_FDMUS),
+            .ail_bank_path = fd2_asset_path(FD2_SAMPLE),
             .sample_rate = 48000,
         };
         bgm = fd2_bgm_create(audio, &bgm_config);
@@ -1178,7 +1185,7 @@ int main(int argc, char **argv) {
     } else {
 application_title:
         /* 打开 ANI.DAT（对应 FUN_0001db69 @0x20421） */
-        if (fd2_archive_open(&g_ani, "original_game/ANI.DAT") != 0) {
+        if (fd2_archive_open(&g_ani, fd2_asset_path(FD2_ANI)) != 0) {
             fprintf(stderr, "cannot open ANI.DAT\n");
             rc = -1;
             goto cleanup;

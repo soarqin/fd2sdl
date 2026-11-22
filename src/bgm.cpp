@@ -22,6 +22,7 @@
  * a7-sbpro2-parameter-correction-20261107-c1。实际 loaded-driver/OPL/WAV 待验。
  */
 
+#include "host_files.h"
 #include "bgm.h"
 #include "bios_clock.h"
 
@@ -302,7 +303,7 @@ static std::array<uint8_t,14> instrument_payload(const AilInstrument &i) {
 
 static bool load_ail_bank(const char *path,
                           std::array<AilInstrument, kMaxInstruments> &out) {
-    FILE *file = path ? std::fopen(path, "rb") : nullptr;
+    FILE *file = path ? fd2_open_read(path) : nullptr;
     if (!file) return false;
     std::fseek(file, 0, SEEK_END);
     long length = std::ftell(file);

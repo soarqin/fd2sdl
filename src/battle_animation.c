@@ -18,6 +18,7 @@
  * field_promotion_visual_execute @0x2fb2c（原登记 sub_2FB2C）。
  * field_promotion_idle_cycle @0x2fe14（原登记 sub_2FE14）。
  */
+#include "settings.h"
 #include "battle_animation.h"
 #include "bios_clock.h"
 #include "field_render_scope.h"
@@ -270,8 +271,8 @@ static int ensure_backgrounds(fd2_battle_animation *ctx) {
     if (ctx->backgrounds.data && ctx->terrain_images.data) return 0;
     fd2_archive_close(&ctx->backgrounds);fd2_archive_close(&ctx->terrain_images);
     fd2_archive bg={0},terrain={0};
-    if (fd2_archive_open(&bg,"original_game/BG.DAT")!=0 ||
-        fd2_archive_open(&terrain,"original_game/TAI.DAT")!=0) {
+    if (fd2_archive_open(&bg,fd2_asset_path(FD2_BG))!=0 ||
+        fd2_archive_open(&terrain,fd2_asset_path(FD2_TAI))!=0) {
         fd2_archive_close(&bg);fd2_archive_close(&terrain);return -1;
     }
     ctx->backgrounds=bg;ctx->terrain_images=terrain;return 0;

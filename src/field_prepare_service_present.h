@@ -17,6 +17,7 @@
 #ifndef FD2_FIELD_PREPARE_SERVICE_PRESENT_H
 #define FD2_FIELD_PREPARE_SERVICE_PRESENT_H
 
+#include "settings.h"
 #include "field_visual.h"
 
 static int prepare_service_host_quit(prepare_ui *ui) {
@@ -408,8 +409,8 @@ static int prepare_service_money_animate(prepare_ui *ui,int subtract) {
 static int prepare_service_promotion_prepare(prepare_ui *ui) {
     prepare_service *s=&ui->service;
     if (s->promotion_visual) return 0;
-    if (fd2_archive_open(&s->promotion_backgrounds,"original_game/BG.DAT")!=0 ||
-        fd2_archive_open(&s->promotion_figani,"original_game/FIGANI.DAT")!=0 ||
+    if (fd2_archive_open(&s->promotion_backgrounds,fd2_asset_path(FD2_BG))!=0 ||
+        fd2_archive_open(&s->promotion_figani,fd2_asset_path(FD2_FIGANI))!=0 ||
         fd2_prepare_promotion_open(&s->promotion_visual,ui->vga,&s->promotion_backgrounds,
             &s->promotion_figani,s->promotion.old_unit_id,s->promotion.target_unit_id)!=0) {
         fd2_archive_close(&s->promotion_figani);fd2_archive_close(&s->promotion_backgrounds);return -1;

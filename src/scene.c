@@ -12,6 +12,7 @@
  * 编排唯一来源为 data/static/flows/scene.json 与 stage.json；本文件只提供领域原语。
  */
 
+#include "settings.h"
 #include "scene.h"
 #include "bios_clock.h"
 
@@ -2539,17 +2540,17 @@ int fd2_scene_play_new_game_prologue_handoff_with_runtime(
     scene_host_quit_requested = 0;
     /* 不在标题→新游戏的宿主边界停止 music。原版 new_game_opening_play
      * 让 track 18 继续覆盖最初两段对白，并在自身 code0 0x223dd 才淡出。 */
-    if (fd2_archive_open(&field, "original_game/FDFIELD.DAT") != 0 ||
-        fd2_archive_open(&fdshap, "original_game/FDSHAP.DAT") != 0 ||
-        fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
-        fd2_archive_open(&dato, "original_game/DATO.DAT") != 0) {
+    if (fd2_archive_open(&field, fd2_asset_path(FD2_FDFIELD)) != 0 ||
+        fd2_archive_open(&fdshap, fd2_asset_path(FD2_FDSHAP)) != 0 ||
+        fd2_archive_open(&fdtxt, fd2_asset_path(FD2_FDTXT)) != 0 ||
+        fd2_archive_open(&dato, fd2_asset_path(FD2_DATO)) != 0) {
         fprintf(stderr, "cannot open opening archives\n");
         goto done;
     }
     if (fd2_text_entry_open_entry(&names,&fdtxt,0) != 0 ||
         fd2_font_open_fdother(&font, fdother, 4) != 0 ||
         ui_sheet_open_fdother(&ui, fdother, 5) != 0 ||
-        fd2_map_sprite_bank_open(&sprites, "original_game/FDICON.B24") != 0) {
+        fd2_map_sprite_bank_open(&sprites, fd2_asset_path(FD2_FDICON)) != 0) {
         fprintf(stderr, "cannot load opening font/UI/FDICON sprites\n");
         goto done;
     }
@@ -2737,7 +2738,7 @@ int fd2_scene_play_stage_entry(fd2_vga *vga, const fd2_archive *fdother,
     int result = FD2_SCENE_RESULT_ERROR;
     scene_host_quit_requested = 0;
     if (poll_scene_quit(vga)) goto done;
-    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+    if (fd2_archive_open(&fdtxt, fd2_asset_path(FD2_FDTXT)) != 0 ||
         fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
         ui_sheet_open_fdother(&ui, fdother, 5) != 0)
         goto done;
@@ -2866,7 +2867,7 @@ static int field_story_validate_units(const fd2_field_game *game,
     state.persistent = game->roster;
     state.persistent_count = game->roster_count;
     scene_state_borrow_game(&state,game);
-    if (fd2_archive_open(&archive, "original_game/FDTXT.DAT") != 0 ||
+    if (fd2_archive_open(&archive, fd2_asset_path(FD2_FDTXT)) != 0 ||
         fd2_text_entry_open_entry(&text, &archive, game->stage + 1u) != 0 ||
         fd2_text_entry_get_fragment(&text, fragment, &tokens, &count) != 0)
         goto done;
@@ -2935,7 +2936,7 @@ static int scene_play_stage_victory_with_owner(fd2_vga *vga, const fd2_archive *
     int result = FD2_SCENE_RESULT_ERROR;
     scene_host_quit_requested = 0;
     if (poll_scene_quit(vga)) goto done;
-    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+    if (fd2_archive_open(&fdtxt, fd2_asset_path(FD2_FDTXT)) != 0 ||
         fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
         ui_sheet_open_fdother(&ui, fdother, 5) != 0) goto done;
     state.units = game->units; state.persistent = game->roster;
@@ -2989,7 +2990,7 @@ int fd2_scene_play_field_story(fd2_vga *vga, const fd2_archive *fdother,
     int result = FD2_SCENE_RESULT_ERROR;
     scene_host_quit_requested = 0;
     if (poll_scene_quit(vga)) goto done;
-    if (fd2_archive_open(&fdtxt, "original_game/FDTXT.DAT") != 0 ||
+    if (fd2_archive_open(&fdtxt, fd2_asset_path(FD2_FDTXT)) != 0 ||
         fd2_text_entry_open_entry(&text, &fdtxt, game->stage + 1u) != 0 ||
         ui_sheet_open_fdother(&ui, fdother, 5) != 0 ||
         fragment >= text.fragment_count)

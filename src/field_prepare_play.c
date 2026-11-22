@@ -12,6 +12,7 @@
  * field_church_promote_execute @0x2aa00（原sub_2AA00）、field_deployment_select_execute
  * @0x2af28（原sub_2AF28）及persistent_roster_selection_reorder @0x2b777（原sub_2B777）。
  * 取消/排序/物品和资金的分段写点见common-preparation-semantics.md，不能套统一无写取消。 */
+#include "settings.h"
 #include "field_prepare_play.h"
 
 #include <stdio.h>
@@ -198,11 +199,11 @@ int fd2_field_prepare_assets_open(fd2_field_prepare_assets *a, const fd2_archive
         hotel_frame(&a->hotel, fdother, 0, 0) != 0 || hotel_frame(&a->slots, fdother, 16, 1) != 0 ||
         !image_size(&a->town, 320, 200) || !image_size(&a->town_panel, 62, 26) ||
         !image_size(&a->hotel, 320, 200) || !image_size(&a->slots, 310, 86) ||
-        fd2_archive_open(&a->text_archive, "original_game/FDTXT.DAT") != 0 ||
-        fd2_archive_open(&a->dato, "original_game/DATO.DAT") != 0 ||
+        fd2_archive_open(&a->text_archive, fd2_asset_path(FD2_FDTXT)) != 0 ||
+        fd2_archive_open(&a->dato, fd2_asset_path(FD2_DATO)) != 0 ||
         fd2_text_entry_open_entry(&a->text, &a->text_archive, 0) != 0 ||
         fd2_font_open_fdother(&a->font, fdother, 4) != 0 ||
-        fd2_map_sprite_bank_open(&a->sprites, "original_game/FDICON.B24") != 0 ||
+        fd2_map_sprite_bank_open(&a->sprites, fd2_asset_path(FD2_FDICON)) != 0 ||
         fd2_field_info_assets_open(&a->info, fdother) != 0 ||
         fd2_field_command_assets_open(&a->commands, fdother) != 0 ||
         fd2_scene_field_message_validate(fdother) != 0) goto fail;

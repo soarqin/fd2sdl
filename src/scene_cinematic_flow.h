@@ -2,6 +2,7 @@
  * 仅固定cinematic资源/绘制和六个已命名冷子图；不接受任意flowid或指针。 */
 #ifndef FD2_SCENE_CINEMATIC_FLOW_H
 #define FD2_SCENE_CINEMATIC_FLOW_H
+#include "settings.h"
 #include "animation.h"
 
 /* 20421给AFM的52766是单独malloc768临时区；完整36fd3/36ff4及十个
@@ -237,7 +238,7 @@ static int scene_cinematic_node(scene_flow_context *c,
     } else if(!strcmp(op,"cin_animation")) {
         if((a[0]!=0 && a[0]!=2) || a[1]<0 || (a[2]!=0 && a[2]!=1))return -1;
         fd2_archive archive={0};
-        if(fd2_archive_open(&archive,"original_game/ANI.DAT")!=0)return -1;
+        if(fd2_archive_open(&archive,fd2_asset_path(FD2_ANI))!=0)return -1;
         cinematic_ani_palette owner={0};owner.vga=c->vga;
         memcpy(owner.palette,c->vga->palette,768);memcpy(owner.dac,c->vga->dac,768);
         int status=fd2_animation_play_hooked(c->vga,&archive,a[0],

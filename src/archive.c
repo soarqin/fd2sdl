@@ -1,5 +1,6 @@
 /* .DAT 资源归档；嵌套加载依据 res_load @0x111ba（旧名 FUN_0000e902），
  * 已确认容器格式见 docs/formats/data-formats.md §1。 */
+#include "host_files.h"
 #include "archive.h"
 
 #include <errno.h>
@@ -17,7 +18,7 @@ int fd2_archive_open(fd2_archive *ar, const char *path) {
     memset(ar, 0, sizeof(*ar));
     if (!path) { errno = EINVAL; return -1; }
 
-    FILE *f = fopen(path, "rb");
+    FILE *f = fd2_open_read(path);
     if (!f) return -1;
     long sz;
     if (fseek(f, 0, SEEK_END) != 0 || (sz = ftell(f)) < 0 ||

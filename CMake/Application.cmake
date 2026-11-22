@@ -1,3 +1,9 @@
+# 包括直接编译单个游戏模块的测试在内，共享同一个运行时设置实例。
+add_library(fd2_settings STATIC src/settings.c src/host_files.c)
+target_link_libraries(fd2_settings PUBLIC ${FD2SDL_SDL3_TARGET})
+target_include_directories(fd2_settings PUBLIC ${FD2_SRC})
+link_libraries(fd2_settings)
+
 # 单一游戏时间与音频调度；不链接DOS硬件研究。
 add_library(fd2_clock STATIC src/bios_clock.c src/ail_timer.c)
 target_include_directories(fd2_clock PUBLIC ${FD2_SRC})

@@ -23,6 +23,7 @@
  * field_unit_can_equip_item @0x1c1c3（原sub_1C1C3）。
  */
 
+#include "settings.h"
 #include "field_game.h"
 #include "bios_clock.h"
 #include "battle_animation.h"
@@ -1069,15 +1070,15 @@ static int open_resources_for_flow(fd2_field_game *game,
     if (source_only ? stage >= 30u : !fd2_field_stage_is_supported(stage)) return -1;
 
     if (fd2_archive_open(&game->field_archive,
-                         "original_game/FDFIELD.DAT") != 0 ||
+                         fd2_asset_path(FD2_FDFIELD)) != 0 ||
         fd2_archive_open(&game->fdshap_archive,
-                         "original_game/FDSHAP.DAT") != 0 ||
+                         fd2_asset_path(FD2_FDSHAP)) != 0 ||
         fd2_archive_open(&game->dato_archive,
-                         "original_game/DATO.DAT") != 0 ||
+                         fd2_asset_path(FD2_DATO)) != 0 ||
         fd2_archive_open(&game->fdtxt_archive,
-                         "original_game/FDTXT.DAT") != 0 ||
+                         fd2_asset_path(FD2_FDTXT)) != 0 ||
         fd2_archive_open(&game->figani_archive,
-                         "original_game/FIGANI.DAT") != 0 ||
+                         fd2_asset_path(FD2_FIGANI)) != 0 ||
         fd2_text_entry_open_entry(&game->ui_text,
                                   &game->fdtxt_archive, 0) != 0 ||
         fd2_font_open_fdother(&game->font, fdother, 4) != 0 ||
@@ -1091,7 +1092,7 @@ static int open_resources_for_flow(fd2_field_game *game,
                                        &game->fdshap_archive,
                                        &game->field_archive, stage) != 0 ||
         fd2_map_sprite_bank_open(&game->sprites,
-                                 "original_game/FDICON.B24") != 0 ||
+                                 fd2_asset_path(FD2_FDICON)) != 0 ||
         fd2_field_visuals_open(&game->visuals, fdother) != 0 ||
         fd2_field_info_assets_open(&game->info_assets, fdother) != 0 ||
         fd2_field_command_assets_open(&game->command_assets, fdother) != 0)

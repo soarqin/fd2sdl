@@ -198,6 +198,10 @@ add_test(NAME tool_regressions COMMAND ${Python3_EXECUTABLE} -B -m unittest disc
     -s "${PROJECT_SOURCE_DIR}/tools/tests")
 set_tests_properties(tool_regressions PROPERTIES WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" TIMEOUT 120)
 
+add_executable(fd2_settings_test tests/settings_test.c)
+add_test(NAME settings COMMAND ${Python3_EXECUTABLE} -B
+    "${PROJECT_SOURCE_DIR}/tests/settings_test.py" $<TARGET_FILE:fd2_settings_test>)
+
 get_directory_property(fd2_tests TESTS)
 set_property(TEST ${fd2_tests} APPEND PROPERTY ENVIRONMENT "FD2SDL_CONFIG=none")
 

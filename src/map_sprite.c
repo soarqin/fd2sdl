@@ -4,6 +4,7 @@
  * map_actor_blit_24x24 @0x1da16 绘制 24×24 帧。
  */
 
+#include "host_files.h"
 #include "map_sprite.h"
 
 #include <stdio.h>
@@ -37,7 +38,7 @@ int fd2_map_sprite_bank_open(fd2_map_sprite_bank *bank, const char *path) {
     if (!bank) return -1;
     memset(bank, 0, sizeof(*bank));
     if (!path) return -1;
-    FILE *f = fopen(path, "rb");
+    FILE *f = fd2_open_read(path);
     if (!f) return -1;
     long sz;
     if (fseek(f, 0, SEEK_END) != 0 || (sz = ftell(f)) <= 8 ||

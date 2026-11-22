@@ -3,6 +3,7 @@
  * 依据S5完整Domain/CFG/strict LE读集；2eb9f/311e5、168b6、4ed7a
  * 分别复用FIGANI、同一详情边框和现字模实现。此文件不持PC、不等待/切曲/
  * 轮询输入，也不执行整段终章或复制Game/SAV/业务RNG owner。 */
+#include "settings.h"
 #include "scene_cinematic.h"
 #include "bios_clock.h"
 
@@ -447,7 +448,7 @@ int fd2_scene_cinematic_credits_assets_open(fd2_scene_cinematic *scope) {
     if(!scope || !scope->game || scope->credits_assets)return -1;
     /* 31c49先滚FDTXT31时文本已由roll打开；失败只回收本次新开的owner。 */
     int opened_text=!scope->credits_text.data;
-    if(fd2_archive_open(&scope->tai,"original_game/TAI.DAT")!=0 ||
+    if(fd2_archive_open(&scope->tai,fd2_asset_path(FD2_TAI))!=0 ||
         image_entry(&scope->credits_terrain,&scope->tai,3)!=0 ||
         (opened_text &&
             fd2_text_entry_open_entry(&scope->credits_text,&scope->game->fdtxt_archive,31)!=0))

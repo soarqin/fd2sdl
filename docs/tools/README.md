@@ -26,6 +26,17 @@ ctest --test-dir build/linux-test --output-on-failure --no-tests=error
 
 Linux 的独立窗口烟测需要 X11 和 XTest 开发库及 `xvfb-run`／`xauth`；无需游戏资源。Windows WGC 工具需要 MSVC、Windows SDK 和 C++/WinRT。用 `ctest --test-dir build/linux-test -N` 或 `ctest --test-dir build/windows-test -C Debug -N` 核对清单。需要将图形依赖缺失视为配置错误时，加 `-DFD2SDL_REQUIRE_GUI_TESTS=ON`。原生测试的范围和原版对照命令见[图形测试](gui-testing.md)。
 
+## 配置与引导回归
+
+CTest 为所有用例设置 `FD2SDL_CONFIG=none`。正常运行和手工测试可用 `--no-config` 隔离本机配置。原版对照工具在 SDL 候选的实际命令行加入该参数，在进程收据的 `settings_identity` 记录 `none`。专测启动设置时，收据记录所选文件的解析路径及启动前 SHA-256，首次创建的文件其摘要为 `null`。
+
+从已配置的 Windows 测试构建运行以下命令。`settings` 覆盖配置读写、优先级和指向原资源的目录别名。`input` 检查 BIOS 键值和映射共用的按住状态。`gamepad` 用两只 SDL 虚拟手柄验证热插拔、死区、长按和队列。`pacing` 检查默认及自定义等待和新游戏选项。`launcher_controls` 使用 SDL 虚拟设备检查操作与试听。`launcher_window` 使用原生单窗口截图和后台定向输入，检查六页文字、保存和放弃，以及从引导进入游戏。同一时间只运行一个原生图形用例。实体手柄的按键布局与手感须单独记录。
+
+```powershell
+ctest --test-dir build/windows-test -C Debug -N
+ctest --test-dir build/windows-test -C Debug -R '^(settings|input|gamepad|pacing|launcher_controls|launcher_window)$' --output-on-failure --no-tests=error
+```
+
 ## 定向命令
 
 | 任务 | 入口 |

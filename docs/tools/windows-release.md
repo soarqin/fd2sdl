@@ -2,7 +2,7 @@
 
 本流程只生成本地隔离包，不上传或发布。项目自有代码使用 MIT；SDL、Nuked OPL3、OPL AIL model 等保留各自许可与通知，不能用项目 LICENSE 覆盖第三方许可。准确清单由根目录 `THIRD_PARTY_NOTICES.md`（或无扩展名的同名文件）及源码中的许可文件提供。
 
-App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/static_data/generate.py` 和 `tools/static_data/table_schema.py` 是离线重建所需的源码，均记录在白名单与摘要中。运行程序无需 Python。R1 包的验收结果对应当时的源码版本。
+App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/static_data/generate.py` 和 `tools/static_data/table_schema.py` 是离线重建所需的源码，均记录在白名单与摘要中。引导字体的字形子集、OFL 许可和 `tools/static_data/setup_font.py` 也随包提供。运行程序无需 Python。R1 包的验收结果对应当时的源码版本。
 
 ## 包含与排除
 
@@ -22,7 +22,7 @@ App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/sta
 
 当前 runtime 白名单限实际 typed SDL：静态目标不带 DLL，动态目标只接受其实际 target_file 同名／同 SHA256 的一个 SDL DLL；其它非系统 DLL 即使被扫描到也先拒绝，须另行明确支持，不能顺手混入。包根通知只把相对 `src/third_party/` 链接改为 `source/src/third_party/`，`source/` 内的原通知保持逐字不变。
 
-用户将合法取得的数据放到包根 `original_game/`，再运行 `play.cmd`。生成的根说明列出实际路径使用的 12 个文件：ANI.DAT、BG.DAT、DATO.DAT、FDFIELD.DAT、FDICON.B24、FDMUS.DAT、FDOTHER.DAT、FDSHAP.DAT、FDTXT.DAT、FIGANI.DAT、SAMPLE.AD、TAI.DAT；各入口检查子集不同，不需要 FD2.EXE 或预置 SAV。SDL 直接使用 FDICON.B24，不需要 FD2.TMP；本轮不生成可供 DOS 原版读取的 TMP，也不声明这种互操作已通过。普通运行只需 Windows／VC++ 运行库前置，重建才另需编译器／Windows SDK。仓库 README 在源码材料中保留原文，本包必须按 `rebuild.ps1` 的 `BUILD_TESTING=OFF` 配置，不把未随包提供的测试源码当作完整仓库开发环境。
+运行 `play.cmd` 后，用户可以在首次启动的设置窗口选取已有的合法数据目录，也可以把数据放在包根 `original_game/`。`play.cmd --setup` 可重开设置。生成的根说明列出实际路径使用的 12 个文件：ANI.DAT、BG.DAT、DATO.DAT、FDFIELD.DAT、FDICON.B24、FDMUS.DAT、FDOTHER.DAT、FDSHAP.DAT、FDTXT.DAT、FIGANI.DAT、SAMPLE.AD、TAI.DAT；各入口检查子集不同，不需要 FD2.EXE 或预置 SAV。SDL 直接使用 FDICON.B24，不需要 FD2.TMP；本轮不生成可供 DOS 原版读取的 TMP，也不声明这种互操作已通过。普通运行只需 Windows／VC++ 运行库前置，重建才另需编译器／Windows SDK。仓库 README 在源码材料中保留原文，本包必须按 `rebuild.ps1` 的 `BUILD_TESTING=OFF` 配置，不把未随包提供的测试源码当作完整仓库开发环境。
 
 完整 App 源码和准确 SDL SDK 是静态 Nuked 的可替换重建材料，不是仅附 LGPL 文本或以后提供源码的承诺。最终接受这条路线前，必须从包的独立副本实际离线重建；打包成功本身不能记为重链接验证通过。项目许可证、通知与外部分发条件另经 R1 审核。
 

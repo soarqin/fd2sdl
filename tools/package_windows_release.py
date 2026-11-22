@@ -204,7 +204,9 @@ def _player_readme() -> bytes:
             "把合法取得的资源放到包根original_game目录，再双击play.cmd，或从PowerShell运行 "
             "`./play.cmd`。启动器临时切换到包根、运行bin/fd2sdl.exe、转交参数并保留退出码，"
             "之后恢复原工作目录；不修改系统策略或音频环境。\n\n"
-            "例如：`./play.cmd --new-game-play`。直接运行bin/fd2sdl.exe时也须以包根为工作目录。"
+            "首次启动会显示设置窗口，可在「路径」页选择已有资源目录。选择「启动游戏」后进入片头。"
+            "用 `./play.cmd --setup` 重开设置，`./play.cmd --no-config` 以默认配置直接运行。"
+            "也可用 `./play.cmd --new-game-play` 直接进入新游戏引导。直接运行 bin/fd2sdl.exe 时请以包根为工作目录。"
             "程序不会下载原版资源，不需要FD2.EXE或预置SAV。默认Save写包根FD2.SAV；验证旧档请用副本。\n\n"
             "当前完整受支持流程使用以下12个资源（各入口实际检查的子集不同）：\n\n" + resources +
             "\n\n本包不包含这些资源、SAV、截图、录音或dump。\n\n"

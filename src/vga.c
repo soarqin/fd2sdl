@@ -1,6 +1,7 @@
 /* VGA投影／调色及bios_tick_delay @0x17aa9（原FUN_000151f1）、
  * field_movement_tick_edge_wait @0x13460（原sub_13460）的共享等待边界。 */
 #include "vga.h"
+#include "settings.h"
 #include "bios_clock.h"
 #include <string.h>
 
@@ -20,7 +21,8 @@ int fd2_vga_init(fd2_vga *vga, SDL_Window *win, SDL_Renderer *ren) {
                                      SDL_TEXTUREACCESS_STREAMING,
                                      VGA_W, VGA_H);
     /* 整数缩放保留 VGA 像素边界，避免地图颜色混进黑边。 */
-    if (!vga->texture || !SDL_SetTextureScaleMode(vga->texture, SDL_SCALEMODE_NEAREST)) {
+    if (!vga->texture || !SDL_SetTextureScaleMode(vga->texture,
+            fd2_get_settings()->filter ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST)) {
         fd2_vga_close(vga);
         vga->output_error = FD2_VGA_OUTPUT_CREATE;
         return -1;

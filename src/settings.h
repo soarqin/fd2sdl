@@ -36,6 +36,7 @@ bool fd2_config_open(fd2_config_file *file, int *argc, char **argv);
 bool fd2_config_write(const fd2_config_file *file);
 void fd2_config_close(fd2_config_file *file);
 const char *fd2_save_path(void);
+SDL_AudioDeviceID fd2_output_device(const char *name);
 
 typedef enum {
     FD2_ANI, FD2_BG, FD2_DATO, FD2_FDFIELD, FD2_FDICON, FD2_FDMUS,

@@ -25,6 +25,13 @@ static SDL_AudioStream *mock_open(SDL_AudioDeviceID id,const SDL_AudioSpec *spec
 static bool mock_resume(SDL_AudioStream *s){(void)s;return true;}
 static bool mock_pause(SDL_AudioStream *s){(void)s;fake_paused++;return true;}
 static void mock_destroy(SDL_AudioStream *s){(void)s;fake_destroyed++;}
+static float stream_gain;
+static bool mock_gain(SDL_AudioStream *s, float gain) {
+    (void)s;
+    stream_gain = gain;
+    return true;
+}
+#define SDL_SetAudioStreamGain mock_gain
 #define SDL_OpenAudioDeviceStream mock_open
 #define SDL_ResumeAudioStreamDevice mock_resume
 #define SDL_PauseAudioStreamDevice mock_pause
@@ -36,6 +43,7 @@ static void mock_destroy(SDL_AudioStream *s){(void)s;fake_destroyed++;}
 #define FD2_CAPTURE_AUDIO_IMPL "../src/audio.c"
 #endif
 #include FD2_CAPTURE_AUDIO_IMPL
+#undef SDL_SetAudioStreamGain
 #undef SDL_PutAudioStreamData
 #undef SDL_GetAudioStreamQueued
 #undef SDL_GetTicksNS
@@ -155,6 +163,23 @@ static int quiet_without_observer(void){
  CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_TEST_AUDIO_QUIET"));return 0;
 }
 
+static int configured_output(void) {
+    size_t count;
+    const fd2_setting *table = fd2_settings_table(&count);
+    for (size_t i = 0; i < count; ++i) {
+        if (!strcmp(table[i].key, "volume")) CHECK(fd2_setting_set(&table[i], "25"));
+        if (!strcmp(table[i].key, "mute")) CHECK(fd2_setting_set(&table[i], "on"));
+    }
+    fd2_audio *audio = setup();
+    CHECK(audio && stream_gain == 0.25f && audio->test_quiet);
+    quiet_mode = 1; put_success = 1; bad = test_render_calls = test_put_calls = 0;
+    test_service(audio);
+    CHECK(!bad && test_put_calls == 1 && audio->mix_buffer[0] == 0.25f);
+    fd2_audio_destroy(audio);
+    fd2_settings_defaults();
+    return 0;
+}
+
 int main(int argc,char **argv){CHECK(argc==2);CHECK(SDL_Init(0));CHECK(SDL_CreateDirectory(argv[1]));
 CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_APP_PCM_CAPTURE_DIR"));
 CHECK(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(),"FD2SDL_TEST_AUDIO_QUIET"));
@@ -165,4 +190,5 @@ CHECK(!destroy_waiting_worker(argv[1]));
 CHECK(!utf8_env_create_destroy(argv[1],0));
 CHECK(!utf8_env_create_destroy(argv[1],1));
 CHECK(!quiet_without_observer());
+CHECK(!configured_output());
 fd2_audio *a=setup();CHECK(a);quiet_mode=0;test_render_calls=test_put_calls=bad=0;put_success=1;test_service(a);CHECK(test_render_calls==1&&test_put_calls==1&&!bad);fd2_audio_destroy(a);CHECK(!run_capture(argv[1],1));CHECK(!run_capture(argv[1],0));SDL_Quit();puts("audio main-thread Put hook: render-once -> equal-size silent successfulPut -> original-mix tap; failedPutnotapped; v2-sourcepoint; no device/GUI PASS");return 0;}

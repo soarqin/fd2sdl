@@ -102,6 +102,21 @@ bool fd2_settings_original(void) {
             return false;
     return true;
 }
+SDL_AudioDeviceID fd2_output_device(const char *name) {
+    SDL_AudioDeviceID id = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+    if (!*name) return id;
+    int count = 0;
+    SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&count);
+    for (int i = 0; devices && i < count; ++i) {
+        const char *found = SDL_GetAudioDeviceName(devices[i]);
+        if (found && !strcmp(found, name)) { id = devices[i]; break; }
+    }
+    SDL_free(devices);
+    if (id == SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK)
+        SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "audio device '%s' unavailable; using default", name);
+    return id;
+}
+
 const char *fd2_save_path(void) {
     const char *env = SDL_getenv("FD2SDL_SAVE_PATH");
     return env && *env ? env : fd2_get_settings()->save_path;

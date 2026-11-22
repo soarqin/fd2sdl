@@ -34,8 +34,6 @@
 #include "vga.h"
 #include "bios_clock.h"
 
-#define WINDOW_W 960
-#define WINDOW_H 600
 
 _Static_assert((0 + FD2_FIELD_PLAY_RETURN_COMPLETE) == (0 + FD2_APP_FIELD_COMPLETE) &&
                (0 + FD2_FIELD_PLAY_RETURN_LEAVE_GAME) == (0 + FD2_APP_FIELD_LEAVE_GAME) &&
@@ -1017,13 +1015,24 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    SDL_Window *win = SDL_CreateWindow("FD2-SDL", WINDOW_W, WINDOW_H, 0);
+    const fd2_settings *settings = fd2_get_settings();
+    int logical_height = settings->aspect_4_3 ? 240 : VGA_H;
+    const char *title = fd2_settings_original() ? "FD2-SDL " FD2_VERSION :
+        "FD2-SDL " FD2_VERSION "（非原版设置）";
+    SDL_Window *win = SDL_CreateWindow(title, VGA_W * settings->window_scale,
+        logical_height * settings->window_scale, SDL_WINDOW_RESIZABLE |
+        (settings->fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
     if (!win) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
-    SDL_Renderer *ren = SDL_CreateRenderer(win, NULL);
+    SDL_Renderer *ren = SDL_CreateRenderer(win, *settings->renderer ? settings->renderer : NULL);
+    if (!ren && *settings->renderer) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_RENDER, "renderer %s: %s; trying default",
+                    settings->renderer, SDL_GetError());
+        ren = SDL_CreateRenderer(win, NULL);
+    }
     if (!ren) {
         fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
@@ -1033,8 +1042,17 @@ int main(int argc, char **argv) {
     /* 游戏自身按原版毫秒/tick 时序调度；显式关闭 backend 隐式 vsync，
      * 避免 RenderPresent 阻塞与固定 delay 在不同刷新率下重复叠加。 */
     SDL_SetRenderVSync(ren, 0);
-    SDL_SetRenderLogicalPresentation(ren, VGA_W, VGA_H,
-                                     SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+    static const SDL_RendererLogicalPresentation modes[] = {
+        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE, SDL_LOGICAL_PRESENTATION_LETTERBOX,
+        SDL_LOGICAL_PRESENTATION_STRETCH
+    };
+    if (!SDL_SetRenderLogicalPresentation(ren, VGA_W, logical_height, modes[settings->scale_mode])) {
+        SDL_Log("logical presentation: %s", SDL_GetError());
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        SDL_Quit();
+        return 1;
+    }
 
     /* 打开 FDOTHER.DAT（对应 &DAT_00001a4d 全局槽初始化） */
     if (fd2_archive_open(&g_fdother, fd2_asset_path(FD2_FDOTHER)) != 0) {

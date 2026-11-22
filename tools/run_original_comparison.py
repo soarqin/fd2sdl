@@ -165,14 +165,22 @@ def driver_call(driver: Path, command: str, process: subprocess.Popen,
     return result.stderr or ""
 
 
-def quiet_game_command(command: list[str], env: dict):
+def quiet_game_command(command: list[str], env: dict, settings: Path | None = None):
     """仅本轮游戏测试静音输出，保留仿真／混音；不改用户设置。"""
     command, env = list(command), dict(env)
     program = Path(command[0]).name.casefold()
     native = program in ("dosbox-x", "dosbox-x.exe")
     sdl = program in ("fd2sdl", "fd2sdl.exe")
+    identity = None
     if sdl:
-        command.insert(1, "--no-config")
+        if settings is None:
+            command.insert(1, "--no-config")
+            identity = "none"
+        else:
+            settings = settings.resolve()
+            command[1:1] = ["--config", str(settings)]
+            identity = {"path": str(settings), "sha256": hashlib.sha256(settings.read_bytes()).hexdigest()
+                        if settings.exists() else None}
         env["FD2SDL_CONFIG"] = "none"
         env.setdefault("FD2SDL_TEST_AUDIO_QUIET", "1")
         if env["FD2SDL_TEST_AUDIO_QUIET"] not in ("0", "1"):
@@ -188,16 +196,16 @@ def quiet_game_command(command: list[str], env: dict):
     return command, env, {"native_quiet_requested": native,
         "native_quiet_backend": "DOSBox-X mixer nosound" if native else None,
         "application_quiet_requested": sdl and env.get("FD2SDL_TEST_AUDIO_QUIET") == "1",
-        "settings_identity": "none" if sdl else None,
+        "settings_identity": identity,
         "ignored_native_quiet_overrides": ignored}
 
 
 @contextmanager
 def running(command: list[str], cwd: Path, env: dict, log: Path, driver: Path,
-            receipts: list[dict], *, expected_exit=0, hidden_console=False):
+            receipts: list[dict], *, expected_exit=0, hidden_console=False, settings=None):
     if hidden_console and sys.platform != "win32":
         raise ValueError("隐藏原生console仅用于Windows loader取证")
-    command, env, quiet = quiet_game_command(command, env)
+    command, env, quiet = quiet_game_command(command, env, settings)
     with log.open("w", encoding="utf-8") as stream:
         launch = {}
         if sys.platform == "win32":

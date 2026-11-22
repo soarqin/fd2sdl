@@ -2,6 +2,7 @@
  * 源render/retire与控制仅在App线程执行；PIT前缀沿bios_clock同一时间轴。
  * SDL只消费AudioStream队列，不生成未来声音。保留采样、叠加、尾音和设备清理。 */
 #include "audio.h"
+#include "settings.h"
 #include "audio_pcm_capture.h"
 #include "bios_clock.h"
 #include "audio_sb.h"
@@ -265,7 +266,8 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
     if (test_quiet && strcmp(test_quiet, "0") && strcmp(test_quiet, "1")) {
         SDL_SetError("test audio quiet must be 0 or 1"); goto failed;
     }
-    audio->test_quiet = test_quiet && strcmp(test_quiet, "1") == 0;
+    const fd2_settings *settings = fd2_get_settings();
+    audio->test_quiet = settings->mute || (test_quiet && strcmp(test_quiet, "1") == 0);
     const char *capture_dir = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_DIR");
     unsigned capture_ms = 45000;
     if (capture_dir && *capture_dir) {
@@ -281,8 +283,18 @@ fd2_audio *fd2_audio_create(const fd2_audio_config *config) {
     }
     if (open_device) {
         SDL_AudioSpec spec = { .format = SDL_AUDIO_F32, .channels = 2, .freq = sample_rate };
-        audio->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
-                                                  &spec, NULL, NULL);
+        SDL_AudioDeviceID device = fd2_output_device(settings->device);
+        audio->stream = SDL_OpenAudioDeviceStream(device, &spec, NULL, NULL);
+        if (!audio->stream && device != SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "cannot open %s; trying default", settings->device);
+            audio->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+        }
+        /* 主音量只在设备流上应用，原混音、采集点与 AIL 时钟保持各自的顺序。 */
+        if (audio->stream && settings->volume != 100 &&
+            !SDL_SetAudioStreamGain(audio->stream, (float)settings->volume / 100.0f)) {
+            SDL_DestroyAudioStream(audio->stream);
+            audio->stream = NULL;
+        }
         if (!audio->stream) record_first_error(audio, FD2_AUDIO_ERROR_OPEN);
         if (capture_dir && *capture_dir) {
             const char *quiet = SDL_GetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_APP_PCM_CAPTURE_QUIET");

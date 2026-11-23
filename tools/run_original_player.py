@@ -25,13 +25,14 @@ from run_original_end_turn import META, UNITS, STRIDE, RoundOracle, browse_anywh
 from run_original_load import require_source_unchanged
 from fd2_movement_oracle import movement_profile
 
-def cursor_assets(icon_path, source, assets):
+def cursor_assets(icon_path, source, assets, *, raw_actor=None):
     """仅当前源actor身份的真实FDICON帧；未知/遮挡不猜测，找不到就失败。"""
     data = icon_path.read_bytes()
     if len(data) < 6 or struct.unpack_from("<HHH", data) != (24, 24, 1680):
         raise ValueError("FDICON directory unsupported")
+    actors = range(source[META + 1]) if raw_actor is None else (raw_actor,)
     identities = sorted({(source[UNITS + i * STRIDE + 7], bool(source[UNITS + i * STRIDE + 5] & 0x80))
-                         for i in range(source[META + 1])})
+                         for i in actors})
     sprites, composites = [], []
     for identity, is_acted in identities:
         for phase in range(12):
@@ -55,6 +56,23 @@ def cursor_assets(icon_path, source, assets):
                     image.paste(part, (0, y), part.point(lambda value: 255 if value else 0, mode="L"))
                 composites.append((image, offset))
     return sprites, composites
+
+
+def visible_actor_at(source, world):
+    for raw in range(source[META + 1]):
+        start = UNITS + raw * STRIDE
+        if not source[start + 5] & 1 and tuple(source[start:start + 2]) == world:
+            return raw
+    return None
+
+
+def lower_cursor_frames(original, source, assets, world):
+    """11cac 先画选择框，127a9 再叠下格角色。保留完整 24×42 合成图。"""
+    lower = visible_actor_at(source, (world[0], world[1] + 1))
+    if lower is None:
+        return None, []
+    _, candidates = cursor_assets(original / "FDICON.B24", source, assets, raw_actor=lower)
+    return lower, [image for image, offset in candidates if offset == 0]
 
 
 def visual_focus(frame, assets, composites):

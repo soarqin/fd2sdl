@@ -24,6 +24,26 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+class StageZeroExecutableTest(unittest.TestCase):
+    def test_only_the_documented_chapter_23_byte_can_differ(self):
+        historical = bytearray(0x4a84b + 12)
+        historical[0x4a84b] = 18
+        with mock.patch.object(reference, "HISTORICAL_EXE_SHA256", digest(historical)):
+            self.assertEqual(reference.stage0_executable_sha256(historical), digest(historical))
+            restored = historical.copy()
+            restored[0x4a84b] = 13
+            self.assertEqual(reference.stage0_executable_sha256(restored), digest(restored))
+            for damaged in (restored[:-1], restored + b"x", b"", restored[:0x4a84b]):
+                with self.assertRaises(ValueError):
+                    reference.stage0_executable_sha256(damaged)
+            restored[0x4a84b + 1] ^= 1
+            with self.assertRaises(ValueError):
+                reference.stage0_executable_sha256(restored)
+            historical[0x4a84b] = 14
+            with self.assertRaises(ValueError):
+                reference.stage0_executable_sha256(historical)
+
+
 class OriginalReferenceTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

@@ -138,8 +138,9 @@ def match_indexed(actual: Image.Image, template: Image.Image, position: tuple) -
 
 
 class Oracle:
-    def __init__(self, assets: dict, focus: tuple):
+    def __init__(self, assets: dict, focus: tuple, *, cursor_frames=()):
         self.assets, self.focus = assets, focus
+        self.cursor_frames = cursor_frames
 
     def choices(self, frame, indices, position):
         for index in indices:
@@ -170,9 +171,13 @@ class Oracle:
         return {"kind": "confirmation", "selected": selected, "matches": matches}
 
     def browse(self, frame):
-        cursor = match_indexed(frame, self.assets["cursor"], self.focus)
-        if cursor["ok"] and not self.menu(frame) and not self.buttons(frame):
-            return {"kind": "browse", "cursor": cursor, "focus_screen": list(self.focus)}
+        for phase, template in self.cursor_frames or ((None, self.assets["cursor"]),):
+            cursor = match_indexed(frame, template, self.focus)
+            if cursor["ok"] and not self.menu(frame) and not self.buttons(frame):
+                detail = {"kind": "browse", "cursor": cursor, "focus_screen": list(self.focus)}
+                if phase is not None:
+                    detail["lower_actor_frame"] = phase
+                return detail
         return None
 
     def cancellation_notice(self, frame):
@@ -431,7 +436,10 @@ def exercise(capture, prefix, oracle, titles, checkpoints, references=None, *, t
 
 
 def validate_fixture(path, expected_shape):
-    plain = decode_save(path)
+    return fixture_focus(decode_save(path), expected_shape)
+
+
+def fixture_focus(plain, expected_shape):
     meta = plain[0x30c3:0x30d5]
     if meta[2] != 0 or not 0 < meta[1] <= 64:
         raise ValueError("B1 对照要求受支持的 stage 0 活动快照")
@@ -447,6 +455,20 @@ def validate_fixture(path, expected_shape):
     return focus, list(meta)
 
 
+def fixture_oracle(original, source, assets, focus, world):
+    from run_original_end_turn import UNITS, STRIDE
+    from run_original_player import lower_cursor_frames
+    lower, composites = lower_cursor_frames(original, source, assets, world)
+    if lower is None:
+        return Oracle(assets, focus), None
+    unit = source[UNITS + lower * STRIDE:UNITS + (lower + 1) * STRIDE]
+    frames = [(i, image) for i, image in enumerate(composites) if i // 3 == unit[3]]
+    if not frames:
+        raise ValueError("下格角色方向超出 FDICON 帧范围")
+    return Oracle(assets, focus, cursor_frames=frames), {
+        "raw_actor": lower, "unit_id": unit[7], "direction": unit[3]}
+
+
 def run(args):
     root, output = args.root.resolve(), args.artifacts.resolve()
     original, fixture = (root / "original_game").resolve(), args.save_fixture.resolve()
@@ -454,7 +476,7 @@ def run(args):
         raise ValueError("测试产物不能写入 original_game/")
     capture_transitions = getattr(args, "capture_transitions", False)
     if capture_transitions:
-        from run_original_battle_animation import owned_job_required
+        from fd2_windows_job import owned_job_required
         owned_job_required()
     output.mkdir(parents=True, exist_ok=False)
     before = hashes(original)
@@ -472,7 +494,8 @@ def run(args):
         result["excluded"] = "END affirmative submission, phase, damage, RNG equivalence, full transition frame/timing equality"
     try:
         stage_metadata = archive_entry((original / "FDFIELD.DAT").read_bytes(), 1)
-        focus, meta = validate_fixture(fixture, stage_metadata[0])
+        source = decode_save(fixture)
+        focus, meta = fixture_focus(source, stage_metadata[0])
         result["fixture"] = {"path": str(fixture), "sha256": hashlib.sha256(fixture_bytes).hexdigest(), "meta": meta}
         result["binaries"] = {key: {"path": str(path.resolve()),
                                     "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
@@ -482,7 +505,9 @@ def run(args):
                               "channel_tolerance": TOLERANCE,
                               "button_indices": {str(i): list(assets["palette6"][i * 3:i * 3 + 3])
                                                  for i in (0x4a, 0x4d, 0xc5, 0xc7)}}
-        oracle = Oracle(assets, focus)
+        oracle, overlay = fixture_oracle(original, source, assets, focus, meta[5:7])
+        if overlay is not None:
+            result["fixture"]["cursor_overlay"] = overlay
         titles = title_templates(original / "FDOTHER.DAT")
         game_copy = output / "game"
         shutil.copytree(original, game_copy)

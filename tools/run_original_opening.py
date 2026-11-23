@@ -27,7 +27,7 @@ def title_menu_counts(source):
         raise ValueError("source active count exceeds the save codec capacity")
     check_roster_count(source)
     stage = source[META+2]
-    return {"original":2 if stage==0xff else 3,"sdl":3 if stage==0 else 2}
+    return {"original": 2 if stage == 0xff else 3, "sdl": 3 if stage < 30 else 2}
 
 
 def load_menu_availability(source):
@@ -37,7 +37,7 @@ def load_menu_availability(source):
     if stage0 and hashlib.sha256(source).hexdigest() != "b50fd076d397ea5afbb31630ebe1dd6aa40b335a776a0f8323730cde0365f975":
         raise ValueError("此opening对照工具只验证真实START的stage0 Load判据，尚未验证其它stage0来源；这是工具范围限制，不是游戏限制")
     # native19df7仅fopen失败才disabled；存在的FF文件仍有Load，区别于标题门。
-    return {"original":True,"sdl":stage0}
+    return {"original": True, "sdl": source[META + 2] < 30}
 
 
 def exercise(capture,assets,pages,titles,save,source_bytes,stamp,expected,report):
@@ -133,7 +133,7 @@ def run(args):
             record = {"kind":kind,"status":"failed","checkpoints":[],"pre_start_save_mtime_ns":stamp,
                       "title_menu_count":menu_counts[kind],"load_available":load_available[kind],
                       "load_gate_basis":"native existing file" if kind=="original" else
-                          "verified START stage0" if load_available[kind] else "SDL rejects nonstage0 source"}
+                          "active battle snapshot in stage 0..29" if load_available[kind] else "no supported active stage"}
             report["cases"].append(record)
             with running(command,cwd,env,work/"game.log",args.driver.resolve(),report["processes"]) as process:
                 record["pid"] = process.pid

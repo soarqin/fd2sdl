@@ -15,6 +15,7 @@ from PIL import Image, ImageChops, ImageFilter
 
 from fd2_item_list_oracle import number
 from fd2_magic_list_oracle import fragment, glyphs
+from original_reference import stage0_executable_sha256
 from rebuild_fd2_analysis import build_relbase_image, parse_le, parse_objects
 from run_original_comparison import (SIZE, TOLERANCE, archive_entry, compare,
                                      decode_image, normalize, require_content)
@@ -22,7 +23,6 @@ from run_original_end_turn import META, STRIDE, UNITS
 from run_original_player import sheet_frame
 
 PHASES = ("physical-attack", "physical-impact", "casting", "full-fx", "map-heal")
-EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 
 
 def rle_material(data):
@@ -143,8 +143,7 @@ def _background(original, source, caster, targets, all_parts, palette, full):
     shapes = (original / "FDSHAP.DAT").read_bytes()
     attrs = archive_entry(shapes, metadata[0] * 2 + 1)
     exe = (original / "FD2.EXE").read_bytes()
-    if hashlib.sha256(exe).hexdigest() != EXE_SHA256:
-        raise ValueError("背景表需要已确认原EXE")
+    stage0_executable_sha256(exe)
     le = parse_le(exe); raw = build_relbase_image(exe, le, parse_objects(exe, le))
     def scene(unit):
         if unit[0] >= width or unit[1] >= height:

@@ -23,6 +23,7 @@ from PIL import Image
 from fd2_reward_oracle import (SCENARIOS, derive_fixture, expected_state, reward_tables,
     reward_pages, page_match, magic_page)
 from fd2_item_list_oracle import inventory_templates
+from fd2_windows_job import wait_log
 from run_original_comparison import Capture, archive_entry, decode_image, hashes, running, title_templates
 from run_original_battle_menu import wait_state, wait_title, match_indexed
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle, round_assets, round_two_template, check_round_phase_log, decode_lmi
@@ -390,7 +391,6 @@ def end_turn(capture, prepared, checkpoint, report, observe):
         # 原版专属观察不进入双端共同检查点；不要求SDL补未实现的旧banner演出。
         _, report["native_round_banner"] = wait_state(capture, "b4-native-round002", banner, [], timeout=120)
     elif report["kind"] == "sdl":
-        from field_play_input_test import wait_log
         text = wait_log(capture.process, capture.artifacts / "game.log", "field phase: turn=2 phase=2 ", timeout=120)
         check_round_phase_log(text)
         report["sdl_phase_log"] = {"ordered_single_end_1_to_0_to_new2": True,

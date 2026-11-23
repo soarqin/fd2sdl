@@ -12,7 +12,8 @@ import struct
 
 from PIL import Image, ImageOps
 
-from fd2_item_list_oracle import EXE_SHA256, item_table, use_effect_tables, number
+from fd2_item_list_oracle import item_table, use_effect_tables, number
+from original_reference import stage0_executable_sha256
 from fd2_magic_list_oracle import glyphs
 from fd2_opening_oracle import raw_ui
 from rebuild_fd2_analysis import parse_le, parse_objects, build_relbase_image
@@ -34,8 +35,7 @@ SCENARIOS = ("physical-cap", "physical-overwrite", "heal", "learn", "counter-mul
 
 def reward_tables(executable):
     data = executable.read_bytes()
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
-        raise ValueError("B4 oracle仅支持已确认完整FD2.EXE")
+    digest = stage0_executable_sha256(data)
     le = parse_le(data)
     objects = parse_objects(data, le)
     for va, size in ((GROWTH_VA, GROWTH_SIZE), (LEARNING_VA, LEARNING_SIZE)):
@@ -48,7 +48,7 @@ def reward_tables(executable):
         raise ValueError("B4完整成长/学习表strict LE哈希不符")
     items, _ = item_table(executable)
     return {"growth": growth, "learning": learning, "items": items}, {
-        "executable_sha256": EXE_SHA256,
+        "executable_sha256": digest,
         "growth": {"getter_va": 0x4e821, "canonical_va": GROWTH_VA, "size": GROWTH_SIZE,
                    "rows": 68, "stride": 11, "sha256": GROWTH_SHA256},
         "learning": {"getter_va": 0x4e7f2, "canonical_va": LEARNING_VA, "size": LEARNING_SIZE,

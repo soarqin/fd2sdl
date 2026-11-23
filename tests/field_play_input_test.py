@@ -12,6 +12,9 @@ import time
 import unittest
 from unittest.mock import Mock, call, patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from fd2_windows_job import wait_log
+
 
 def check_bitmap(path):
     """验证宿主客户区确实生成了有内容的 24-bit BMP，不作原版视觉等价判断。"""
@@ -32,18 +35,6 @@ def check_bitmap(path):
         if len(colors) >= 8:
             return {"width": width, "height": abs(height), "colors_at_least": 8}
     raise ValueError("blank or nearly uniform window capture")
-
-
-def wait_log(process, path, expected, timeout=30, *, after=0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        text = path.read_bytes()[after:].decode("utf-8", errors="replace")
-        if expected in text:
-            return text
-        if process.poll() is not None:
-            raise RuntimeError(f"game exited {process.returncode} before {expected!r}\n{text}")
-        time.sleep(0.1)
-    raise TimeoutError(f"missing {expected!r}; see {path}")
 
 
 WAIT_EXPECTED = [

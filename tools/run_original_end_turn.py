@@ -20,6 +20,7 @@ import struct
 import sys
 import time
 
+from fd2_windows_job import wait_log
 from PIL import Image
 
 from fd2_save_checks import check_roster_count, decode_save
@@ -319,7 +320,6 @@ def exercise(capture, kind, assets, initial_focus, titles, banner, save, log, re
             return {"kind": "round_banner", "turn": 2, **matched} if matched["ok"] else None
         checkpoint("round-002", round_banner, timeout=90)
     else:
-        from field_play_input_test import wait_log
         text = wait_log(capture.process, log, "field phase: turn=2 phase=2 ", timeout=90)
         check_round_phase_log(text)
     checkpoint("new-player-browse", lambda frame: browse_anywhere(frame, assets, leader=True), timeout=30)

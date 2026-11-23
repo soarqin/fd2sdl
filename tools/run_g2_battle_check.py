@@ -35,7 +35,7 @@ from run_original_result import selection_probe, selection_state
 from run_original_reward import actor_view, command, list_state, navigate, quiet_browse
 from fd2_save_checks import decode_save
 from run_original_item_list import use_range_probe
-from field_play_input_test import wait_log
+from fd2_windows_job import wait_log
 
 ROOT = Path(__file__).resolve().parents[1]
 

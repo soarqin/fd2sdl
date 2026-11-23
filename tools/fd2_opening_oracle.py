@@ -11,6 +11,7 @@ from PIL import Image, ImageOps
 
 from rebuild_fd2_analysis import parse_le, parse_objects, build_relbase_image
 from dump_fd2_fixup_table import collect_internal_offset_fixups
+from original_reference import stage0_executable_sha256
 from run_original_comparison import archive_entry
 from run_original_battle_menu import match_indexed
 from run_original_end_turn import META, UNITS, STRIDE, browse_anywhere, decode_lmi
@@ -181,8 +182,7 @@ def geometry(original):
     """3231b的四次persistent构造与0/1/2/5脚本；不使用START.SAV捕获坐标。"""
     executable = original / "FD2.EXE"
     data = executable.read_bytes()
-    if hashlib.sha256(data).hexdigest() != "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd":
-        raise ValueError("opening geometry requires the verified FD2.EXE version")
+    executable_sha256 = stage0_executable_sha256(data)
     le = parse_le(data)
     objects = parse_objects(data, le)
     if [(o.relbase, o.vsize) for o in objects] != [(0x10000,0x3ef29),(0x50000,0x56b0),(0x60000,0x34d2)]:
@@ -224,7 +224,7 @@ def geometry(original):
     # 3231b尾32975(9)隐藏该actor，134e4全方向0，12d7b(0)聚焦主角。
     actors = [{"raw_actor":i,"unit_id":ids[i],"side":sides[i],"position":position,
                "direction":0,"hidden":i==9,"acted":False} for i,position in enumerate(positions)]
-    return {"actors":actors,"first_focus_world":positions[0].copy(),"movement_scripts":scripts,
+    return {"executable_sha256":executable_sha256,"actors":actors,"first_focus_world":positions[0].copy(),"movement_scripts":scripts,
             "active_count":12,"roster_count":4,"turn":1,"stage":0,"resource":0}
 
 

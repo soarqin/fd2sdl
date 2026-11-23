@@ -21,9 +21,9 @@ import subprocess
 import sys
 import time
 import wave
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from fd2_display_requirement import windows_display_requirement
-from fd2_windows_job import owned_job_required
+from fd2_windows_job import owned_job_required, wait_log
 
 from PIL import Image
 
@@ -51,6 +51,7 @@ from run_original_transition import audio_toggle, collect_native_audio
 
 CAPTURE_MAX_MS=45000
 CAPTURE_INTERVAL_MS=33
+DOSBOX_CAPTURE_RATE = 48000  # 当前原版参照的 mixer.rate；进程回环录音另有自己的格式。
 JOB_PATTERN=re.compile(r"fd2 job: root=(\d+) worker_exit=(\d+) timed_out=(\d+) residual=(\d+) forced=(\d+) cleaned=(\d+) result=(\d+)")
 
 
@@ -340,10 +341,10 @@ class AnimationCollectors:
                     deadline=time.monotonic()+5
                     while True:
                         try:
-                            collect_native_audio(self.record,self.capture.artifacts)
+                            collect_native_audio(self.record, self.capture.artifacts, expected_rate=DOSBOX_CAPTURE_RATE)
                             files=self.record["native_audio"].get("files",[])
                             if len(files)!=1:raise AssertionError("原生WAV不是本轮唯一一份")
-                            info=wav_info(files[0]["path"]);break
+                            info=wav_info(files[0]["path"], expected_rate=DOSBOX_CAPTURE_RATE);break
                         except (OSError,EOFError,wave.Error,AssertionError):
                             if time.monotonic()>=deadline:raise
                             time.sleep(.05)
@@ -505,7 +506,6 @@ def wait_phase(capture, prepared, checkpoint, record):
             return dict(found,kind='native-round002') if found['ok'] else None
         _,record['native_round_banner']=wait_state(capture,'b6-native-round002',banner,[],timeout=120)
     else:
-        from field_play_input_test import wait_log
         text=wait_log(capture.process,capture.artifacts/'game.log','field phase: turn=2 phase=2 ',timeout=120)
         check_round_phase_log(text)
         record['sdl_phase_log']={'ordered_single_end':True,'banner_image_compared':False}
@@ -772,7 +772,7 @@ def run(args, *, _final_report=None):
                 config.write_text('[sdl]\nfullscreen=false\noutput=surface\nshowmenu=false\nautolock=false\nwaitonerror=false\n'
                     '[dosbox]\nmachine=svga_s3\nmemsize=16\nquit warning=false\n'
                     f'captures={(work/"captures").as_posix()}\nshow recorded filename=false\n'
-                    '[render]\naspect=false\nscaler=normal2x\n[mixer]\nrate=44100\n'
+                    f'[render]\naspect=false\nscaler=normal2x\n[mixer]\nrate={DOSBOX_CAPTURE_RATE}\n'
                     f'[cpu]\ncore=normal\ncycles=fixed 20000\n[autoexec]\nmount c "{game}"\nc:\nFD2.EXE\nexit\n',encoding='utf-8')
                 command,cwd=[str(args.dosbox.resolve()),'-conf',str(config),'-noconsole'],work
             else:
@@ -864,11 +864,14 @@ def main():
         help='默认app-mix安静采应用混音，不代表设备输出；显式process-loopback保留设备提交')
     parser.add_argument('--scenario',choices=oracle.SCENARIOS,required=True)
     parser.add_argument('--verify-core',action='store_true',help='核心三场双端在清理后强制最低完整帧及有限SFX门')
-    args=parser.parse_args();display={};report=None;error=None;exit_code=0;final_report={}
+    parser.add_argument('--hold-display', action='store_true', help='需要恢复显示时，临时请求保持显示开启')
+    args = parser.parse_args()
+    display = {'requested': False, 'acquired': False, 'status': 'not_requested'}
+    report=None;error=None;exit_code=0;final_report={}
     # 只改本次新建的输出；OFF/未知与既有artifact失败不覆盖历史报告。
     output_existed=args.artifacts.exists();run_started=False
     try:
-        with windows_display_requirement(display):
+        with windows_display_requirement(display) if args.hold_display else nullcontext():
             run_started=True;report=run(args,_final_report=final_report)
     except BaseException as caught:
         error=caught

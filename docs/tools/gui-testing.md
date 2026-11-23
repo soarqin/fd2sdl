@@ -35,6 +35,8 @@ ctest --test-dir build/linux-test -R '^native_window$' --output-on-failure --no-
 
 若临时需求不足，先记录活动方案 GUID、供电方式和拟改项的原 AC／DC 值。优先复制原方案，只修改当前供电方式下必要的超时，记录临时 GUID 及实际查询值。清理本轮窗口、进程并核验来源后，恢复原方案、删除本轮副本并重新查询。用户已切换到其他方案时保留并报告冲突，不覆盖用户选择。请求线程须在成功、失败或取消后恢复原需求。异常中断后在下轮窗口启动前核实并恢复本任务的遗留设置。
 
+FULL 战斗动画工具 `run_original_battle_animation.py` 默认保持显示现状。只有需要临时保持显示时才传入 `--hold-display`。DOSBox-X 的 WAV 按当前原版参照使用 48 kHz。SDL 应用混音与 Windows 进程回环分别按各自的 WAV 格式核验。
+
 ### 标题与自然开场对照
 
 以下是当前目录结构的示例，不是新执行记录。需要匹配的 DOSBox-X、原版资源、MSVC 测试构建和 Python 的 Pillow。确认实际 DOSBox-X EXE 路径；使用新产物目录。以 owned Job 包裹 Python 和子进程树：

@@ -40,13 +40,15 @@ from fd2_item_list_oracle import (AFTER_USE_INVENTORY, PLAIN_SHA256, START_SHA25
     derive_injured, equipment_rows, inventory_templates, item_table, use_effect_tables, prepare as prepare_templates)
 from fd2_movement_oracle import movement_profile
 from fd2_save_checks import decode_save
+from fd2_windows_job import wait_log
 from run_original_comparison import Capture, SIZE, archive_entry, hashes, running, title_templates
 from run_original_battle_menu import MENU_OFFSETS, match_indexed, save_checkpoint, wait_state, wait_title
 from run_original_end_turn import META, STRIDE, UNITS, RoundOracle
 from run_original_load import (check_load_measurement, focus_cycle_assets, focused_actor,
                                require_source_unchanged, wait_measured_save)
 from run_original_focus import native_focus_reference
-from run_original_player import PlayerOracle, acted_sprite, cursor_assets, exact_tile, screen, sheet_frame, upper_command_composite
+from run_original_player import (PlayerOracle, acted_sprite, cursor_assets, exact_tile, lower_cursor_frames,
+                                 screen, sheet_frame, upper_command_composite, visible_actor_at)
 from run_original_result import selection_probe, selection_state
 from run_original_magic_list import actor_focus_resources, detail_close_terrain
 from fd2_magic_list_oracle import prepare as prepare_magic_templates
@@ -559,18 +561,10 @@ def focus_steps(source, start, destination):
 
 def post_use_navigation_resources(original, source, assets, world):
     """只属于post-Use导航；完整保留gray actor及下格头部遮挡，不改初始assets。"""
-    visible = [(i, tuple(source[UNITS + i * STRIDE:UNITS + i * STRIDE + 2]))
-        for i in range(source[META + 1]) if not source[UNITS + i * STRIDE + 5] & 1]
-    raw = next((i for i, at in visible if at == tuple(world)), None)
+    raw = visible_actor_at(source, tuple(world))
     if raw is not None:
         return {"world": tuple(world), "actor": actor_focus_resources(original, source, assets, raw, assets["cursor"])}
-    lower = next((i for i, at in visible if at == (world[0], world[1] + 1)), None)
-    composites = []
-    if lower is not None:
-        isolated = bytearray(source); isolated[META + 1] = 1
-        isolated[UNITS:UNITS + STRIDE] = source[UNITS + lower * STRIDE:UNITS + (lower + 1) * STRIDE]
-        _, candidates = cursor_assets(original / "FDICON.B24", isolated, assets)
-        composites = [image for image, offset in candidates if offset == 0]
+    lower, composites = lower_cursor_frames(original, source, assets, world)
     return {"world": tuple(world), "lower_raw_actor": lower, "composites": composites}
 
 
@@ -1087,7 +1081,6 @@ def execute_end(capture, assets, at, source, report, checkpoint, prefix):
         record["status"] = "passed"
     else:
         capture.key("ENTER")
-        from field_play_input_test import wait_log
         text = wait_log(capture.process, capture.artifacts / "game.log", "field phase: turn=2 phase=2 ", timeout=90)
         check_round_phase_log(text)
         report["end_phase_log_passed"] = True

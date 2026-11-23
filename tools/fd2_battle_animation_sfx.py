@@ -11,7 +11,7 @@ from pathlib import Path
 import struct
 
 from analyze_fd2_audio import archive_entries
-from fd2_item_list_oracle import EXE_SHA256
+from original_reference import stage0_executable_sha256
 from fd2_battle_animation_oracle import derive_fixture, actor
 from fd2_sfx_oracle import references
 from rebuild_fd2_analysis import parse_le, parse_objects, build_relbase_image
@@ -43,9 +43,9 @@ def _clip(data,index):
 
 def _image(executable):
     data=executable.read_bytes()
-    if _sha(data)!=EXE_SHA256:raise ValueError('SFX声明仅支持完整已确认FD2.EXE')
+    digest = stage0_executable_sha256(data)
     le=parse_le(data)
-    return build_relbase_image(data,le,parse_objects(data,le))
+    return build_relbase_image(data,le,parse_objects(data,le)), digest
 
 
 def declare(original,scenario):
@@ -57,7 +57,8 @@ def declare(original,scenario):
     refs=[{k:v for k,v in row.items() if k!='values'} for row in references(fdother,candidates)]
     aliases={}
     for ref in refs:aliases.setdefault(ref['sha256'],[]).append({'bank':ref['bank'],'sample':ref['sample']})
-    cues=[];metadata={};raw=_image(original/'FD2.EXE')
+    cues=[];metadata={}
+    raw, executable_sha256 = _image(original / 'FD2.EXE')
     def cue(name,bank,sample,basis,**extra):
         if (bank,sample) not in {(row['bank'],row['sample']) for row in refs}:raise ValueError('cue不在原候选bank')
         ref=next(row for row in refs if (row['bank'],row['sample'])==(bank,sample))
@@ -100,7 +101,7 @@ def declare(original,scenario):
     repeats={}
     for item in cues:repeats.setdefault((item['expected']['bank'],item['expected']['sample']),[]).append(item['name'])
     return {'schema':'fd2-b6-sfx-declaration-v1','ok':False,'declaration_only':True,'scenario':scenario,
-        'source':{'fdother_sha256':_sha(data),'figani_sha256':_sha(figani),'exe_sha256':EXE_SHA256,
+        'source':{'fdother_sha256':_sha(data),'figani_sha256':_sha(figani),'exe_sha256':executable_sha256,
                   'fixture_sha256':_sha(encoded),'caster_record_hex':caster.hex()},
         'address_view':'canonical relbase VA; object1 OFF=VA-0x10000','metadata':metadata,
         'candidate_banks':list(CANDIDATE_BANKS),'candidates':candidates,'references':refs,

@@ -37,6 +37,25 @@ def load_json(path):
     return parse_json(Path(path).read_text(encoding="utf-8"))
 
 
+# 旧参照与 2026-11-21 的首关读集相同，唯一差异是第 23 章结算指令的角色编号。
+HISTORICAL_EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
+
+
+def stage0_executable_sha256(data):
+    """确认完整 EXE；只供首关及不读取第 23 章结算指令的数据表对照。"""
+    digest = hashlib.sha256(data).hexdigest()
+    if digest == HISTORICAL_EXE_SHA256:
+        return digest
+    operand = 0x4a84b
+    if data[operand:operand + 1] == bytes([13]):
+        old = hashlib.sha256(data[:operand])
+        old.update(bytes([18]))
+        old.update(memoryview(data)[operand + 1:])
+        if old.hexdigest() == HISTORICAL_EXE_SHA256:
+            return digest
+    raise ValueError("FD2.EXE 未通过首关完整文件身份校验")
+
+
 def read_input(path):
     path = Path(path).resolve(strict=True)
     if not path.is_file():

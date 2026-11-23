@@ -11,7 +11,8 @@ import struct
 from PIL import Image
 
 from audit_fdicon_opaque_zero import audit_fdicon
-from fd2_item_list_oracle import EXE_SHA256, START_SHA256, raw_icon
+from fd2_item_list_oracle import START_SHA256, raw_icon
+from original_reference import HISTORICAL_EXE_SHA256 as EXE_SHA256
 from fd2_magic_list_oracle import glyphs
 from fd2_reward_oracle import common_tokens
 from fd2_opening_oracle import build_pages

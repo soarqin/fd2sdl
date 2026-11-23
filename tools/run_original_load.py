@@ -23,6 +23,7 @@ import time
 from types import SimpleNamespace
 
 from fd2_save_checks import check_roster_count, decode_save
+from fd2_windows_job import wait_log
 from run_original_comparison import Capture, archive_entry, hashes, running, title_templates
 from run_original_battle_menu import match_indexed, wait_state, wait_title
 from run_original_end_turn import (META, STRIDE, UNITS, RoundOracle, browse_anywhere,
@@ -211,7 +212,6 @@ def exercise(capture, kind, assets, focus, steps, titles, banner, save, source_b
             return {"kind": "round_banner", "turn": 2, **matched} if matched["ok"] else None
         checkpoint("round-002", round_two, timeout=90)
     else:
-        from field_play_input_test import wait_log
         check_round_phase_log(wait_log(capture.process, log, "field phase: turn=2 phase=2 ", timeout=90))
     checkpoint("round2-leader", lambda frame: browse_anywhere(frame, assets, leader=True), timeout=30)
     require_source_unchanged(save, source_bytes, source_mtime)

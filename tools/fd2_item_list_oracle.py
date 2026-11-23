@@ -16,6 +16,7 @@ import struct
 from PIL import Image
 
 from fd2_magic_list_oracle import fragment, glyphs, number as decimal_digits
+from original_reference import stage0_executable_sha256
 from rebuild_fd2_analysis import build_relbase_image, parse_le, parse_objects
 from run_original_comparison import archive_entry, decode_image
 from run_original_end_turn import STRIDE, UNITS, round_assets, validate_initial
@@ -23,7 +24,6 @@ from run_original_player import sheet_frame
 
 START_SHA256 = "2c89019b2a83f5460354597e15e860c075951241beb5c9a3dcb6551bb7ca5310"
 PLAIN_SHA256 = "b50fd076d397ea5afbb31630ebe1dd6aa40b335a776a0f8323730cde0365f975"
-EXE_SHA256 = "bb35004c06fc483e68f869bb7eb14dde9f9b7e585af29501af5ad1004c8861cd"
 TABLE_VA, TABLE_COUNT, RECORD_SIZE = 0x602ad, 215, 23
 TABLE_SHA256 = "bb64df69e73dfc4d642d342aac7bad8d7c2f4fb0527bb55d35c153b9f79432ca"
 EQUIPMENT_VA, EQUIPMENT_ROWS = 0x6188a, 29
@@ -57,8 +57,7 @@ def derive_injured(source, encrypted):
 def item_table(executable):
     data = executable.read_bytes()
     # 先锁定完整输入，不能让任意LE尺寸进入分配或当成本作物品表。
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
-        raise ValueError("物品oracle仅支持已确认的完整FD2.EXE")
+    digest = stage0_executable_sha256(data)
     le = parse_le(data)
     objects = parse_objects(data, le)
     size = TABLE_COUNT * RECORD_SIZE
@@ -72,7 +71,7 @@ def item_table(executable):
     return table, {"getter_va": 0x4e8bc, "canonical_va": TABLE_VA,
                    "object": 3, "object_offset": 0x2ad, "size": size,
                    "record_count": TABLE_COUNT, "record_size": RECORD_SIZE,
-                   "sha256": TABLE_SHA256, "executable_sha256": EXE_SHA256,
+                   "sha256": TABLE_SHA256, "executable_sha256": digest,
                    "source": "parse_le/parse_objects/build_relbase_image raw-unrelocated"}
 
 
@@ -84,8 +83,7 @@ def equipment_rows(executable):
     原getter不校index；这里不把后继数据猜为更多profile。
     """
     data = executable.read_bytes()
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
-        raise ValueError("装备许可oracle仅支持已确认的完整FD2.EXE")
+    stage0_executable_sha256(data)
     le = parse_le(data)
     objects = parse_objects(data, le)
     end = EQUIPMENT_VA + EQUIPMENT_ROWS * 7
@@ -100,8 +98,7 @@ def equipment_rows(executable):
 def use_effect_tables(executable):
     """20c6f→1c75e/1cd17：原魔法36×7B及profile1..28 DWORD倍率。"""
     data = executable.read_bytes()
-    if hashlib.sha256(data).hexdigest() != EXE_SHA256:
-        raise ValueError("Use效果oracle只支持已确认完整FD2.EXE")
+    stage0_executable_sha256(data)
     le = parse_le(data); objects = parse_objects(data, le)
     image = build_relbase_image(data, le, objects)
     result = {}

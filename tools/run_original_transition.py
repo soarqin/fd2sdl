@@ -75,7 +75,7 @@ def audio_toggle(capture, report, *, cleanup=False):
     if cleanup: recording["stopped_during_cleanup"] = True
 
 
-def collect_native_audio(case, folder):
+def collect_native_audio(case, folder, *, expected_rate=44100):
     recording = case.get("native_audio")
     if not recording or not recording["enabled"]: return
     files = []
@@ -83,8 +83,8 @@ def collect_native_audio(case, folder):
         with wave.open(str(path), "rb") as stream:
             details = {"channels": stream.getnchannels(), "sample_width": stream.getsampwidth(),
                 "sample_rate": stream.getframerate(), "frames": stream.getnframes(), "compression": stream.getcomptype()}
-        if details["compression"] != "NONE" or details["sample_width"] != 2 or details["sample_rate"] != 44100 or details["frames"] <= 0:
-            raise AssertionError("原版WAV未按本轮PCM44100配置完整生成")
+        if details["compression"] != "NONE" or details["sample_width"] != 2 or details["sample_rate"] != expected_rate or details["frames"] <= 0:
+            raise AssertionError(f"原版 WAV 未按本轮 PCM {expected_rate} Hz 配置完整生成")
         files.append({"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), **details})
     recording.update(files=files, recording_only=True, a5_equivalence_validated=False)
     if case.get("business_sequence_completed") and (not files or not recording.get("stopped")):

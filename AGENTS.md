@@ -2,7 +2,7 @@
 
 This C11 / SDL3 rewrite of Flame Dragon 2: Legend of Golden Castle (炎龙骑士团 2：黄金城传说) uses C++14 for music. Match the original game's observable behavior and keep host services in SDL. Preserve Nuked OPL3's native timbre and loudness. Use `FD2.EXE` for reverse engineering and original-game comparisons. The SDL runtime reads the original game data directly. See the [README](README.md) and [documentation index](docs/README.md).
 
-Since v0.2.0, original-game logic parity applies only with default pacing (P) and rule (R) settings, including when no configuration file is loaded. Host (H) settings may vary. The documented Nuked OPL3 timbre and loudness exception remains.
+Since v0.2.0, original-game logic parity applies only with default pacing (P) and rule (R) settings, including when no configuration file is loaded. The documented Chapter 23 recruitment and level-30 experience fixes are enabled by default. Host (H) settings may vary. The documented Nuked OPL3 timbre and loudness exception remains.
 
 ## References by task
 

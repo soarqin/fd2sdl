@@ -150,7 +150,9 @@ static const char *choice_label(const setup *ui, const char *value) {
         {"nearest", "最近邻", "最鄰近"}, {"linear", "线性", "線性"}, {"normal", "正常", "正常"},
         {"fast", "快速", "快速"}, {"instant", "即时", "即時"}, {"full", "完整", "完整"}, {"short", "简短", "簡短"},
         {"random", "原版随机", "原版隨機"}, {"max", "最大成长+1", "最大成長+1"},
-        {"max_minus_one", "最大成长", "最大成長"}, {"min", "最小成长", "最小成長"}
+        {"max_minus_one", "最大成长", "最大成長"}, {"min", "最小成长", "最小成長"},
+        {"without_mitty", "蜜蒂不加入则罗德曼加入", "蜜蒂不加入則羅德曼加入"},
+        {"always", "必定加入", "必定加入"}
     };
     for (size_t i = 0; i < SDL_arraysize(labels); ++i)
         if (!strcmp(labels[i][0], value)) return tr(ui, labels[i][1], labels[i][2]);
@@ -214,9 +216,9 @@ static void draw(setup *ui) {
     const char *heading = tr(ui, "启动设置", "啟動設定");
     fd2_setup_text(ui->renderer, ui->font, 22, 20, 176, 2, ink, heading);
     text(ui, 202, 27, 200, muted, "FD2-SDL  /  v" FD2_VERSION);
-    bool original = fd2_settings_original();
-    text(ui, 465, 27, 194, original ? mint : alert, original ?
-         tr(ui, "原版一致", "原版一致") : tr(ui, "非原版设置", "非原版設定"));
+    bool default_gameplay = fd2_settings_gameplay_is_default();
+    text(ui, 465, 27, 194, default_gameplay ? mint : alert, default_gameplay ?
+         tr(ui, "默认节奏与规则", "預設節奏與規則") : tr(ui, "自定义节奏与规则", "自訂節奏與規則"));
     fill(ui, 685, 17, 94, 35, panel);
     text(ui, 700, 26, 64, ink, tr(ui, "繁體中文", "简体中文"));
     fill(ui, 20, 70, 760, 1, rule);
@@ -273,10 +275,15 @@ static void draw(setup *ui) {
                      tr(ui, "未连接手柄", "未連接手把"), ui->x, ui->y);
         fill(ui, 733, 369, 40, 40, panel);
         fill(ui, 750 + ui->x / 2250, 386 + ui->y / 2250, 5, 5, mint);
-    } else if (ui->page == PACING) SDL_strlcpy(detail,
-        tr(ui, "原版随机关闭成长补丁。固定档位适用于升级。",
-               "原版隨機關閉成長補丁。固定檔位適用於升級。"), sizeof(detail));
-    else if (ui->page == KEYBOARD) SDL_strlcpy(detail,
+    } else if (ui->page == PACING) {
+        const char *key = ui->rows[ui->index].setting->key;
+        if (!strcmp(key, "level_up_growth")) SDL_strlcpy(detail,
+            tr(ui, "原版随机关闭成长补丁。固定档位适用于升级。",
+                   "原版隨機關閉成長補丁。固定檔位適用於升級。"), sizeof(detail));
+        else if (!strcmp(key, "rodman_recruitment")) SDL_strlcpy(detail,
+            tr(ui, "两种招募方式均须在第 15 回合前获胜。",
+                   "兩種招募方式均須在第 15 回合前獲勝。"), sizeof(detail));
+    } else if (ui->page == KEYBOARD) SDL_strlcpy(detail,
         tr(ui, "选择虚拟键后按下物理键。Delete 清除该行绑定。",
                "選擇虛擬鍵後按下實體鍵。Delete 清除該列綁定。"), sizeof(detail));
     text(ui, 206, 380, ui->page == GAMEPAD ? 510 : 568, mint, detail);

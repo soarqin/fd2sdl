@@ -5,12 +5,14 @@
 #define FD2_PATH_SIZE 4096
 
 enum { FD2_GROWTH_RANDOM, FD2_GROWTH_MAX, FD2_GROWTH_MAX_MINUS_ONE, FD2_GROWTH_MIN };
+enum { FD2_RODMAN_WITHOUT_MITTY, FD2_RODMAN_ALWAYS };
 
 typedef struct {
     int window_scale, fullscreen, scale_mode, filter, aspect_4_3;
     int volume, mute, gamepad_deadzone, show_on_start;
     int key_repeat_delay_ms, key_repeat_rate_ms, text_speed, animation_speed;
     int new_game_battle_effect, new_game_info_board, level_up_growth;
+    int rodman_recruitment, fix_level_30_experience, ai_attack_high_defense, disable_rest_healing;
     char game_dir[FD2_PATH_SIZE], save_path[FD2_PATH_SIZE], renderer[128], device[512];
 } fd2_settings;
 
@@ -30,7 +32,7 @@ typedef struct {
 
 const fd2_settings *fd2_get_settings(void);
 void fd2_settings_defaults(void);
-bool fd2_settings_original(void);
+bool fd2_settings_gameplay_is_default(void);
 const fd2_setting *fd2_settings_table(size_t *count);
 bool fd2_setting_set(const fd2_setting *item, const char *value);
 const char *fd2_setting_text(const fd2_setting *item, char number[32]);

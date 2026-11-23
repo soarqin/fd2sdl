@@ -43,7 +43,7 @@ int main(void) {
     assert(!ui.editing && !strcmp(fd2_get_settings()->game_dir, "original_game"));
     mouse_click(&ui, 40, 88 + VIDEO * 43 + 10);
     mouse_click(&ui, 755, ROW_Y + 10);
-    assert(ui.page == VIDEO && fd2_get_settings()->window_scale == 4 && fd2_settings_original());
+    assert(ui.page == VIDEO && fd2_get_settings()->window_scale == 4 && fd2_settings_gameplay_is_default());
     mouse_click(&ui, 710, 28);
     assert(ui.traditional && !strcmp(SDL_GetWindowTitle(ui.window), window_titles[true]));
     command(&ui, SDL_SCANCODE_F2, 0);

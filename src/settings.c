@@ -28,6 +28,13 @@ static const fd2_setting items[] = {
     INT("input", gamepad_deadzone, "50", 0, 99, NULL, 'H', "左摇杆死区 (%)", "左搖桿死區 (%)"),
     INT("rules", level_up_growth, "random", FD2_GROWTH_RANDOM, FD2_GROWTH_MIN,
         "random|max|max_minus_one|min", 'R', "升级属性成长", "升級屬性成長"),
+    INT("rules", rodman_recruitment, "without_mitty", FD2_RODMAN_WITHOUT_MITTY, FD2_RODMAN_ALWAYS,
+        "without_mitty|always", 'R', "第 23 章罗德曼加入", "第 23 章羅德曼加入"),
+    INT("rules", fix_level_30_experience, "on", 0, 1, "off|on", 'R',
+        "修正 30 级经验归零", "修正 30 級經驗歸零"),
+    INT("rules", ai_attack_high_defense, "off", 0, 1, "off|on", 'R',
+        "AI 攻击高防御目标", "AI 攻擊高防禦目標"),
+    INT("rules", disable_rest_healing, "off", 0, 1, "off|on", 'R', "休息不回血", "休息不回血"),
     INT("pacing", key_repeat_delay_ms, "500", 1, 5000, NULL, 'P', "首次连发等待 (ms)", "首次連發等待 (ms)"),
     INT("pacing", key_repeat_rate_ms, "33", 1, 1000, NULL, 'P', "连发间隔 (ms)", "連發間隔 (ms)"),
     INT("pacing", text_speed, "normal", 0, 2, "normal|fast|instant", 'P', "逐字速度", "逐字速度"),
@@ -101,7 +108,7 @@ const fd2_settings *fd2_get_settings(void) {
     if (!initialized) fd2_settings_defaults();
     return &current;
 }
-bool fd2_settings_original(void) {
+bool fd2_settings_gameplay_is_default(void) {
     fd2_get_settings();
     char number[32];
     for (size_t i = 0; i < SDL_arraysize(items); ++i)

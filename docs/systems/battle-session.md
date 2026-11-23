@@ -144,7 +144,7 @@ MAGIC_TARGETING复用cast范围及raw候选owner，确认时从当前坐标重�
 
 0／13的纯奖励上下界查询复用原公式枚举100个spread，不取真实RNG；超上限HP时，伤害贡献在kill门可能从raw比例跳回full，不能只查spread99。多目标按DWORD回绕和signed断点作保守区间预检，负上界不转成正99；该连续包络及独立负值资源分支不是精确的整组RNG可达集合。来源和保守范围见[通用战斗语义 §8](../reverse-engineering/common-battle-semantics.md#8-g2-追加signed-派生伤害负贡献与动态数字边界)。
 
-`field_unit_experience_reward_execute @0x1e292` 无side门。贡献0、hidden或精确等级cap（ID30／31等于99、其他等于40）早退并保留全局。成长支持已有ID0..67记录，不套创建器0..31门；未知成长数据或不安全的signed运算在提交前拒绝。普通40仅为入口门，循环只在新等级30或特殊ID新99清余值，不能另加每级>=40门。
+`field_unit_experience_reward_execute @0x1e292` 无side门。贡献0、hidden或精确等级cap（ID30／31等于99、其他等于40）早退并保留全局。成长支持已有ID0..67记录，不套创建器0..31门；未知成长数据或不安全的signed运算在提交前拒绝。原版循环在新等级 30 或 ID 30／31 达到 99 时清余值。默认修正将循环的 30 改成 40，两种模式均按等级等值判断。
 
 game保存一个有界续态，play只持有背景／空底板／四帧立绘。LEVEL前先写level；每个非零成长量先提示／ACK，返回后才写WORD；学习先OR位，再显示587。每级末重算，最终自动等待和关闭后才写EX、清全局。最大HP／MP增长不改当前值。资源预检可用80字节纯副本，不能提前交接最终单位或消费RNG。
 

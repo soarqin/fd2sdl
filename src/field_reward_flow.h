@@ -99,11 +99,13 @@ static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit
         } else if (!strcmp(op, "reward_total_subtract")) {
             if (fd2_reward_signed(cursor->total) < n->args[0]) return -1;
             cursor->total -= (uint32_t)n->args[0];
-        } else if (!strcmp(op, "reward_stop_level"))
-            port = unit->level == n->args[0] ||
+        } else if (!strcmp(op, "reward_stop_level")) {
+            /* 1e4f6：补丁替换共享的 cmp eax,1Eh 立即数，保留特殊ID的99级门。 */
+            const int stop_level = fd2_get_settings()->fix_level_30_experience ? n->args[4] : n->args[0];
+            port = unit->level == stop_level ||
                 ((unit->unit_id == n->args[1] || unit->unit_id == n->args[2]) && unit->level == n->args[3])
                 ? FD2_FLOW_YES : FD2_FLOW_NO;
-        else if (!strcmp(op, "reward_total_zero")) cursor->total = 0;
+        } else if (!strcmp(op, "reward_total_zero")) cursor->total = 0;
         else if (!strcmp(op, "reward_experience_commit")) unit->experience = (uint8_t)cursor->total;
         else if (!strcmp(op, "reward_finish")) return 1;
         else if (!strcmp(op, "reward_early_finish")) return 2;

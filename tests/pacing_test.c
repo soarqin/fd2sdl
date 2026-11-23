@@ -25,7 +25,7 @@ int main(void) {
         else if (!strcmp(s->key, "new_game_battle_effect")) assert(fd2_setting_set(s, "short"));
         else if (!strcmp(s->key, "new_game_info_board")) assert(fd2_setting_set(s, "off"));
     }
-    assert(!fd2_settings_original());
+    assert(!fd2_settings_gameplay_is_default());
     assert(fd2_animation_wait_ms(NULL, 90) == 0 && delay == 45);
     assert(fd2_animation_wait_ticks(NULL, 1) == 0 && delay == 28);
     fd2_field_play_context context;

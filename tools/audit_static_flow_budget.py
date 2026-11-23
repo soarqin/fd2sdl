@@ -255,9 +255,9 @@ def other_budget_proof(documents):
                 growth=[n for n in nodes.values() if n['op']=='reward_growth_available']
                 if len(growth)!=1 or growth[0]['args']!=[5]:raise ValueError('reward growth counter contract changed')
                 stop=[n for n in nodes.values() if n['op']=='reward_stop_level']
-                if len(stop)!=1 or len(stop[0]['args'])!=4 or any(not 0<=v<=255 for v in stop[0]['args']):
+                if len(stop)!=1 or len(stop[0]['args'])!=5 or any(not 0<=v<=255 for v in stop[0]['args']):
                     raise ValueError('reward BYTE stop-level contract changed')
-                # BYTE level increments mod256, fixed stop level30/99 is reached in at most256
+                # BYTE level increments mod256, the configured stop level is reached in at most256
                 # iterations even for a noncanonical entry byte. Each level yields at most1+5+6 notices.
                 extra.update(preflight_max_levels=256,preflight_max_notices=1+256*(1+5+6)+1,
                     preflight_max_advance_calls=1+256*(1+5+6)+1+1,

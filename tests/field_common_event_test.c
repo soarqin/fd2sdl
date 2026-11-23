@@ -276,7 +276,60 @@ static int test_runtime_prior_presentation_blocks_writes(void) {
     free(g);return 0;
 }
 
+static int test_chapter_23_rodman_recruitment(void) {
+    static const struct {
+        const char *setting;
+        unsigned member, turn, fragment;
+    } cases[] = {
+        {"without_mitty", 13, 14, 13},
+        {"without_mitty", 18, 14, 10},
+        {"without_mitty", 13, 15, 12},
+        {"always", 18, 14, 13},
+        {"always", 18, 15, 12},
+        {"always", 19, 14, 10},
+    };
+    size_t count;
+    const fd2_setting *settings = fd2_settings_table(&count), *rule = NULL;
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings[i].key, "rodman_recruitment")) rule = &settings[i];
+    CHECK(rule);
+    const fd2_static_flow *flow = fd2_static_flow_lookup("stage", "stage.victory.022");
+    CHECK(flow);
+    const fd2_static_flow_node *query = fd2_static_flow_at(flow, fd2_static_flow_label(flow, "n0347"));
+    CHECK(query && !strcmp(query->op, "branch_rodman_recruit_blocked"));
+    fd2_field_game *game = calloc(1, sizeof(*game));
+    CHECK(game);
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        memset(game, 0, sizeof(*game));
+        game->ready = 1;
+        game->stage = 22;
+        game->turn_number = cases[i].turn;
+        game->roster_count = 1;
+        game->roster[0].text_id = (uint8_t)cases[i].member;
+        CHECK(fd2_setting_set(rule, cases[i].setting));
+        unsigned port;
+        CHECK(fd2_field_game_stage_source_node(game, query, &port) == 1);
+        const fd2_static_flow_node *node = fd2_static_flow_at(flow, fd2_static_flow_edge(flow, query, port));
+        CHECK(node);
+        if (!strcmp(node->op, "branch_turn")) {
+            CHECK(fd2_field_game_stage_source_node(game, node, &port) == 1);
+            node = fd2_static_flow_at(flow, fd2_static_flow_edge(flow, node, port));
+        }
+        CHECK(node && !strcmp(node->op, "text") && node->args[0] == (int)cases[i].fragment);
+        CHECK(game->roster_count == 1 && game->roster[0].text_id == cases[i].member);
+        if (cases[i].fragment == 13) {
+            node = fd2_static_flow_at(flow, fd2_static_flow_edge(flow, node, FD2_FLOW_NEXT));
+            CHECK(node && fd2_field_game_stage_source_node(game, node, &port) == 1);
+            CHECK(game->roster_count == 2 && game->roster[1].unit_id == 19 && game->roster[1].text_id == 19);
+        }
+    }
+    fd2_settings_defaults();
+    free(game);
+    return 0;
+}
+
 int main(void) {
+    CHECK(test_chapter_23_rodman_recruitment()==0);
     CHECK(test_once_and_late_failure()==0);
     CHECK(test_scheduling_and_rng()==0);
     CHECK(test_validation_and_dynamic_item()==0);

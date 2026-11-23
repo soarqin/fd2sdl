@@ -941,7 +941,7 @@
         "physical.short",
         "physical.caller.full"
       ],
-      "operation_abi_sha256": "cc75241d57f34f59e6575caf046cf08b5f941db1c75198dc1983bb43530e399b"
+      "operation_abi_sha256": "eee951b8b3175181ba2665e3e013443751078fdfc3299db02a1a449e5eb517f6"
     },
     "scene.json": {
       "ports": {
@@ -1113,7 +1113,7 @@
       "required_labels": {}
     },
     "stage.json": {
-      "operation_abi_sha256": "6188f7b3dd10ab08c5075d0dbea38ef0e7b2d34e8d52a22329d59e3e8d3e9c04",
+      "operation_abi_sha256": "1d71d8ec93888f91d599ba1363b785f272794364a8cacee9ff17e2794576b28e",
       "ports": {
         "stage_setup": [
           [
@@ -1351,6 +1351,13 @@
           ]
         ],
         "branch_roster_text": [
+          [
+            "error",
+            "no",
+            "yes"
+          ]
+        ],
+        "branch_rodman_recruit_blocked": [
           [
             "error",
             "no",

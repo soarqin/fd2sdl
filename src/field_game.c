@@ -5598,7 +5598,8 @@ static int run_action_flow(field_action_flow *ctx, const char *id) {
             if (value) ctx->counter=ready;
             port=ready ? FD2_FLOW_YES:FD2_FLOW_NO;
         } else if (!strcmp(op,"recovery_needed")) {
-            port=actor->hp!=actor->hp_max && !actor->detail_status[0] && !actor->detail_status[1]
+            port=!fd2_get_settings()->disable_rest_healing && actor->hp!=actor->hp_max &&
+                !actor->detail_status[0] && !actor->detail_status[1]
                 ? FD2_FLOW_YES:FD2_FLOW_NO;
         } else if (!strcmp(op,"recovery_focus")) {
             if (focus_to(game,actor->x,actor->y)!=0) break;
@@ -7316,7 +7317,8 @@ static int ai_behavior5_complete(fd2_field_game *game,
 
 static int recover_stationary_unit(fd2_field_game *game, size_t actor_index) {
     if (!game || actor_index >= game->units.count) return -1;
-    /* sub_13FD4 @0x13fd4：HP等值才早退，over-max亦会夹回max；无除法HP门。
+    /* field_stationary_recover_present_apply @0x13fd4（原sub_13FD4）：
+     * VA 0x14010 去掉短跳后恒早退。原 HP 等值才早退，over-max 亦会夹回 max。
      * 三wait/cue/actor顺序及HP写点由stationary.recover冷图掌握。 */
     field_action_flow action={0};action.game=game;action.actor=action.target=actor_index;
     action.mode=FD2_FIELD_PHYSICAL_MODE_RECOVERY;
@@ -7327,6 +7329,7 @@ static int recover_stationary_unit(fd2_field_game *game, size_t actor_index) {
  * AI11可能先以20清毒并恢复少量HP，再进入13fd4，不能只看初始状态门。 */
 static int recovery_resources_preflight(fd2_field_game *game, size_t actor_index) {
     if (!game || actor_index>=game->units.count) return -1;
+    if (fd2_get_settings()->disable_rest_healing) return 0;
     const fd2_field_unit *actor=&game->units.items[actor_index];
     int possible=actor->hp!=actor->hp_max && !actor->detail_status[0] && !actor->detail_status[1];
     if (!possible && fd2_field_ai_behavior(actor)==11 && actor->hp!=actor->hp_max &&

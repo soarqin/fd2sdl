@@ -9,6 +9,7 @@
 
 #include "field_attack.h"
 #include "field_game.h"
+#include "settings.h"
 
 typedef struct {
     const uint32_t *values;
@@ -101,6 +102,14 @@ static int expect(int condition, const char *label) {
     if (condition) return 0;
     fprintf(stderr, "field game attack test failed: %s\n", label);
     return -1;
+}
+
+static const fd2_setting *find_rule(const char *key) {
+    size_t count;
+    const fd2_setting *settings = fd2_settings_table(&count);
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings[i].key, key)) return &settings[i];
+    return NULL;
 }
 
 static int configure_with_bases(fd2_field_game *game, test_rng *rng,
@@ -820,6 +829,35 @@ static int test_full_strike_events_and_short_selection(void) {
     return 0;
 }
 
+static int test_ai_high_defense_rule(void) {
+    const fd2_setting *rule = find_rule("ai_attack_high_defense");
+    if (expect(rule && !fd2_get_settings()->ai_attack_high_defense, "high-defense rule defaults off")) return -1;
+    fd2_field_game game; init_game(&game);
+    game.active_side = 0;
+    game.units.items[0].side = 0;
+    game.units.items[1].side = 2;
+    game.units.items[0].movement_profile = game.units.items[1].movement_profile = 7;
+    game.units.items[1].defense = 100;
+    game.units.items[2].flags = FD2_FIELD_UNIT_FLAG_HIDDEN;
+    equip_weapon(&game.units.items[1], 0);
+    fd2_field_path_result range = FD2_FIELD_PATH_RESULT_INITIALIZER;
+    if (expect(fd2_field_game_compute_move_range(&game, 0, &range) == 0, "AI attack fixture range")) return -1;
+    fd2_field_ai_physical_candidate candidate = {.priority = -1};
+    int result = fd2_field_ai_choose_physical_candidate(&game.map, &game.terrain, &game.units, 0, 0, &range, &candidate);
+    int failed = expect(result == -1 && candidate.priority == -1, "base rule rejects the low-scoring candidate");
+    if (!failed) failed = expect(fd2_setting_set(rule, "on"), "enable the high-defense rule");
+    if (!failed) {
+        result = fd2_field_ai_choose_physical_candidate(&game.map, &game.terrain, &game.units, 0, 0, &range, &candidate);
+        failed = expect(result == 0 && candidate.unit_index == 1 && candidate.priority == 8 && candidate.secondary_score < 0 &&
+            fd2_field_ai_select_attack_action_for_candidates(&game.units.items[0], &game.units.items[1],
+                &candidate, NULL, NULL) == FD2_FIELD_AI_ACTION_PHYSICAL,
+            "high-defense rule grants physical priority while preserving the secondary score");
+    }
+    fd2_field_path_close(&range);
+    fd2_settings_defaults();
+    return failed;
+}
+
 static int test_ai_short_present_order(void) {
     static const uint32_t rolls[]={2,0,99,0,0,99,0,99,0,99,0,55};
     test_rng rng={rolls,sizeof(rolls)/sizeof(rolls[0]),0};
@@ -910,17 +948,22 @@ static int test_wait_recovery_original_commit_order(void) {
             expect(observer.prepares==1 && observer.steps==6 && observer.finishes==1 && !observer.invalid && !rng.cursor &&
                    game.units.items[0].hp==pairs[i][2],"three waits precede HP commit, including over-max and zero-max")) return -1;
     }
-    for (int gate=0;gate<3;gate++) {
+    const fd2_setting *rest = find_rule("disable_rest_healing");
+    if (expect(rest && !fd2_get_settings()->disable_rest_healing,"rest rule defaults to recovery enabled")) return -1;
+    for (int gate=0;gate<4;gate++) {
         test_rng rng={NULL,0,0};fd2_field_game game;init_game(&game);game.ordinary_display_mode=1;
         game.units.items[0].hp=gate ? 40:100;game.units.items[0].hp_max=100;
-        if (gate) game.units.items[0].detail_status[gate-1]=3;
+        if (gate == 1 || gate == 2) game.units.items[0].detail_status[gate-1]=3;
+        if (gate == 3 && expect(fd2_setting_set(rest,"on"),"disable rest recovery")) return -1;
         recovery_observer observer={.rng=&rng,.fail_phase=-1};
         game.physical_present=observe_recovery;game.physical_present_userdata=&observer;
         if (configure(&game,&rng)!=0 ||
             expect(fd2_field_game_finish_unit_action(&game)==0 && !observer.prepares && !observer.steps &&
-                   !observer.finishes && !observer.invalid && !rng.cursor && game.ordinary_display_mode==1,
-                   "equal HP or raw25/raw26 blocks without mode or presentation write")) return -1;
+                   !observer.finishes && !observer.invalid && !rng.cursor && game.ordinary_display_mode==1 &&
+                   game.units.items[0].hp==(gate ? 40u:100u) && fd2_field_unit_has_acted(&game.units.items[0]),
+                   "blocked recovery preserves HP and presentation and still completes WAIT")) return -1;
     }
+    fd2_settings_defaults();
     test_rng rng={NULL,0,0};fd2_field_game game;init_game(&game);game.ordinary_display_mode=1;
     game.units.items[0].hp=40;game.units.items[0].hp_max=100;game.cursor_cell_x=game.cursor_cell_y=0;
     recovery_observer rejected={.rng=&rng,.old_hp=40,.new_hp=60,.fail_phase=FD2_FIELD_PHYSICAL_PREPARE};
@@ -1102,6 +1145,7 @@ int main(void) {
     fprintf(stderr, "field game attack case failed: %s\n", #test); \
     return 1; } } while (0)
     RUN_TEST(test_full_strike_events_and_short_selection);
+    RUN_TEST(test_ai_high_defense_rule);
     RUN_TEST(test_ai_short_present_order);
     RUN_TEST(test_wait_recovery_original_commit_order);
     RUN_TEST(test_full_status_before_and_counter_order);

@@ -70,7 +70,7 @@ def run(game, driver, artifacts):
             image = frame(p, "paths")
             glyphs(image, 206, 93, "路径")
             glyphs(image, 206, 380, "资源齐全")
-            glyphs(image, 465, 27, "原版一致")
+            glyphs(image, 465, 27, "默认节奏与规则")
             glyphs(image, 700, 26, "繁體中文")
             for page, title in [("video", "画面"), ("sound", "声音"), ("keyboard", "键盘"),
                                 ("gamepad", "手柄"), ("pacing", "节奏与规则")]:
@@ -89,17 +89,32 @@ def run(game, driver, artifacts):
                 if page == "pacing":
                     glyphs(image, 214, 135, "升级属性成长")
                     glyphs(image, 464, 135, "原版随机")
+                    for y, label, value in [
+                            (175, "第 23 章罗德曼加入", "蜜蒂不加入则罗德曼加入"),
+                            (215, "修正 30 级经验归零", "开启"),
+                            (255, "AI 攻击高防御目标", "关闭"),
+                            (295, "休息不回血", "关闭")]:
+                        glyphs(image, 214, y, label)
+                        glyphs(image, 464, y, value)
                     controls.key("RIGHT")
                     glyphs(frame(p, "growth-max"), 464, 135, "最大成长+1")
                     controls.key("RIGHT")
                     image = frame(p, "growth-max-minus-one")
                     glyphs(image, 464, 135, "最大成长")
-                    glyphs(image, 465, 27, "非原版设置")
+                    glyphs(image, 465, 27, "自定义节奏与规则")
                     controls.key("RIGHT")
                     glyphs(frame(p, "growth-min"), 464, 135, "最小成长")
                     controls.key("LEFT")
                     controls.key("DOWN")
                     controls.key("RIGHT")
+                    image = frame(p, "rodman-always")
+                    glyphs(image, 464, 175, "必定加入")
+                    glyphs(image, 206, 380, "两种招募方式均须在第 15 回合前获胜。")
+                    controls.key("DOWN")
+                    controls.key("LEFT")
+                    for _ in range(3):
+                        controls.key("DOWN")
+                        controls.key("RIGHT")
             controls.key("TAB")
             controls.key("RIGHT")
             controls.key("ENTER")
@@ -110,18 +125,29 @@ def run(game, driver, artifacts):
         assert values["video"]["window_scale"] == "2"
         assert values["pacing"]["key_repeat_delay_ms"] == "501"
         assert values["rules"]["level_up_growth"] == "max_minus_one"
+        assert values["rules"]["rodman_recruitment"] == "always"
+        assert values["rules"]["fix_level_30_experience"] == "off"
+        assert values["rules"]["ai_attack_high_defense"] == "on"
+        assert values["rules"]["disable_rest_healing"] == "on"
         assert "A" in values["keyboard"]["Enter"].split(", ")
         with launch("discard", ["--setup"], config, locale="en_US,zh_CN") as p:
             controls = Capture(driver, p, work)
             image = frame(p, "reopened")
             glyphs(image, 206, 93, "路徑")
-            glyphs(image, 465, 27, "非原版設定")
+            glyphs(image, 465, 27, "自訂節奏與規則")
             glyphs(image, 700, 26, "简体中文")
             controls.key("PAGEUP")
             image = frame(p, "traditional-growth")
             glyphs(image, 206, 93, "節奏與規則")
             glyphs(image, 214, 135, "升級屬性成長")
             glyphs(image, 464, 135, "最大成長")
+            for y, label, value in [
+                    (175, "第 23 章羅德曼加入", "必定加入"),
+                    (215, "修正 30 級經驗歸零", "關閉"),
+                    (255, "AI 攻擊高防禦目標", "開啟"),
+                    (295, "休息不回血", "開啟")]:
+                glyphs(image, 214, y, label)
+                glyphs(image, 464, y, value)
             controls.key("F2")
             glyphs(frame(p, "switched-growth"), 464, 135, "最大成长")
             controls.key("ENTER")
@@ -153,7 +179,7 @@ def run(game, driver, artifacts):
             assert p.wait(timeout=5) == 0
         with launch("no-config", [], None) as p:
             frame(p, "default-game", (960, 600))
-        assert "config=none parity=original" in (work / "no-config.log").read_text(encoding="utf-8")
+        assert "config=none gameplay=default" in (work / "no-config.log").read_text(encoding="utf-8")
         report["passed"] = True
     finally:
         (work / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

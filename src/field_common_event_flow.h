@@ -6,6 +6,7 @@
 
 #include "field_event.h"
 #include "field_item.h"
+#include "settings.h"
 #include "static_flow.h"
 
 static int common_event_actor(const fd2_field_game *game, size_t caller,
@@ -79,9 +80,15 @@ static int common_event_query_values(const fd2_field_units *units,
             return -1;
         result = fd2_field_event_compare_unsigned((uint32_t)count,
             (fd2_field_event_compare)a[2], (uint32_t)a[3]);
-    } else if (!strcmp(op, "branch_roster_text")) {
-        if (a[0] < 0 || a[0] > UINT8_MAX) return -1;
-        result = fd2_field_event_roster_has_text(roster, roster_count, (uint8_t)a[0]);
+    } else if (!strcmp(op, "branch_roster_text") || !strcmp(op, "branch_rodman_recruit_blocked")) {
+        /* sub_24754 @0x24754（原登记同名）：VA 0x24837 的 12h 查询蜜蒂，
+         * 13h 查询罗德曼本人。未命中继续冷图的回合门。 */
+        int32_t text_id = a[0];
+        if (!strcmp(op, "branch_rodman_recruit_blocked") &&
+                fd2_get_settings()->rodman_recruitment == FD2_RODMAN_ALWAYS)
+            text_id = a[1];
+        if (text_id < 0 || text_id > UINT8_MAX) return -1;
+        result = fd2_field_event_roster_has_text(roster, roster_count, (uint8_t)text_id);
     } else if (!strcmp(op, "branch_item")) {
         if (a[0] < -1 || a[1] < 0 || a[1] > UINT8_MAX)
             return -1;

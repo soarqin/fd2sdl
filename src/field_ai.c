@@ -17,6 +17,7 @@
 #include "field_attack.h"
 #include "field_item.h"
 #include "field_magic.h"
+#include "settings.h"
 
 static uint32_t abs_diff(int a, int b) {
     return a >= b ? (uint32_t)(a - b) : (uint32_t)(b - a);
@@ -236,6 +237,7 @@ int fd2_field_ai_choose_physical_candidate(
         return -1;
 
     int have_best = 0;
+    const bool attack_high_defense = fd2_get_settings()->ai_attack_high_defense;
     fd2_field_ai_physical_candidate best = {0};
     for (int y = 0; y < move_range->height; y++) {
         for (int x = 0; x < move_range->width; x++) {
@@ -276,7 +278,8 @@ int fd2_field_ai_choose_physical_candidate(
                     fd2_field_path_close(&attack_range); return -1;
                 }
                 int32_t score = (int32_t)adjusted_attack - (int32_t)adjusted_target_defense;
-                int32_t priority = score > 2 ? 8 : 0; /* 14586..14595。 */
+                /* 1458f改为短跳至14595时，所有合法目标都获得基础优先级8。 */
+                int32_t priority = attack_high_defense || score > 2 ? 8 : 0;
                 if (score > (int32_t)target->hp) { /* 1447b..14485严格>HP。 */
                     score *= 2;
                     priority = 0x12;

@@ -483,15 +483,61 @@ static uint32_t growth_rng(void *data) {
     return rolls[(*calls)++ % 3];
 }
 
+static const fd2_setting *find_rule(const char *key) {
+    size_t count;
+    const fd2_setting *settings = fd2_settings_table(&count);
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings[i].key, key)) return &settings[i];
+    return NULL;
+}
+
+static int test_level_30_experience_rule(void) {
+    static const struct {
+        const char *setting;
+        uint8_t unit_id, level, next_level, experience;
+    } cases[] = {
+        {"on", 4, 29, 30, 20}, {"off", 4, 29, 30, 0},
+        {"on", 4, 39, 40, 0}, {"off", 4, 39, 40, 20},
+        {"on", 4, 40, 40, 80},
+        {"on", 30, 39, 40, 0},
+        {"on", 30, 98, 99, 0}, {"off", 31, 98, 99, 0},
+    };
+    const fd2_setting *rule = find_rule("fix_level_30_experience");
+    CHECK(rule && fd2_get_settings()->fix_level_30_experience);
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        CHECK(fd2_setting_set(rule, cases[i].setting));
+        fixture f; init(&f);
+        fd2_field_game *game = &f.game;
+        fd2_field_unit *actor = &game->units.items[0];
+        actor->unit_id = cases[i].unit_id;
+        actor->level = cases[i].level;
+        actor->experience = 80;
+        game->experience_value = 40;
+        CHECK(fd2_field_game_complete_player_controller(game, 0) == 0);
+        fd2_field_progress_notice notice;
+        unsigned level_notices = 0;
+        int pending;
+        while ((pending = fd2_field_game_progress_peek(game, &notice)) == 1) {
+            if (notice.kind == FD2_FIELD_PROGRESS_LEVEL) {
+                CHECK(notice.value == cases[i].next_level && !level_notices);
+                level_notices++;
+            }
+            CHECK(fd2_field_game_progress_ack(game) == 0);
+        }
+        CHECK(pending == 0 && level_notices == (unsigned)(cases[i].level != cases[i].next_level));
+        CHECK(actor->level == cases[i].next_level && actor->experience == cases[i].experience);
+        close_fixture(&f);
+    }
+    fd2_settings_defaults();
+    return 0;
+}
+
 static int test_level_up_growth_rules(void) {
     static const struct { const char *setting; unsigned gains[4]; size_t rolls; } cases[] = {
         {"random", {8, 4, 2, 9}, 3}, {"max", {9, 5, 2, 11}, 0},
         {"max_minus_one", {8, 4, 2, 10}, 0}, {"min", {6, 4, 2, 8}, 0}
     };
-    size_t count;
-    const fd2_setting *settings = fd2_settings_table(&count), *growth = NULL;
-    for (size_t i = 0; i < count; ++i)
-        if (!strcmp(settings[i].key, "level_up_growth")) growth = &settings[i];
+    const fd2_setting *growth = find_rule("level_up_growth");
     CHECK(growth != NULL);
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
         CHECK(fd2_setting_set(growth, cases[i].setting));
@@ -532,7 +578,8 @@ static int test_level_up_growth_rules(void) {
 }
 
 int main(void) {
-    if (test_level_up_growth_rules() ||
+    if (test_level_30_experience_rule() ||
+        test_level_up_growth_rules() ||
         test_source_profile28_and_map_mark_lifecycle() ||
         test_source_player_path_failure_keeps_reset_prefix() ||
         test_zero_movement_command_and_cancel() ||

@@ -990,8 +990,8 @@ int main(int argc, char **argv) {
             return launch < 0 ? 1 : 0;
         }
     }
-    fprintf(stderr, "fd2sdl %s config=%s parity=%s\n", FD2_VERSION,
-            config.path ? config.path : "none", fd2_settings_original() ? "original" : "modified");
+    fprintf(stderr, "fd2sdl %s config=%s gameplay=%s\n", FD2_VERSION,
+            config.path ? config.path : "none", fd2_settings_gameplay_is_default() ? "default" : "custom");
     fd2_config_close(&config);
     int map_preview = (argc > 1 && strcmp(argv[1], "--map-preview") == 0);
     int map_preview_once = (argc > 1 && strcmp(argv[1], "--map-preview-once") == 0);
@@ -1033,8 +1033,8 @@ int main(int argc, char **argv) {
 
     const fd2_settings *settings = fd2_get_settings();
     int logical_height = settings->aspect_4_3 ? 240 : VGA_H;
-    const char *title = fd2_settings_original() ? "FD2-SDL " FD2_VERSION :
-        "FD2-SDL " FD2_VERSION "（非原版设置）";
+    const char *title = fd2_settings_gameplay_is_default() ? "FD2-SDL " FD2_VERSION :
+        "FD2-SDL " FD2_VERSION "（自定义节奏与规则）";
     SDL_Window *win = SDL_CreateWindow(title, VGA_W * settings->window_scale,
         logical_height * settings->window_scale, SDL_WINDOW_RESIZABLE |
         (settings->fullscreen ? SDL_WINDOW_FULLSCREEN : 0));

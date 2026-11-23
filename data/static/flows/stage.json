@@ -402,6 +402,20 @@
         }
       ]
     },
+    "branch_rodman_recruit_blocked": {
+      "args": [
+        {
+          "name": "mitty_text_id",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "name": "rodman_text_id",
+          "min": 0,
+          "max": 255
+        }
+      ]
+    },
     "branch_item": {
       "args": [
         {
@@ -179812,7 +179826,8 @@
         },
         {
           "args": [
-            13
+            18,
+            19
           ],
           "id": "n0347",
           "on": {
@@ -179820,7 +179835,7 @@
             "no": "n0346",
             "yes": "n0339"
           },
-          "op": "branch_roster_text",
+          "op": "branch_rodman_recruit_blocked",
           "views": [
             "logic",
             "present"

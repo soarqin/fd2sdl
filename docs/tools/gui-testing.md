@@ -49,3 +49,5 @@ $dosbox = 'C:/Tools/DOSBox-X/dosbox-x.exe'
 ```
 
 `run_original_comparison.py` 核标题菜单方向键和取消，不覆盖新游戏。`run_original_opening.py` 以相同参数执行自然开场，需单独的目录和足够的 Job 时限。`run_original_end_turn.py`、`run_original_load.py` 分别检查回合和活动存取档，使用有正确前置状态的原版 `START.SAV` 或显式只读夹具。先阅读对应脚本的场景与判据，不能把受控夹具换成任意外来存档。历史原版截图和来源资格见[历史证据索引](../history.md)。
+
+对还原了随机成长的参照，`run_original_reward.py --scenario learn` 用原资源逐项核对升级成长与学法术提示。两端分别核对成长范围，各自保留抽取值。此场景的验收止于学法术提示。

@@ -5,16 +5,20 @@
 
 #include "field_unit.h"
 #include "field_unit_stats.h"
+#include "field_combat.h"
 
 /* field_growth_record_get @0x4e821（原sub_4E821）与 field_magic_learning_record_get @0x4e7f2（原sub_4E7F2）
  * 的完整已证只读数据：unit_id 对应11B成长row，row+10选择12B学习row。
  * 68/20是当前数据读集范围，不代表所有ID均可作为玩家运行中升级。 */
 const uint8_t *fd2_field_unit_growth_record_get(uint8_t unit_id);
+/* 无 RNG 时取该模式的可达上界，用于资源预检。 */
+uint8_t fd2_field_growth_delta(const uint8_t pair[2], int mode,
+    fd2_field_combat_rng_fn rng, void *userdata);
 const uint8_t *fd2_field_unit_learning_record_get(uint8_t selector);
 
 typedef struct {
     uint8_t level;
-    uint8_t growth[5]; /* baseAP/baseDP/DX/maxHP/maxMP，取每对第二byte。 */
+    uint8_t growth_delta; /* 当前属性已抽取、待提示确认后写入的增量。 */
     uint8_t learned_magic[6]; /* 按原学习表顺序；已拥有的bit仍报告。 */
     uint8_t learned_count;
 } fd2_field_unit_level_growth;

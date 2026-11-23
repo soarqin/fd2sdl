@@ -62,6 +62,15 @@ def prepare(original, scenario, *, short_counter=False):
     resources = {"source": source, "encoded": encoded, "manifest": manifest, "model": model,
         "assets": assets, "pages": pages, "tables": table_evidence,
         "titles": title_templates(original / "FDOTHER.DAT"), "original": original, "scenario": scenario}
+    if table_evidence["growth_branch"] == "740e" and any(page["kind"] == "growth" for page in pages):
+        if scenario != "learn":
+            raise ValueError("此原版随机成长场景尚无提示范围夹具；请使用 learn 核对成长提示")
+        actor_id = source[UNITS + raw * STRIDE + 7]
+        row = tables["growth"][actor_id * 11:actor_id * 11 + 10]
+        bounds = {490 + i: (lo, max(lo, hi - 1)) for i, (lo, hi) in enumerate(zip(row[::2], row[1::2]))}
+        if any(not lo or hi < lo for lo, hi in bounds.values()):
+            raise ValueError("learn 随机成长夹具要求每项增量均为正数")
+        resources["random_growth_bounds"] = bounds
     resources["source_actors"] = [actor_focus_resources(original, source, assets, i, assets["cursor"]) for i in (0, 1)]
     if scenario in ("heal", "learn"):
         resources["movement"] = selection_probe(original, source, 1, assets)
@@ -365,9 +374,37 @@ def observe_active_load(capture, prepared, saved, save, guard, report):
 
 def observe_pages(capture, prepared, checkpoint, report):
     report["reward_acknowledgements"] = []
+    bounds = prepared.get("random_growth_bounds")
+    if bounds:
+        report["growth_notices"] = []
+        observed = []
+        events = prepared["model"]["events"]
+        original, assets = prepared["original"], prepared["assets"]
+        actor_id = prepared["source"][UNITS + prepared["model"]["reward_actor"] * STRIDE + 7]
     for ordinal, page in enumerate(prepared["pages"]):
         name = f"b4-message-{ordinal:02d}-{page['fragment']}"
-        _, detail = checkpoint(name, lambda frame, p=page: page_match(frame, p, prepared["assets"]), timeout=120)
+        if bounds:
+            event = events[ordinal]
+            lo, hi = bounds.get(event["fragment"], (event["value"], event["value"]))
+            candidates = []
+            for value in range(lo, hi + 1):
+                variant = dict(event, value=value)
+                candidate = reward_pages(original, assets, actor_id, [*observed, variant])[-1]
+                candidates.append(candidate)
+
+            def match(frame):
+                for candidate in candidates:
+                    if detail := page_match(frame, candidate, assets):
+                        return dict(detail, value=candidate["value"])
+                return None
+
+            _, detail = checkpoint(name, match, timeout=15)
+            observed.append(dict(event, value=detail["value"]))
+            if event["kind"] == "growth":
+                report["growth_notices"].append({"fragment": event["fragment"], "value": detail["value"],
+                    "min": lo, "max": hi})
+        else:
+            checkpoint(name, lambda frame, p=page: page_match(frame, p, prepared["assets"]), timeout=120)
         report["reward_acknowledgements"].append({"name": name, "fragment": page["fragment"],
             "requires_key": page["requires_key"], "key_sent": "ENTER" if page["requires_key"] else None})
         if page["requires_key"]:
@@ -488,6 +525,8 @@ def exercise(capture, prepared, save, guard, report):
         capture.key("ENTER")  # 本场唯一效果提交；此后只逐已证-3 ACK。
         report["action_confirmations"] = 1
         observe_pages(capture, prepared, checkpoint, report)
+        if prepared.get("random_growth_bounds"):
+            return
         world = (7, 14) if raw == 1 else (8, 14)
         checkpoint("b4-reward-ready", quiet_browse(prepared, prepared["model"]["immediate"], world, report, "b4-reward-ready"), timeout=90)
         navigate(capture, prepared, prepared["model"]["immediate"], world, (6, 14), checkpoint, "b4-after-reward-to-end")
@@ -596,6 +635,9 @@ def run(args):
     if prepared.get("short_counter"):
         report["scope"] = "controlled SHORT counter63/3 exact RAW-bar feedback; one END,31 resource pages/30 ACKs,turn2 and one complete Save"
         report["excluded"] = "whole-frame RGB equivalence, exact PIC/PIT/CPU frames, audio, natural fixture acquisition, shared RNG alignment, WAIT/Load"
+    if prepared.get("random_growth_bounds"):
+        report["scope"] = "controlled learn scenario, growth and magic learning notices via WGC"
+        report["excluded"] = "shared RNG alignment, equal rolls between endpoints, post-reward save, audio"
     report["tool_sources"] = {name: {"path": str(Path(sys.modules[name].__file__).resolve()),
         "sha256": hashlib.sha256(Path(sys.modules[name].__file__).read_bytes()).hexdigest()}
         for name in ("fd2_reward_oracle", "fd2_item_list_oracle", "run_original_item_list", "run_original_magic_list", "run_original_comparison", "run_original_end_turn")}
@@ -625,6 +667,9 @@ def run(args):
             else:
                 save = work / "FD2.SAV"; env["FD2SDL_SAVE_PATH"] = str(save)
                 command_line, cwd = [str(args.sdl.resolve())], root
+                if prepared["tables"]["growth_branch"] == "eb0e":
+                    settings = work / "legacy-growth.cfg"
+                    settings.write_text("[rules]\nlevel_up_growth=max\n", encoding="utf-8")
             save.write_bytes(prepared["encoded"])
             guard = [prepared["encoded"], save.stat().st_mtime_ns]
             record = {"kind": kind, "status": "failed", "probe_cases_passed": False,
@@ -635,7 +680,8 @@ def run(args):
                       "scope": report["scope"], "excluded": report["excluded"]}
             report["cases"].append(record)
             try:
-                with running(command_line, cwd, env, work / "game.log", args.driver.resolve(), record["processes"]) as process:
+                with running(command_line, cwd, env, work / "game.log", args.driver.resolve(), record["processes"],
+                             settings=settings if kind == "sdl" and prepared["tables"]["growth_branch"] == "eb0e" else None) as process:
                     capture = Capture(args.driver.resolve(), process, work, record["inputs"])
                     exercise(capture, prepared, save, guard, record)
                     require_source_unchanged(save, *guard)
@@ -678,6 +724,13 @@ def run(args):
 def compare_endpoints(cases, output, prepared):
     if [case["kind"] for case in cases] != ["original", "sdl"] or any(not case["probe_cases_passed"] for case in cases):
         raise AssertionError("B4配对必须两个真实端点均已通过")
+    if bounds := prepared.get("random_growth_bounds"):
+        for case in cases:
+            notices = case["growth_notices"]
+            if [notice["fragment"] for notice in notices] != list(bounds) or any(
+                    not bounds[n["fragment"]][0] <= n["value"] <= bounds[n["fragment"]][1] for n in notices):
+                raise AssertionError("B4学习场景的成长提示不在原版范围内")
+        return {"both_within_original_growth_bounds": True, "shared_rng_aligned": False}
     if prepared.get("short_counter"):
         if any(not case.get("short_counter_feedback", {}).get("passed") or
                 not case.get("short_counter_full_save", {}).get("cache_classes_original_10010_verified") or

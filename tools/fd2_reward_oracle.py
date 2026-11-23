@@ -42,6 +42,9 @@ def reward_tables(executable):
         if not any(obj.index == 3 and obj.relbase <= va and va + size <= obj.relbase + obj.vsize for obj in objects):
             raise ValueError("B4表不在已确认object3完整范围")
     raw = build_relbase_image(data, le, objects)
+    branch = bytes(raw[0x1e548:0x1e54a])
+    if branch not in (b"\x74\x0e", b"\xeb\x0e"):
+        raise ValueError("B4成长跳转字节不在已知来源内")
     growth = bytes(raw[GROWTH_VA:GROWTH_VA + GROWTH_SIZE])
     learning = bytes(raw[LEARNING_VA:LEARNING_VA + LEARNING_SIZE])
     if hashlib.sha256(growth).hexdigest() != GROWTH_SHA256 or hashlib.sha256(learning).hexdigest() != LEARNING_SHA256:
@@ -49,6 +52,7 @@ def reward_tables(executable):
     items, _ = item_table(executable)
     return {"growth": growth, "learning": learning, "items": items}, {
         "executable_sha256": digest,
+        "growth_branch": branch.hex(),
         "growth": {"getter_va": 0x4e821, "canonical_va": GROWTH_VA, "size": GROWTH_SIZE,
                    "rows": 68, "stride": 11, "sha256": GROWTH_SHA256},
         "learning": {"getter_va": 0x4e7f2, "canonical_va": LEARNING_VA, "size": LEARNING_SIZE,

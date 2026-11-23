@@ -158,19 +158,19 @@ static int test_promotion_ack_deltas_and_finalize(void) {
     word(u.base_attack_le,65530);word(u.base_defense_le,65533);word(u.dexterity_le,65534);
     u.hp_max=u.mp_max=65530;put(&s,0,&u);old=s;
     fd2_field_prepare_promotion plan;CHECK(fd2_field_prepare_promotion_plan(&s,0,&plan)==0 && plan.target_unit_id==32 && plan.special_slot==-1);
-    static const uint16_t gains[]={12,8,5,13,9,1}; /* 原growth32每对第二byte，promotion32 MV1。 */
+    static const uint16_t gains[]={11,7,4,12,8,1}; /* 转职预检取随机上界，移动力固定加 1。 */
     static const uint8_t offsets[]={0x37,0x39,0x3e,0x42,0x46,0x3b};
-    for(unsigned kind=0;kind<6;kind++){uint16_t value=999;CHECK(fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)kind,&value)==0 && value==gains[kind]);}
+    for(unsigned kind=0;kind<6;kind++){uint16_t value=999;CHECK(fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)kind,NULL,NULL,&value)==0 && value==gains[kind]);}
     CHECK(!memcmp(&s,&old,sizeof(s)));
-    CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,FD2_FIELD_PREPARE_GAIN_ATTACK)==-1 && !memcmp(&s,&old,sizeof(s)));
+    CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,FD2_FIELD_PREPARE_GAIN_ATTACK,gains[0])==-1 && !memcmp(&s,&old,sizeof(s)));
     CHECK(fd2_field_prepare_promotion_consume(&s,&plan)==0 && !memcmp(&s,&old,sizeof(s)));
     expected=s;expected.unit_area[7]=32;expected.unit_area[32]=9;
     CHECK(fd2_field_prepare_promotion_identity(&s,&plan)==0 && !memcmp(&s,&expected,sizeof(s)));
     for(unsigned kind=0;kind<6;kind++) {
-        old=s;uint16_t value;CHECK(fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)kind,&value)==0 && !memcmp(&s,&old,sizeof(s)));
+        old=s;uint16_t value;CHECK(fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)kind,NULL,NULL,&value)==0 && !memcmp(&s,&old,sizeof(s)));
         if(kind==5)expected.unit_area[offsets[kind]]=(uint8_t)(expected.unit_area[offsets[kind]]+gains[kind]);
         else {uint8_t *p=expected.unit_area+offsets[kind];word(p,(uint16_t)((uint16_t)(p[0]|(uint16_t)p[1]<<8)+gains[kind]));}
-        CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,(fd2_field_prepare_gain)kind)==0 && !memcmp(&s,&expected,sizeof(s)));
+        CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,(fd2_field_prepare_gain)kind,value)==0 && !memcmp(&s,&expected,sizeof(s)));
     }
     CHECK(s.unit_area[33]==20 && s.unit_area[60]==old.unit_area[60]); /* 所有ACK后仍未finalize。 */
     u=get(&expected,0);CHECK(fd2_field_prepare_item_recompute(&u)==0);put(&expected,0,&u);
@@ -178,11 +178,11 @@ static int test_promotion_ack_deltas_and_finalize(void) {
     u=get(&expected,0);u.level=1;u.experience=0;u.hp=u.hp_max;u.mp=u.mp_max;put(&expected,0,&u);
     CHECK(fd2_field_prepare_promotion_finalize(&s,&plan)==0 && !memcmp(&s,&expected,sizeof(s)));
     old=s;CHECK(fd2_field_prepare_promotion_finalize(&s,&plan)==-1 && !memcmp(&s,&old,sizeof(s)));
-    CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,FD2_FIELD_PREPARE_GAIN_ATTACK)==-1 && !memcmp(&s,&old,sizeof(s)));
+    CHECK(fd2_field_prepare_promotion_gain_apply(&s,&plan,FD2_FIELD_PREPARE_GAIN_ATTACK,gains[0])==-1 && !memcmp(&s,&old,sizeof(s)));
     state_init(&s,1);u=get(&s,0);u.unit_id=16;put(&s,0,&u);
     CHECK(fd2_field_prepare_promotion_plan(&s,0,&plan)==0 && plan.target_unit_id==48);
-    uint16_t value=999;CHECK(fd2_field_prepare_promotion_gain_value(&plan,FD2_FIELD_PREPARE_GAIN_MP_MAX,&value)==0 && !value);
-    CHECK(fd2_field_prepare_promotion_gain_value(&plan,FD2_FIELD_PREPARE_GAIN_MOVEMENT,&value)==0 && !value);
+    uint16_t value=999;CHECK(fd2_field_prepare_promotion_gain_value(&plan,FD2_FIELD_PREPARE_GAIN_MP_MAX,NULL,NULL,&value)==0 && !value);
+    CHECK(fd2_field_prepare_promotion_gain_value(&plan,FD2_FIELD_PREPARE_GAIN_MOVEMENT,NULL,NULL,&value)==0 && !value);
     return 0;
 }
 static int test_bad_inputs_preserve_output(void) {
@@ -194,7 +194,7 @@ static int test_bad_inputs_preserve_output(void) {
     CHECK(fd2_field_prepare_revive_price(&s,0,&price)==-1 && price==7 && !memcmp(&s,&old,sizeof(s)));
     CHECK(fd2_field_prepare_roster_front(&s,1)==-1 && !memcmp(&s,&old,sizeof(s)));
     fd2_field_prepare_promotion bad={0,7,39,-1};uint16_t value=77;
-    CHECK(fd2_field_prepare_promotion_gain_value(&bad,FD2_FIELD_PREPARE_GAIN_ATTACK,&value)==-1 && value==77);
+    CHECK(fd2_field_prepare_promotion_gain_value(&bad,FD2_FIELD_PREPARE_GAIN_ATTACK,NULL,NULL,&value)==-1 && value==77);
     return 0;
 }
 int main(void) {

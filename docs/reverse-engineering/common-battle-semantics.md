@@ -108,11 +108,11 @@ record.range==0时，玩家先恢复普通显示模式1，以actor当前位置�
 
 `sub_2AC7D @0x2ac7d` 从**新unit_id**取11B成长row，不使用base表重造角色，也不重跑普通升级学习。顺序如下：
 
-1. 消息595使用新profile名称；依序调用既有 `field_growth_stat_present_apply @0x1e529`，对AP基础 `+0x37`、DP基础 `+0x39`、DX `+0x3e`、maxHP `+0x42`、maxMP `+0x46`，各取growth pair第二byte。零值跳过；非零仍在对应消息ACK后作WORD加法回绕。
+1. 消息595使用新profile名称；依序调用既有 `field_growth_stat_present_apply @0x1e529`，对AP基础 `+0x37`、DP基础 `+0x39`、DX `+0x3e`、maxHP `+0x42`、maxMP `+0x46`，按新 ID 的成长下限与上限抽取增量。零值跳过；非零仍在对应消息ACK后作WORD加法回绕。
 2. 新职业表第二byte非零才显示596／等待，再作 `movement_points +0x3b` 的BYTE加法回绕；不连带覆盖EX。
 3. 调 `0x1b750` 装备／现状态派生重算，关闭准备底框，随后写 `level +0x21=1`、`EX +0x3c=0`、`HP +0x40=maxHP`、`MP +0x44=maxMP`，最后清键。
 
-除准备caller的特殊物品压槽、profile／unit_id、上述成长／派生／最终恢复及runtime cache写点外，其余record字节保留；特别是text_id、原法术位图、状态和库存不由转职整体清零。`0x2ac7d` 不调用 `field_unit_magic_bit_set`；未来升级再按新ID的学习row OR技能。成长计算本身不耗RNG，提示等待仍可能消费UI共享RNG。
+除准备caller的特殊物品压槽、profile／unit_id、上述成长／派生／最终恢复及runtime cache写点外，其余record字节保留；特别是text_id、原法术位图、状态和库存不由转职整体清零。`0x2ac7d` 不调用 `field_unit_magic_bit_set`；未来升级再按新ID的学习row OR技能。转职成长在上下限不同时逐项推进共享 RNG。启动器的升级成长补丁只应用于经验升级。
 
 `sub_4E7DD @0x4e7dd` 原指令为 `0x615fe+2*(target_id-32)`，到移动表 `0x61646` 恰为36×2B。前byte为新profile，后byte为移动增量，SHA256 `980123c50d9cb82dd221ce30dd6981505e52f8b6ff08e71c5a46db65fa8b1870`。18B特殊物品映射SHA256 `cb9b171900a1893aeb3446b2ad214e46df229685fbc5995648d1090998781f29`；`ff` 本身是否可作为物品命中仍须守合法库存域，不能合成合法item255。复活费的读窗 `0x52397` 不是自动证明profile0为有效职业：实际有效profile和 `0x52397+2*profile` 的原引用由准备服务取证登记。
 

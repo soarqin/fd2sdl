@@ -5,6 +5,7 @@
 #define FD2_FIELD_REWARD_FLOW_H
 #include <limits.h>
 #include "field_unit_base.h"
+#include "settings.h"
 #include "static_flow.h"
 #include "static_data.h"
 
@@ -43,7 +44,8 @@ static inline int fd2_reward_ack(const fd2_static_flow *flow, fd2_reward_cursor 
 static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit *unit, uint32_t gain,
         fd2_reward_cursor *cursor, fd2_reward_notice *notice,
         fd2_field_item_stat_lookup_fn lookup, void *lookup_data,
-        fd2_field_unit_stat_scale_fn scale, void *scale_data) {
+        fd2_field_unit_stat_scale_fn scale, void *scale_data,
+        fd2_field_combat_rng_fn growth_rng, void *rng_data) {
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         const fd2_static_flow_node *n = fd2_static_flow_at(flow, cursor->step);
         if (!n || !(n->views & FD2_FLOW_LOGIC)) return -1;
@@ -70,14 +72,18 @@ static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit
             port = cursor->growth_cursor < n->args[0] ? FD2_FLOW_YES : FD2_FLOW_NO;
         else if (!strcmp(op, "reward_growth_nonzero")) {
             if (cursor->growth_cursor >= 5u) return -1;
-            port = cursor->level.growth[cursor->growth_cursor] ? FD2_FLOW_YES : FD2_FLOW_NO;
+            const uint8_t *record = fd2_field_unit_growth_record_get(unit->unit_id);
+            if (!record) return -1;
+            cursor->level.growth_delta = fd2_field_growth_delta(record + 2u * cursor->growth_cursor,
+                fd2_get_settings()->level_up_growth, growth_rng, rng_data);
+            port = cursor->level.growth_delta ? FD2_FLOW_YES : FD2_FLOW_NO;
         } else if (!strcmp(op, "reward_growth_add")) {
             static const uint8_t offsets[] = {0x37, 0x39, 0x3e, 0x42, 0x46};
             if (cursor->growth_cursor >= 5u) return -1;
             uint8_t *raw = (uint8_t *)unit;
             size_t at = offsets[cursor->growth_cursor];
             uint16_t value = (uint16_t)(raw[at] | (uint16_t)raw[at + 1u] << 8);
-            value = (uint16_t)(value + cursor->level.growth[cursor->growth_cursor]);
+            value = (uint16_t)(value + cursor->level.growth_delta);
             raw[at] = (uint8_t)value; raw[at + 1u] = (uint8_t)(value >> 8);
         } else if (!strcmp(op, "reward_growth_next")) cursor->growth_cursor++;
         else if (!strcmp(op, "reward_learn_available"))
@@ -110,7 +116,7 @@ static inline int fd2_reward_advance(const fd2_static_flow *flow, fd2_field_unit
             case 1: notice->value = unit->level; break;
             case 2:
                 if (cursor->growth_cursor >= 5u) return -1;
-                notice->value = cursor->level.growth[cursor->growth_cursor];
+                notice->value = cursor->level.growth_delta;
                 notice->fragment = (uint16_t)(notice->fragment + cursor->growth_cursor); break;
             case 3:
                 if (cursor->learn_cursor >= cursor->level.learned_count) return -1;

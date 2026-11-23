@@ -1,15 +1,15 @@
 {
   "schema": "fd2-original-reference-v1",
-  "identity": "fd2-local-reference-20261121",
+  "identity": "fd2-local-reference-20261123",
   "provenance": {
-    "description": "User-provided local original_game byte set with FD2.EXE and FDFIELD.DAT restored on 2026-11-21. The other 18 files match the 2026-11-14 reference.",
+    "description": "User-provided local reference with the original FD2.EXE growth branch restored on 2026-11-23. All other files match the 2026-11-21 reference.",
     "release_label": null,
     "distribution_source": null
   },
   "files": {
     "FD2.EXE": {
       "size": 509158,
-      "sha256": "775bb4a179718f8515af991ed940ea523851f1ff5051597adf8ce38e1c011026",
+      "sha256": "8f4fdf4a86826b9e6a45a9464d30f313c2506febc67162d4a349094d566cb96b",
       "role": "core"
     },
     "ANI.DAT": {

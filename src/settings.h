@@ -4,16 +4,18 @@
 
 #define FD2_PATH_SIZE 4096
 
+enum { FD2_GROWTH_RANDOM, FD2_GROWTH_MAX, FD2_GROWTH_MAX_MINUS_ONE, FD2_GROWTH_MIN };
+
 typedef struct {
     int window_scale, fullscreen, scale_mode, filter, aspect_4_3;
     int volume, mute, gamepad_deadzone, show_on_start;
     int key_repeat_delay_ms, key_repeat_rate_ms, text_speed, animation_speed;
-    int new_game_battle_effect, new_game_info_board;
+    int new_game_battle_effect, new_game_info_board, level_up_growth;
     char game_dir[FD2_PATH_SIZE], save_path[FD2_PATH_SIZE], renderer[128], device[512];
 } fd2_settings;
 
 typedef struct {
-    const char *section, *key, *label;
+    const char *section, *key, *label_simplified, *label_traditional;
     char grade;
     int min, max;
     const char *choices, *initial; /* choices 以 | 分隔；字符串的 capacity 非零。 */

@@ -492,7 +492,7 @@ static int advance_reward_progress(fd2_field_game *game) {
     fd2_reward_notice notice;
     int result = fd2_reward_advance(fd2_reward_graph(), &game->units.items[progress->notice.actor_index],
         game->experience_value, &cursor, &notice, fd2_field_unit_original_item_stats, NULL,
-        fd2_field_unit_original_status_scale, NULL);
+        fd2_field_unit_original_status_scale, NULL, game->attack_rng, game->attack_rng_userdata);
     progress->total = cursor.total; progress->level = cursor.level;
     progress->growth_cursor = cursor.growth_cursor; progress->learn_cursor = cursor.learn_cursor;
     progress->flow_step = cursor.step;
@@ -506,7 +506,7 @@ static int advance_reward_progress(fd2_field_game *game) {
     return result;
 }
 
-/* 资源预检消费与真实提交相同的图和单步原语，只操作80B局部记录。 */
+/* 用各属性可达上界预检同一张图。零成长可跳过提示，预检不推进共享 RNG。 */
 static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t gain) {
     if (actor_index >= game->units.count) return -1;
     const fd2_field_unit *unit = &game->units.items[actor_index];
@@ -522,7 +522,7 @@ static int preflight_reward(fd2_field_game *game, size_t actor_index, uint32_t g
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         fd2_reward_notice value;
         result = fd2_reward_advance(flow, &shadow, gain, &cursor, &value,
-            fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL);
+            fd2_field_unit_original_item_stats, NULL, fd2_field_unit_original_status_scale, NULL, NULL, NULL);
         if (result == 1) return 1;
         if (result != 0) return -1;
         fd2_field_progress_notice notice = {(fd2_field_progress_kind)value.kind,

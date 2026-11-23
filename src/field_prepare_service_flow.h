@@ -87,8 +87,10 @@ static int prepare_domain_preflight(prepare_ui *ui,int kind) {
         if (fd2_field_prepare_promotion_plan(state,(size_t)s->member,&plan)!=0 ||
             fd2_field_prepare_promotion_consume(&shadow,&plan)!=0 ||
             fd2_field_prepare_promotion_identity(&shadow,&plan)!=0) return -1;
+        uint16_t deltas[6];
         for (unsigned gain=0;gain<6u;gain++)
-            if (fd2_field_prepare_promotion_gain_apply(&shadow,&plan,(fd2_field_prepare_gain)gain)!=0) return -1;
+            if (fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)gain,NULL,NULL,&deltas[gain])!=0 ||
+                fd2_field_prepare_promotion_gain_apply(&shadow,&plan,(fd2_field_prepare_gain)gain,deltas[gain])!=0) return -1;
         if (prepare_domain_read(&shadow,s->member,&source)!=0 || fd2_field_prepare_item_recompute(&source)!=0) return -1;
         prepare_domain_write(&shadow,s->member,&source);
         if (fd2_field_prepare_promotion_finalize(&shadow,&plan)!=0 || prepare_domain_identity_resources(ui,plan.target_unit_id)!=0) return -1;
@@ -96,7 +98,7 @@ static int prepare_domain_preflight(prepare_ui *ui,int kind) {
         if (prepare_service_text_ready(ui,595,&parameters,95,119)!=0) return -1;
         unsigned line=1;
         for (unsigned gain=0;gain<6u;gain++) {
-            uint16_t delta;if (fd2_field_prepare_promotion_gain_value(&plan,(fd2_field_prepare_gain)gain,&delta)!=0) return -1;
+            uint16_t delta=deltas[gain];
             if (!delta) continue;
             if (gain<5u && line==3u) line=2;
             parameters.value=delta;
@@ -228,13 +230,14 @@ static int prepare_service_domain(prepare_ui *ui,const fd2_static_flow_node *nod
         s->irreversible=1;
     } else if (!strcmp(op,"growth_select") || !strcmp(op,"movement_prepare")) {
         int gain=!strcmp(op,"movement_prepare") ? 5:node->args[0];uint16_t delta;
-        if (gain<0 || gain>5 || fd2_field_prepare_promotion_gain_value(&s->promotion,(fd2_field_prepare_gain)gain,&delta)!=0) goto fatal;
+        if (gain<0 || gain>5 || fd2_field_prepare_promotion_gain_value(&s->promotion,
+                (fd2_field_prepare_gain)gain,fd2_field_rng_next,&ui->context->rng,&delta)!=0) goto fatal;
         s->growth_index=(unsigned)gain;s->growth_delta=delta;ui->context->message_number=delta;
     } else if (!strcmp(op,"growth_nonzero")) next=s->growth_delta ? FD2_FLOW_YES:FD2_FLOW_NO;
     else if (!strcmp(op,"growth_commit") || !strcmp(op,"movement_commit")) {
         unsigned gain=!strcmp(op,"movement_commit") ? 5u:s->growth_index;
         if (gain>5u || (!strcmp(op,"growth_commit") && gain>=5u) ||
-            fd2_field_prepare_promotion_gain_apply(state,&s->promotion,(fd2_field_prepare_gain)gain)!=0) goto fatal;
+            fd2_field_prepare_promotion_gain_apply(state,&s->promotion,(fd2_field_prepare_gain)gain,s->growth_delta)!=0) goto fatal;
         if (gain<5u) s->growth_line++;
         s->irreversible=1;
     } else if (!strcmp(op,"cache_rebuild")) {

@@ -60,6 +60,17 @@ const uint8_t *fd2_field_unit_growth_record_get(uint8_t unit_id) {
         ? k_growth_records[unit_id] : NULL;
 }
 
+/* field_growth_stat_present_apply @0x1e529（原 sub_1E529）。
+ * 原指令在上下限相等时跳过 RNG，否则以差值取余，上限不包含在随机区间内。 */
+uint8_t fd2_field_growth_delta(const uint8_t pair[2], int mode,
+        fd2_field_combat_rng_fn rng, void *userdata) {
+    unsigned min = pair[0], max = pair[1];
+    if (mode == FD2_GROWTH_MAX) return (uint8_t)max;
+    if (mode == FD2_GROWTH_MIN || max <= min) return (uint8_t)min;
+    if (mode == FD2_GROWTH_MAX_MINUS_ONE || !rng) return (uint8_t)(max - 1u);
+    return (uint8_t)(min + rng(userdata) % (max - min));
+}
+
 const uint8_t *fd2_field_unit_learning_record_get(uint8_t selector) {
     return selector < ARRAY_COUNT(k_learning_records)
         ? k_learning_records[selector] : NULL;
@@ -86,10 +97,6 @@ int fd2_field_unit_level_growth_prepare(
     fd2_field_unit_level_growth prepared = {0};
     prepared.level = (uint8_t)(unit->level + 1u);
     memset(prepared.learned_magic, 0xff, sizeof(prepared.learned_magic));
-    /* field_growth_stat_present_apply @0x1e529（原sub_1E529）的指令VA0x1e548原字节EB0E
-     * 跳过随机块，直接取每对第二byte；不能调用创建等级公式。 */
-    for (size_t i = 0; i < ARRAY_COUNT(prepared.growth); i++)
-        prepared.growth[i] = record[i * 2u + 1u];
     if (record[10] != 0xffu) {
         const uint8_t *learning = fd2_field_unit_learning_record_get(record[10]);
         if (!learning) return -1;
@@ -118,7 +125,7 @@ int fd2_field_unit_reward_preview(
     fd2_reward_notice notice;
     for (unsigned budget = 0; budget < FD2_FLOW_STEP_BUDGET; budget++) {
         int result = fd2_reward_advance(flow, &updated, gain, &cursor, &notice,
-            fd2_field_unit_original_item_stats, NULL, scale, scale_userdata);
+            fd2_field_unit_original_item_stats, NULL, scale, scale_userdata, NULL, NULL);
         if (result == 2) return 0;
         if (result < 0) return -1;
         if (result == 1) { *out = updated; return 1; }

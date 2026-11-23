@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "save.h"
 #include "field_unit.h"
+#include "field_combat.h"
 
 #define FD2_FIELD_PREPARE_COMPANION_CAPACITY (FD2_SAVE_MAX_UNITS - 1u)
 
@@ -88,12 +89,12 @@ typedef enum {
     FD2_FIELD_PREPARE_GAIN_MOVEMENT
 } fd2_field_prepare_gain;
 
-/* 新ID静态增量查询供资源预检/提示；apply仅在对应ACK后调用一次。
+/* 按新 ID 抽取增量，NULL RNG 供预检取可达上界；apply 在 ACK 后写入已抽取的值。
  * 顺序/零增量跳过/ACK防重复由冷图，不在这里藏另一套推进器。 */
 int fd2_field_prepare_promotion_gain_value(const fd2_field_prepare_promotion *plan,
-    fd2_field_prepare_gain kind, uint16_t *value);
+    fd2_field_prepare_gain kind, fd2_field_combat_rng_fn rng, void *rng_data, uint16_t *value);
 int fd2_field_prepare_promotion_gain_apply(fd2_save_manual_state *state,
-    const fd2_field_prepare_promotion *plan, fd2_field_prepare_gain kind);
+    const fd2_field_prepare_promotion *plan, fd2_field_prepare_gain kind, uint16_t value);
 /* 所有ACK后先由caller调用既有1b750重算，再关底框，最后此步写level1/
  * EX0/当前HPMP=max。无学习/重算/整条覆盖；完成后再次apply/finalize拒绝。 */
 int fd2_field_prepare_promotion_finalize(fd2_save_manual_state *state,

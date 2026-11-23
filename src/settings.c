@@ -8,30 +8,32 @@
 
 static fd2_settings current;
 static bool initialized;
-#define INT(group, name, def, lo, hi, choices, grade, label) \
-    {group, #name, label, grade, lo, hi, choices, def, &current.name, 0}
-#define STR(group, name, def, label) \
-    {group, #name, label, 'H', 0, 0, NULL, def, current.name, sizeof(current.name)}
+#define INT(group, name, def, lo, hi, choices, grade, simplified, traditional) \
+    {group, #name, simplified, traditional, grade, lo, hi, choices, def, &current.name, 0}
+#define STR(group, name, def, simplified, traditional) \
+    {group, #name, simplified, traditional, 'H', 0, 0, NULL, def, current.name, sizeof(current.name)}
 static const fd2_setting items[] = {
-    STR("paths", game_dir, "original_game", "游戏数据目录"),
-    STR("paths", save_path, "FD2.SAV", "存档路径"),
-    INT("launcher", show_on_start, "off", 0, 1, "off|on", 'H', "每次启动时显示设置"),
-    INT("video", window_scale, "3", 1, 8, NULL, 'H', "窗口倍数"),
-    INT("video", fullscreen, "off", 0, 1, "off|desktop", 'H', "桌面全屏"),
-    INT("video", scale_mode, "integer", 0, 2, "integer|letterbox|stretch", 'H', "缩放模式"),
-    INT("video", filter, "nearest", 0, 1, "nearest|linear", 'H', "像素滤镜"),
-    INT("video", aspect_4_3, "off", 0, 1, "off|on", 'H', "校正到 4:3"),
-    STR("video", renderer, "", "渲染驱动"),
-    INT("audio", volume, "100", 0, 100, NULL, 'H', "主音量"),
-    INT("audio", mute, "off", 0, 1, "off|on", 'H', "静音"),
-    STR("audio", device, "", "输出设备"),
-    INT("input", gamepad_deadzone, "50", 0, 99, NULL, 'H', "左摇杆死区 (%)"),
-    INT("pacing", key_repeat_delay_ms, "500", 1, 5000, NULL, 'P', "首次连发等待 (ms)"),
-    INT("pacing", key_repeat_rate_ms, "33", 1, 1000, NULL, 'P', "连发间隔 (ms)"),
-    INT("pacing", text_speed, "normal", 0, 2, "normal|fast|instant", 'P', "逐字速度"),
-    INT("pacing", animation_speed, "100", 25, 400, NULL, 'P', "动画速度 (%)"),
-    INT("pacing", new_game_battle_effect, "full", 0, 1, "full|short", 'P', "新游戏战斗演出"),
-    INT("pacing", new_game_info_board, "on", 0, 1, "off|on", 'P', "新游戏信息板"),
+    STR("paths", game_dir, "original_game", "游戏数据目录", "遊戲資料目錄"),
+    STR("paths", save_path, "FD2.SAV", "存档路径", "存檔路徑"),
+    INT("launcher", show_on_start, "off", 0, 1, "off|on", 'H', "每次启动时显示设置", "每次啟動時顯示設定"),
+    INT("video", window_scale, "3", 1, 8, NULL, 'H', "窗口倍数", "視窗倍數"),
+    INT("video", fullscreen, "off", 0, 1, "off|desktop", 'H', "桌面全屏", "桌面全螢幕"),
+    INT("video", scale_mode, "integer", 0, 2, "integer|letterbox|stretch", 'H', "缩放模式", "縮放模式"),
+    INT("video", filter, "nearest", 0, 1, "nearest|linear", 'H', "像素滤镜", "像素濾鏡"),
+    INT("video", aspect_4_3, "off", 0, 1, "off|on", 'H', "校正到 4:3", "校正為 4:3"),
+    STR("video", renderer, "", "渲染驱动", "繪圖驅動"),
+    INT("audio", volume, "100", 0, 100, NULL, 'H', "主音量", "主音量"),
+    INT("audio", mute, "off", 0, 1, "off|on", 'H', "静音", "靜音"),
+    STR("audio", device, "", "输出设备", "輸出裝置"),
+    INT("input", gamepad_deadzone, "50", 0, 99, NULL, 'H', "左摇杆死区 (%)", "左搖桿死區 (%)"),
+    INT("rules", level_up_growth, "random", FD2_GROWTH_RANDOM, FD2_GROWTH_MIN,
+        "random|max|max_minus_one|min", 'R', "升级属性成长", "升級屬性成長"),
+    INT("pacing", key_repeat_delay_ms, "500", 1, 5000, NULL, 'P', "首次连发等待 (ms)", "首次連發等待 (ms)"),
+    INT("pacing", key_repeat_rate_ms, "33", 1, 1000, NULL, 'P', "连发间隔 (ms)", "連發間隔 (ms)"),
+    INT("pacing", text_speed, "normal", 0, 2, "normal|fast|instant", 'P', "逐字速度", "逐字速度"),
+    INT("pacing", animation_speed, "100", 25, 400, NULL, 'P', "动画速度 (%)", "動畫速度 (%)"),
+    INT("pacing", new_game_battle_effect, "full", 0, 1, "full|short", 'P', "新游戏战斗演出", "新遊戲戰鬥演出"),
+    INT("pacing", new_game_info_board, "on", 0, 1, "off|on", 'P', "新游戏信息板", "新遊戲資訊板"),
 };
 #undef INT
 #undef STR

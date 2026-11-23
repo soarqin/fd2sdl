@@ -127,10 +127,14 @@ static int test_revive_and_promotion_split_writes(void) {
     CHECK(invoke(&ui,"promotion_item_consume",0,&port)==1 && invoke(&ui,"promotion_identity",0,&port)==1 && ui.service.growth_line==1);
     unit=get(s,0);CHECK(unit.unit_id==32 && unit.level==20 && unit.text_id==before.preparation.unit_area[8]);
     CHECK(invoke(&ui,"cache_rebuild",0,&port)==1 && bind_count==1);
-    fd2_field_play_context after_identity=context;CHECK(invoke(&ui,"growth_select",0,&port)==1 && ui.service.growth_delta==12 && !memcmp(s,&after_identity.preparation,sizeof(*s)));
+    fd2_field_play_context after_identity=context;
+    uint16_t expected_gain=(uint16_t)(8u+fd2_field_rng_next(&after_identity.rng)%4u);
+    CHECK(invoke(&ui,"growth_select",0,&port)==1 && ui.service.growth_delta==expected_gain &&
+        context.rng.state==after_identity.rng.state && !memcmp(s,&after_identity.preparation,sizeof(*s)));
     uint16_t old=(uint16_t)(unit.base_attack_le[0]|unit.base_attack_le[1]<<8);
     CHECK(invoke(&ui,"growth_commit",0,&port)==1 && ui.service.growth_line==2);
-    unit=get(s,0);CHECK((uint16_t)(unit.base_attack_le[0]|unit.base_attack_le[1]<<8)==(uint16_t)(old+12));
+    unit=get(s,0);CHECK((uint16_t)(unit.base_attack_le[0]|unit.base_attack_le[1]<<8)==(uint16_t)(old+expected_gain) &&
+        context.rng.state==after_identity.rng.state);
     for(int i=1;i<5;i++){CHECK(invoke(&ui,"growth_select",i,&port)==1);CHECK(invoke(&ui,"growth_commit",0,&port)==1);}
     unsigned line=ui.service.growth_line;CHECK(invoke(&ui,"movement_prepare",0,&port)==1 && invoke(&ui,"movement_commit",0,&port)==1 && ui.service.growth_line==line);
     CHECK(invoke(&ui,"recompute",0,&port)==1 && invoke(&ui,"promotion_finalize",0,&port)==1);

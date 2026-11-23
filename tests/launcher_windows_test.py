@@ -59,8 +59,9 @@ def run(game, driver, artifacts):
             x += width
         report["checkpoints"][-1].setdefault("labels", []).append(label)
 
-    def launch(name, args, settings):
-        return running([str(game), *args], ROOT, env, work / (name + ".log"), driver,
+    def launch(name, args, settings, locale="zh_CN"):
+        return running([str(game), *args], ROOT, dict(env, SDL_PREFERRED_LOCALES=locale),
+                       work / (name + ".log"), driver,
                        report["processes"], settings=settings)
 
     try:
@@ -70,6 +71,7 @@ def run(game, driver, artifacts):
             glyphs(image, 206, 93, "路径")
             glyphs(image, 206, 380, "资源齐全")
             glyphs(image, 465, 27, "原版一致")
+            glyphs(image, 700, 26, "繁體中文")
             for page, title in [("video", "画面"), ("sound", "声音"), ("keyboard", "键盘"),
                                 ("gamepad", "手柄"), ("pacing", "节奏与规则")]:
                 controls.key("PAGEDOWN")
@@ -85,8 +87,19 @@ def run(game, driver, artifacts):
                     controls.key("ENTER")
                     controls.key("A")
                 if page == "pacing":
+                    glyphs(image, 214, 135, "升级属性成长")
+                    glyphs(image, 464, 135, "原版随机")
                     controls.key("RIGHT")
-                    glyphs(frame(p, "modified"), 465, 27, "非原版设置")
+                    glyphs(frame(p, "growth-max"), 464, 135, "最大成长")
+                    controls.key("RIGHT")
+                    image = frame(p, "growth-max-minus-one")
+                    glyphs(image, 464, 135, "最大成长-1")
+                    glyphs(image, 465, 27, "非原版设置")
+                    controls.key("RIGHT")
+                    glyphs(frame(p, "growth-min"), 464, 135, "最小成长")
+                    controls.key("LEFT")
+                    controls.key("DOWN")
+                    controls.key("RIGHT")
             controls.key("TAB")
             controls.key("RIGHT")
             controls.key("ENTER")
@@ -96,11 +109,21 @@ def run(game, driver, artifacts):
         values.read_string(saved.decode("utf-8"))
         assert values["video"]["window_scale"] == "2"
         assert values["pacing"]["key_repeat_delay_ms"] == "501"
+        assert values["rules"]["level_up_growth"] == "max_minus_one"
         assert "A" in values["keyboard"]["Enter"].split(", ")
-        with launch("discard", ["--setup"], config) as p:
+        with launch("discard", ["--setup"], config, locale="en_US,zh_CN") as p:
             controls = Capture(driver, p, work)
-            glyphs(frame(p, "reopened"), 465, 27, "非原版设置")
-            controls.key("PAGEDOWN")
+            image = frame(p, "reopened")
+            glyphs(image, 206, 93, "路徑")
+            glyphs(image, 465, 27, "非原版設定")
+            glyphs(image, 700, 26, "简体中文")
+            controls.key("PAGEUP")
+            image = frame(p, "traditional-growth")
+            glyphs(image, 206, 93, "節奏與規則")
+            glyphs(image, 214, 135, "升級屬性成長")
+            glyphs(image, 464, 135, "最大成長-1")
+            controls.key("F2")
+            glyphs(frame(p, "switched-growth"), 464, 135, "最大成长-1")
             controls.key("ENTER")
             controls.key("RIGHT")
             controls.key("ESC")

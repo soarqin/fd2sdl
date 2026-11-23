@@ -608,7 +608,7 @@ DOSBox历史CPU捕获中unit96 level2为 `(profile,move,hp,mp,base attack,base d
 
 ### 运行中成长、经验与状态字节
 
-`field_growth_record_get @0x4e821`（原 `sub_4E821`）返回数据VA `0x620a1 + 11*index`。已确认完整范围为68条、748字节，至独立下一表基址 `0x6238d`，SHA256 `75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5`。前10字节为五对成长字段，最后byte为学习selector；运行中 `field_growth_stat_present_apply @0x1e529` 的原 `EB0E` 分支直接取每对第二byte，不调用创建等级公式或成长RNG。
+`field_growth_record_get @0x4e821`（原 `sub_4E821`）返回数据VA `0x620a1 + 11*index`。已确认完整范围为68条、748字节，至独立下一表基址 `0x6238d`，SHA256 `75bedc7308088625abc0b70c10115d94903008e7fb907a0acaadc22dc45af2a5`。前 10 字节为五对成长下限和上限，最后一字节为学习 selector。还原后的 `field_growth_stat_present_apply @0x1e529` 用 `74 0E` 在上下限相等时跳过随机块。其余情况取下限加共享随机数对差值的余数。历史 `EB 0E` 为最大成长补丁。
 
 `field_magic_learning_record_get @0x4e7f2`（原 `sub_4E7F2`）返回数据VA `0x626b3 + 12*selector`。完整growth非ff引用覆盖0..19，共20×12=240字节，SHA256 `839200667f837136d3426ab952e455b1a63b3bbba8b9175eb895d4408ddd6fb9`；每行六对 `(level, magicID)`，有效magicID最大35。重复已学位仍OR并通知，例如unit28在level15／23两次学习11；不把duplicate当坏数据，也不把ff哨兵解释为可写出五byte之外的能力。
 

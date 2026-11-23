@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "field_game.h"
+#include "settings.h"
 
 #define CHECK(expr) do { if (!(expr)) { \
     fprintf(stderr, "CHECK failed at %s:%d: %s\n", __FILE__, __LINE__, #expr); \
@@ -475,8 +476,64 @@ static int test_source_player_path_failure_keeps_reset_prefix(void) {
     close_fixture(&f);return 0;
 }
 
+static uint32_t growth_rng(void *data) {
+    size_t *calls = data;
+    /* 首次取余得 2，第二项差值为 1，第三次取余得 1。 */
+    static const uint32_t rolls[] = {2, 7, 10};
+    return rolls[(*calls)++ % 3];
+}
+
+static int test_level_up_growth_rules(void) {
+    static const struct { const char *setting; unsigned gains[4]; size_t rolls; } cases[] = {
+        {"random", {8, 4, 2, 9}, 3}, {"max", {9, 5, 2, 11}, 0},
+        {"max_minus_one", {8, 4, 2, 10}, 0}, {"min", {6, 4, 2, 8}, 0}
+    };
+    size_t count;
+    const fd2_setting *settings = fd2_settings_table(&count), *growth = NULL;
+    for (size_t i = 0; i < count; ++i)
+        if (!strcmp(settings[i].key, "level_up_growth")) growth = &settings[i];
+    CHECK(growth != NULL);
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        CHECK(fd2_setting_set(growth, cases[i].setting));
+        fixture f; init(&f);
+        fd2_field_game *g = &f.game;
+        g->attack_rng = growth_rng;
+        fd2_field_unit *actor = &g->units.items[0];
+        actor->unit_id = 4; /* 固定 DX+2、MP+0，其余三项有上下限。 */
+        actor->level = 1;
+        actor->experience = 99;
+        g->experience_value = 2;
+        fd2_field_unit before = *actor;
+        CHECK(fd2_field_game_complete_player_controller(g, 0) == 0);
+        CHECK(!memcmp(actor, &before, sizeof(before)) && !f.rng_calls);
+        fd2_field_progress_notice notice;
+        size_t gains = 0;
+        int pending;
+        while ((pending = fd2_field_game_progress_peek(g, &notice)) == 1) {
+            if (notice.kind == FD2_FIELD_PROGRESS_GROWTH) {
+                CHECK(gains < 4 && notice.fragment == 490u + gains);
+                static const size_t calls_at_notice[] = {1, 2, 2, 3};
+                CHECK(f.rng_calls == (cases[i].rolls ? calls_at_notice[gains] : 0));
+                CHECK(notice.value == cases[i].gains[gains++]);
+            } else if (notice.kind == FD2_FIELD_PROGRESS_LEVEL) CHECK(!f.rng_calls);
+            CHECK(fd2_field_game_progress_ack(g) == 0);
+        }
+        CHECK(pending == 0 && gains == 4 && f.rng_calls == cases[i].rolls);
+        CHECK(actor->level == 2 && actor->experience == 1);
+        CHECK(actor->base_attack_le[0] == cases[i].gains[0] &&
+              actor->base_defense_le[0] == cases[i].gains[1] &&
+              actor->dexterity_le[0] == cases[i].gains[2]);
+        CHECK(actor->hp_max == 50 + cases[i].gains[3] && actor->hp == 50);
+        CHECK(actor->mp_max == 0 && actor->mp == 0);
+        close_fixture(&f);
+    }
+    fd2_settings_defaults();
+    return 0;
+}
+
 int main(void) {
-    if (test_source_profile28_and_map_mark_lifecycle() ||
+    if (test_level_up_growth_rules() ||
+        test_source_profile28_and_map_mark_lifecycle() ||
         test_source_player_path_failure_keeps_reset_prefix() ||
         test_zero_movement_command_and_cancel() ||
         test_full_path_last_match_and_cancel() ||

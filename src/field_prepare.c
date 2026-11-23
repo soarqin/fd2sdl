@@ -17,6 +17,7 @@
 #include "field_item.h"
 #include "field_prepare_item.h"
 #include "field_unit_base.h"
+#include "settings.h"
 #include "static_data/preparation.inc"
 
 int fd2_field_prepare_stage_is_notown(size_t stage) {
@@ -209,19 +210,24 @@ int fd2_field_prepare_promotion_identity(fd2_save_manual_state *state,const fd2_
     unit.unit_id=plan->target_unit_id;unit.movement_profile=k_prepare_promotion_records[plan->target_unit_id-32u][0];
     unit_write(state,plan->actor_index,&unit);return 0;
 }
-int fd2_field_prepare_promotion_gain_value(const fd2_field_prepare_promotion *plan,fd2_field_prepare_gain kind,uint16_t *value) {
+int fd2_field_prepare_promotion_gain_value(const fd2_field_prepare_promotion *plan,
+        fd2_field_prepare_gain kind, fd2_field_combat_rng_fn rng, void *rng_data, uint16_t *value) {
     if (!promotion_plan_valid(plan) || !value || kind<FD2_FIELD_PREPARE_GAIN_ATTACK || kind>FD2_FIELD_PREPARE_GAIN_MOVEMENT) return -1;
     const uint8_t *growth=fd2_field_unit_growth_record_get(plan->target_unit_id);if (!growth) return -1;
-    *value=kind==FD2_FIELD_PREPARE_GAIN_MOVEMENT ? k_prepare_promotion_records[plan->target_unit_id-32u][1]:growth[2u*(unsigned)kind+1u];return 0;
+    *value=kind==FD2_FIELD_PREPARE_GAIN_MOVEMENT ? k_prepare_promotion_records[plan->target_unit_id-32u][1]:
+        fd2_field_growth_delta(growth + 2u*(unsigned)kind, FD2_GROWTH_RANDOM, rng, rng_data);
+    return 0;
 }
 static int promoted_unit_read(const fd2_save_manual_state *state,const fd2_field_prepare_promotion *plan,fd2_field_unit *unit) {
     return promotion_plan_valid(plan) && unit_read(state,plan->actor_index,unit)==0 && unit->unit_id==plan->target_unit_id &&
         unit->movement_profile==k_prepare_promotion_records[plan->target_unit_id-32u][0] && unit->level>=20u ? 0:-1;
 }
-int fd2_field_prepare_promotion_gain_apply(fd2_save_manual_state *state,const fd2_field_prepare_promotion *plan,fd2_field_prepare_gain kind) {
+int fd2_field_prepare_promotion_gain_apply(fd2_save_manual_state *state,const fd2_field_prepare_promotion *plan,
+        fd2_field_prepare_gain kind, uint16_t value) {
     static const uint8_t offsets[]={0x37,0x39,0x3e,0x42,0x46};
-    uint16_t value;fd2_field_unit unit;
-    if (fd2_field_prepare_promotion_gain_value(plan,kind,&value)!=0 || promoted_unit_read(state,plan,&unit)!=0) return -1;
+    uint16_t upper;fd2_field_unit unit;
+    if (fd2_field_prepare_promotion_gain_value(plan,kind,NULL,NULL,&upper)!=0 ||
+        value > upper || promoted_unit_read(state,plan,&unit)!=0) return -1;
     if (kind==FD2_FIELD_PREPARE_GAIN_MOVEMENT) unit.movement_points=(uint8_t)(unit.movement_points+value);
     else { uint8_t *p=(uint8_t *)&unit+offsets[(unsigned)kind];word_write(p,(uint16_t)(word_read(p)+value)); }
     unit_write(state,plan->actor_index,&unit);return 0;

@@ -11,8 +11,23 @@ static void mouse_click(setup *ui, int x, int y) {
     e.button.y = (float)y;
     assert(handle_event(ui, &e));
 }
+
+static void check_initial_language(void) {
+    static const struct { const char *locale; bool simplified; } cases[] = {
+        {"zh_CN", true}, {"zh_SG", true}, {"zh_Hans", true}, {"zh-Hans_CN", true},
+        {"zh_TW", false}, {"zh_HK", false}, {"zh-Hant_CN", false},
+        {"en_US,zh_CN", false}, {"ja_JP", false}, {"", false}
+    };
+    for (size_t i = 0; i < SDL_arraysize(cases); ++i) {
+        assert(SDL_SetHintWithPriority(SDL_HINT_PREFERRED_LOCALES, cases[i].locale, SDL_HINT_OVERRIDE));
+        assert(system_uses_simplified_chinese() == cases[i].simplified);
+    }
+    SDL_ResetHint(SDL_HINT_PREFERRED_LOCALES);
+}
+
 int main(void) {
     assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO));
+    check_initial_language();
     fd2_settings_defaults();
     fd2_config_file config = {0};
     setup ui = {.config = &config, .stick = -1};
@@ -30,7 +45,9 @@ int main(void) {
     mouse_click(&ui, 755, ROW_Y + 10);
     assert(ui.page == VIDEO && fd2_get_settings()->window_scale == 4 && fd2_settings_original());
     mouse_click(&ui, 710, 28);
-    assert(ui.english);
+    assert(ui.traditional && !strcmp(SDL_GetWindowTitle(ui.window), window_titles[true]));
+    command(&ui, SDL_SCANCODE_F2, 0);
+    assert(!ui.traditional && !strcmp(SDL_GetWindowTitle(ui.window), window_titles[false]));
     mouse_click(&ui, 40, 88 + SOUND * 43 + 10);
     ui.index = ui.count - 1;
     activate_row(&ui);

@@ -1335,6 +1335,38 @@ static int service_growth_message_layouts(fd2_archive *fdother,fd2_field_prepare
         fd2_input_event queued;
         CHECK(prepare_service_take_key(&ui,&queued) && confirm_key(queued.key) && ui.service.input_epoch==1u);
     }
+
+    size_t setting_count;
+    const fd2_setting *settings=fd2_settings_table(&setting_count);
+    const fd2_setting *text_speed=NULL,*animation_speed=NULL;
+    for(size_t i=0;i<setting_count;i++) {
+        if(!strcmp(settings[i].key,"text_speed"))text_speed=&settings[i];
+        if(!strcmp(settings[i].key,"animation_speed"))animation_speed=&settings[i];
+    }
+    CHECK(text_speed && animation_speed && fd2_setting_set(animation_speed,"200"));
+    const fd2_text_parameters parameters={1,0,0};
+    fd2_text_expanded expanded;
+    CHECK(fd2_text_expand(&assets->text,assets->font.glyph_count,&parameters,596,&expanded)==0 &&
+          expanded.count>0 && expanded.count<=SDL_arraysize(service_ticks));
+    const char *const speeds[]={"normal","fast","instant"};
+    for(size_t mode=0;mode<SDL_arraysize(speeds);mode++) {
+        controls(vga);
+        ui.service=(prepare_service){0};ui.service.selector=1;
+        vga->dialog_visual=(fd2_dialog_visual_state){0};
+        memset(vga->framebuffer,0x61,sizeof(vga->framebuffer));
+        *expected=*vga;*before=*context;
+        CHECK(fd2_setting_set(text_speed,speeds[mode]));
+        CHECK(text_draw(expected,assets,596,95,119,205,74,1)==0);
+        fd2_static_flow_node node={.op="show_message",.args={0,596,5}};unsigned port=99;
+        CHECK(prepare_service_ui(&ui,&node,&port)==1 && port==FD2_FLOW_NEXT &&
+            !memcmp(vga->framebuffer,expected->framebuffer,sizeof(vga->framebuffer)) &&
+            !memcmp(context,before,sizeof(*before)) && !ui.service.input_epoch);
+        CHECK(service_tick_count==(mode==0 ? expanded.count:0) &&
+              service_delay_count==(mode==0 ? 0:expanded.count));
+        for(size_t i=0;i<service_tick_count;i++)CHECK(service_ticks[i]==1);
+        for(size_t i=0;i<service_delay_count;i++)CHECK(service_delays[i]==(mode==1 ? 15u:0u));
+    }
+    fd2_settings_defaults();
     free(source);free(expected);free(before);free(context);return 0;
 }
 

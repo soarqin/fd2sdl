@@ -356,7 +356,10 @@ static int prepare_service_text(prepare_ui *ui,size_t fragment,int x,int y) {
                 if(prepare_owner_failed(ui))return -1;
             }
             if (sound(ui,2)!=0) return -1;
-            {int presented=prepare_service_present_ticks(ui,1);if(presented)return presented;}
+            int presented=prepare_service_present(ui,0);
+            if(presented)return presented;
+            if(fd2_text_wait(ui->vga)<0)return -1;
+            if(prepare_service_host_quit(ui))return 1;
         }
     }
     if(fd2_vga_present(ui->vga)<0)return -1;

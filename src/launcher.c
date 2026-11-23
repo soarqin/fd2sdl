@@ -149,8 +149,8 @@ static const char *choice_label(const setup *ui, const char *value) {
         {"integer", "整数倍", "整數倍"}, {"letterbox", "等比留边", "等比留邊"}, {"stretch", "拉伸", "拉伸"},
         {"nearest", "最近邻", "最鄰近"}, {"linear", "线性", "線性"}, {"normal", "正常", "正常"},
         {"fast", "快速", "快速"}, {"instant", "即时", "即時"}, {"full", "完整", "完整"}, {"short", "简短", "簡短"},
-        {"random", "原版随机", "原版隨機"}, {"max", "最大成长", "最大成長"},
-        {"max_minus_one", "最大成长-1", "最大成長-1"}, {"min", "最小成长", "最小成長"}
+        {"random", "原版随机", "原版隨機"}, {"max", "最大成长+1", "最大成長+1"},
+        {"max_minus_one", "最大成长", "最大成長"}, {"min", "最小成长", "最小成長"}
     };
     for (size_t i = 0; i < SDL_arraysize(labels); ++i)
         if (!strcmp(labels[i][0], value)) return tr(ui, labels[i][1], labels[i][2]);

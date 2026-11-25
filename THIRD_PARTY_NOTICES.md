@@ -6,10 +6,12 @@
 
 | 组件 | 来源与版权 | 许可及保留材料 |
 |---|---|---|
-| SDL3 | libsdl-org/SDL；本轮固定源码 commit `2813f2630904ea29806fcfaeeb3287ed555e42e2`，版权见实际 SDK | zlib；[原文](src/third_party/LICENSE.SDL3)及其包含组件的声明一并保留。发布清单记录实际版本、静态／动态目标和摘要 |
+| SDL3 | libsdl-org/SDL。默认回退版本为 `release-3.4.20`，commit `f00dc919ca35b9756316e86c4777392de442f9b2` | zlib。[原文](src/third_party/LICENSE.SDL3)及其包含组件的声明一并保留。使用其他 SDK 时随附该版本的声明。发布清单记录实际版本、静态／动态目标和摘要 |
 | GNU Unifont 15.1.05 | Roman Czyborra、Paul Hardy 及 Unifont 贡献者。引导界面仅嵌入所需字形，取自 SDL 源码的 `test/unifont-15.1.05.hex` | 采用随上游字形分发的 [SIL Open Font License 1.1](src/third_party/LICENSE.unifont) |
 | Nuked OPL3 1.8 | Copyright (C) 2013-2020 Nuke.YKT；经 libADLMIDI commit `9760df4e0acfe27818dee38e786f3b1fea8c8e7f` 引入 | `LGPL-2.1-or-later`；[原文](src/third_party/LICENSE.nukedopl3)，原始源文件头保留 |
 | OPL AIL model | Copyright (c) 2025-2026 Vitaly Novichkov | MIT；[原文](src/third_party/LICENSE.opl-models-mit)与源文件头保留 |
+| zip.js 2.25.0 | Gildas Lormeau；Web 构建使用 `@zip.js/zip.js` 的 `zip-core.min.js` | BSD-3-Clause。构建时将上游原文复制为 `web/LICENSE.zip.js`。 |
+| Emscripten 运行时 | Web 版使用实际 SDK 的 JavaScript 运行时和系统库 | Emscripten 提供 MIT 和 NCSA 两种许可。构建时将 SDK 提供的许可及系统库声明复制到 `web/emscripten/`。 |
 
 历史保留的 BW MIDI Sequencer 适用 MIT。未进入当前运行路径的 XMIDI converter 原头允许 `LGPL-2.0-or-later`；本项目保留原头，分发时选择其中允许的 LGPL 2.1，并附 [LGPL 2.1 原文](src/third_party/midiseq/LICENSE.xmi-lgpl-2.1)。详细来源见[第三方音乐组件](src/third_party/README.md)。不把历史组件重新声明为本项目 MIT 代码。
 

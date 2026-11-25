@@ -21,6 +21,9 @@
 /* 正式入口由 SDL 从 Windows 宽字符命令行生成 UTF-8 argv。 */
 #include <SDL3/SDL_main.h>
 #endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 #include "archive.h"
 #include "version.h"
@@ -1333,3 +1336,18 @@ cleanup:
     SDL_Quit();
     return rc == 0 ? 0 : rc == 2 ? 2 : 1;
 }
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE const char *fd2_web_asset_name(unsigned index) {
+    return index < FD2_ASSET_COUNT ? fd2_asset_names[index] : NULL;
+}
+
+/* 网页检查资源并取得用户点击后才进入游戏，键盘事件绑定到游戏画布。 */
+EMSCRIPTEN_KEEPALIVE int fd2_web_run(const char *save_path) {
+    char *argv[] = {"fd2sdl", "--no-config", NULL};
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas");
+    if (!SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "FD2SDL_SAVE_PATH",
+                                    save_path, true)) return 1;
+    return main(2, argv);
+}
+#endif

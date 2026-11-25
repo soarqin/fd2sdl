@@ -26,6 +26,15 @@ ctest --test-dir build/linux-test --output-on-failure --no-tests=error
 
 Linux 的独立窗口烟测需要 X11 和 XTest 开发库及 `xvfb-run`／`xauth`；无需游戏资源。Windows WGC 工具需要 MSVC、Windows SDK 和 C++/WinRT。用 `ctest --test-dir build/linux-test -N` 或 `ctest --test-dir build/windows-test -C Debug -N` 核对清单。需要将图形依赖缺失视为配置错误时，加 `-DFD2SDL_REQUIRE_GUI_TESTS=ON`。原生测试的范围和原版对照命令见[图形测试](gui-testing.md)。
 
+### Web 资源与存档回归
+
+在 [Web 构建](platforms.md#web-构建与本地预览)的配置命令中加 `-DBUILD_TESTING=ON`。启用测试时需要 Node.js 22 或更新版本。`web_game_data` 用合成 ZIP 检查资源选择、解压和 CRC 校验。`web_game_save` 模拟两个标签页争用存档和存储不可用的情况。实际浏览器启动、画布交互和存档恢复可在本地预览页验证。
+
+```text
+ctest --test-dir build/wasm -N
+ctest --test-dir build/wasm --output-on-failure --no-tests=error
+```
+
 ## 配置与引导回归
 
 CTest 为所有用例设置 `FD2SDL_CONFIG=none`。正常运行和手工测试可用 `--no-config` 隔离本机配置。原版对照工具在 SDL 候选的实际命令行加入该参数，在进程收据的 `settings_identity` 记录 `none`。此时采用默认规则，含第 23 章招募和 30 级经验归零修正。涉及这两条分支的对照需要记录所用规则和对应原版字节。专测启动设置时，收据记录所选文件的解析路径及启动前 SHA-256，首次创建的文件其摘要为 `null`。

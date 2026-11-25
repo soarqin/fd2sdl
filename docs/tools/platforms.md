@@ -1,6 +1,6 @@
-# Windows 与 Linux 命令约定
+# 跨平台构建与命令约定
 
-项目支持 Windows 原生开发和 Linux 开发。本文只转换宿主命令，不改变数据格式、地址坐标或原版验收要求。除非另有说明，工作目录均为项目根目录。构建入口见[项目 README](../../README.md)，测试入口见[工具速查](README.md)。
+项目支持 Windows、Linux 和 Web（WebAssembly）。除非另有说明，工作目录均为项目根目录。构建入口见[项目 README](../../README.md)，测试入口见[工具速查](README.md)。
 
 ## 解释器与构建目录
 
@@ -43,6 +43,24 @@ cmake --build build/clang64 --parallel
 - `-DFD2SDL_STATIC_RUNTIME=ON` 在 MSVC 构建中选择 `/MT`，Debug 选择 `/MTd`。通过 CPM 编译的静态 SDL3 使用同一 CRT。使用预编译静态 SDL3 时，SDK 的 CRT 必须匹配，或加 `-DFD2SDL_USE_SYSTEM_SDL3=OFF` 让 CPM 从源码构建。
 - 在 MSYS2 上，静态运行库开关使用 `-static` 链接编译器运行库。系统 SDL3 仍按 CMake 选中的目标链接，选中共享 SDL3 时运行仍需要对应 DLL。Linux 的 GCC／Clang 静态链接编译器运行库，保留系统 C 库的默认链接方式。
 - `-DFD2SDL_LTO=ON` 启用项目目标的链接时优化。配置阶段会检查 C 和 C++ 工具链的 IPO 支持，检查失败时报告编译器或链接器的诊断。
+
+## Web 构建与本地预览
+
+在当前终端运行 Emscripten SDK 的 `emsdk_env.ps1`（PowerShell）或 `source /path/to/emsdk/emsdk_env.sh`（Bash），并确认 `emcc --version` 可用。安装 Ninja 后，从仓库根目录运行以下命令。首次配置会获取目标平台的 SDL3（本机没有可用包时）及固定版本的 ZIP 读取器。
+
+```text
+emcmake cmake -S . -B build/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm --parallel
+python -m http.server 8000 --bind 127.0.0.1 --directory build/wasm/web
+```
+
+Bash 下使用已安装的 `python3` 或虚拟环境中的 `python`。打开 `http://127.0.0.1:8000/`。服务器应使用 `application/wasm` 提供 `.wasm`，用 JavaScript MIME 类型提供 `.mjs`。Web 版需要支持 WebGL 和原始 Deflate 解压流的浏览器。`web/` 包含运行文件和许可文本。对外分发时还须提供与该构建匹配的源码及重新链接材料，见[许可与第三方声明](../../THIRD_PARTY_NOTICES.md)。
+
+将[必需资源](../user-guide.md#游戏资源和启动模式)放在同一个 ZIP 目录中。可选用 ZIP 根目录或子目录，资源文件名支持 ASCII 大小写。选择文件后，页面会列出缺失或为空的必需文件，解压并校验通过后启用「开始游戏」。ZIP 最多包含 4096 项，压缩包大小和必需文件解压后的总大小各限 128 MiB。页面只导入这 12 个文件。
+
+Web 版使用默认规则和节奏。点击画布后用方向键、Enter 和 Esc 操作。浏览器占用 F1 或 F2 时，可用 Page Up 或 Home 执行相同的游戏操作。
+
+在 HTTPS 或本机回环地址上，浏览器可通过 Web Locks 独占同一来源的 `FD2.SAV`，并在游戏保存时写入 IndexedDB。另一标签页提示存档被占用时，先退出正在运行的游戏，再点「开始游戏」，即可读取最新进度。存档按浏览器配置和来源（协议、主机、端口）保存。浏览器无法使用 Web Locks 或 IndexedDB 时会提示本次存档仅在当前页面保留。
 
 ### Windows 迭代构建的路径
 

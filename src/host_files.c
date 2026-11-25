@@ -259,16 +259,18 @@ int fd2_replace_file(const char *path, const void *data, size_t size, const char
         result = -1;
     } else {
         size_t written = fwrite(data, 1, size, file);
-        int flush_result = fflush(file);
-        int sync_result = flush_result == 0 ? fsync(fd) : -1;
+        int sync_result = fflush(file);
+        /* IDBFS 的 fsync 同步整个挂载点，只在 rename 后同步。 */
+#ifndef __EMSCRIPTEN__
+        if (sync_result == 0) sync_result = fsync(fd);
+#endif
         int close_result = fclose(file);
-        result = written == size && flush_result == 0 &&
-                 sync_result == 0 && close_result == 0 ? 0 : -1;
+        result = written == size && sync_result == 0 && close_result == 0 ? 0 : -1;
     }
     if (result == 0 && rename(tmp_path, path) != 0) {
         result = -1;
     } else if (result == 0 && sync_parent_directory(path) != 0) {
-        /* 文件内容已 fsync；rename 后再同步父目录，使替换在断电后也可恢复。 */
+        /* 替换已完成，仍需向调用方报告持久化失败。 */
         result = -1;
     }
     if (result != 0)

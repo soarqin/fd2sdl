@@ -6,7 +6,7 @@ SDL 版在默认节奏与规则下沿用原版游戏流程，同时修正第 23 
 
 ## 构建
 
-需要 CMake 3.21+、Python 3.9+ 和支持 C11／C++14 的编译器。Windows 可使用 MSVC 19.28（v142）及以上，或 MSYS2 的 GCC／Clang；Linux 可使用 GCC／Clang。Python 只用于构建期生成数据。
+需要 CMake 3.21+、Python 3.9+ 和支持 C11／C++14 的编译器。Python 用于构建期生成数据。Windows 可使用 MSVC 19.28（v142）及以上，或 MSYS2 的 GCC／Clang。Linux 可使用 GCC／Clang。Web 使用 Emscripten 和 Ninja。
 
 从仓库根目录运行。不同平台、生成器和编译器使用独立构建目录；旧的 `cmake -S src` 构建目录不能复用。
 
@@ -24,11 +24,20 @@ cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
 cmake --build build/linux --parallel
 ```
 
-CMake 优先查找本机 SDL3（CMake 配置包，其次 pkg-config），未找到时联网下载并构建。离线构建请预装 SDL3，必要时指定 `SDL3_DIR`。更多选项见[跨平台构建](docs/tools/platforms.md)，开发回归见[测试说明](docs/tools/README.md)。
+Web（启用 Emscripten 环境后）：
+
+```text
+emcmake cmake -S . -B build/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/wasm --parallel
+```
+
+CMake 优先查找目标平台的 SDL3，未找到时联网下载并构建。Windows 和 Linux 支持 CMake 配置包及 pkg-config，离线构建可预装 SDL3 并指定 `SDL3_DIR`。Web 使用 Emscripten 的 CMake 包搜索路径。更多选项见[跨平台构建](docs/tools/platforms.md)，开发回归见[测试说明](docs/tools/README.md)。
 
 ## 使用
 
-将合法取得的原版数据放入仓库根目录的 `original_game/`，或在首次启动时选择已有的数据目录。以仓库根目录为工作目录运行以下程序。
+Web 版通过 HTTP 或 HTTPS 提供 `build/wasm/web/` 中的文件。打开页面，选择含[必需资源](docs/user-guide.md#游戏资源和启动模式)的 ZIP，通过检查后点「开始游戏」。[本地预览和存档](docs/tools/platforms.md#web-构建与本地预览)
+
+Windows 和 Linux 版可在首次启动时选择已有的数据目录，也可将合法取得的原版数据放入仓库根目录的 `original_game/`。以仓库根目录为工作目录运行以下程序。
 
 - Windows：`./build/windows/Release/fd2sdl.exe`
 - Linux：`./build/linux/fd2sdl`

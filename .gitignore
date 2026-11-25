@@ -2,6 +2,7 @@
 /original_game/
 
 /fd2sdl.cfg
+/FD2.SAV
 
 # 本地构建树（按平台和工具链分目录）
 /build/

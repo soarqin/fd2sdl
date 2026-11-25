@@ -15,7 +15,8 @@ if(FD2SDL_USE_SYSTEM_SDL3)
         set(FD2SDL_SDL3_TARGET SDL3::SDL3-shared)
     endif()
 
-    if(NOT FD2SDL_SDL3_TARGET)
+    # Emscripten 的 CMake 包搜索限定在目标 sysroot，宿主 pkg-config 没有这个限制。
+    if(NOT FD2SDL_SDL3_TARGET AND NOT EMSCRIPTEN)
         find_package(PkgConfig QUIET)
         if(PkgConfig_FOUND)
             pkg_check_modules(SDL3_PKG QUIET IMPORTED_TARGET sdl3)

@@ -12,19 +12,20 @@
 } while (0)
 
 int main(void) {
-    CHECK(fd2_title_action_from_selection(0, 1) ==
+    CHECK(fd2_title_action_from_selection(0, 3) ==
           FD2_TITLE_ACTION_NEW_GAME);
-    CHECK(fd2_title_action_from_selection(1, 1) ==
+    CHECK(fd2_title_action_from_selection(1, 3) ==
           FD2_TITLE_ACTION_LOAD);
-    CHECK(fd2_title_action_from_selection(2, 1) ==
+    CHECK(fd2_title_action_from_selection(2, 3) ==
           FD2_TITLE_ACTION_CONTINUE);
-    CHECK(fd2_title_action_from_selection(1, 0) ==
+    CHECK(fd2_title_action_from_selection(1, 2) ==
           FD2_TITLE_ACTION_LOAD);
-    CHECK(fd2_title_action_from_selection(0, 0) ==
+    CHECK(fd2_title_action_from_selection(0, 1) ==
           FD2_TITLE_ACTION_NEW_GAME);
     CHECK(fd2_title_action_from_selection(-1, 1) ==
           FD2_TITLE_ACTION_HOST_QUIT);
-    CHECK(fd2_title_action_from_selection(2, 0) == FD2_TITLE_ACTION_ERROR);
+    CHECK(fd2_title_action_from_selection(1, 1) == FD2_TITLE_ACTION_ERROR);
+    CHECK(fd2_title_action_from_selection(2, 2) == FD2_TITLE_ACTION_ERROR);
     CHECK(fd2_title_action_from_selection(-2, 1) == FD2_TITLE_ACTION_ERROR);
     CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_ERROR) == FD2_APP_FLOW_ERROR);
     CHECK(fd2_app_flow_from_title(FD2_TITLE_ACTION_NEW_GAME) ==

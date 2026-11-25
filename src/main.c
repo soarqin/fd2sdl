@@ -299,13 +299,25 @@ static int play_intro_animation_with_palette(fd2_vga *vga,
     return result;
 }
 
+/* boot_intro_title_menu @0x1f894（原 title_action_menu）：容器校验通过才显示
+ * LOAD；SDL 另检查活动快照和关卡支持，再显示 CONTINUE。 */
+static int title_menu_count(const char *save_path) {
+    fd2_save_file save = {0};
+    if (fd2_save_file_open(&save, save_path) != 0) return 1;
+    fd2_save_battle_snapshot snapshot;
+    int can_continue = fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0 &&
+        fd2_field_stage_is_supported(snapshot.meta[FD2_SAVE_BATTLE_META_STAGE]);
+    fd2_save_file_close(&save);
+    return can_continue ? 3 : 2;
+}
+
 /* 复现 boot_intro_title_menu @0x1f894：片头 + 标题 + action 菜单。
  * `push 0x88; call watcom_stack_check` 是该函数序言，body 在 +0xa。 */
 static fd2_title_action boot_intro_title(fd2_vga *vga,
                                          fd2_bgm_player *bgm,
                                          fd2_title_audio *title_audio,
                                          int play_intro,
-                                          int continue_available) {
+                                         int menu_count) {
     fd2_image menu_items[6] = {0};
     int n_menu = 0;
     fd2_title_action result = FD2_TITLE_ACTION_ERROR;
@@ -696,9 +708,6 @@ title_screen:
      * Enter、Space 与数字小键盘 0。详见 docs/systems/input.md。
      * 菜单项图: FDOTHER[7] sub[1-6] */
     int selection = 0;
-    /* 原版 title @code0 0xfd81..0xfe0e 先验证完整 FD2.SAV checksum 与
-     * active meta stage，再把菜单项数从 2 扩为 3。 */
-    int menu_count = continue_available ? 3 : 2;
     /* 加载菜单项图 */
     const uint8_t *buf7b; size_t len7b;
     if (fd2_archive_get(&g_fdother, 7, &buf7b, &len7b) != 0)
@@ -794,7 +803,7 @@ title_screen:
         if (faded != FD2_SCENE_RESULT_OK) goto resource_error;
         fd2_vga_clear(vga, 0);
     }
-    result = fd2_title_action_from_selection(selection, continue_available);
+    result = fd2_title_action_from_selection(selection, menu_count);
     goto done;
 
 resource_error:
@@ -1234,15 +1243,8 @@ application_title:
          * 败北返回标题而不重播片头。 */
         int first_title = !new_game_play;
         while (rc == 0) {
-            fd2_save_file title_save = {0};
-            fd2_save_battle_snapshot title_snapshot;
-            int title_continue_available =
-                fd2_save_file_open(&title_save, save_path) == 0 &&
-                fd2_save_file_get_battle_snapshot(&title_save, &title_snapshot) == 0 &&
-                fd2_field_stage_is_supported(title_snapshot.meta[FD2_SAVE_BATTLE_META_STAGE]);
-            fd2_save_file_close(&title_save);
             fd2_title_action title_action = boot_intro_title(
-                &vga, bgm, title_audio_ptr, first_title, title_continue_available);
+                &vga, bgm, title_audio_ptr, first_title, title_menu_count(save_path));
             first_title = 0;
             fd2_app_flow flow = fd2_app_flow_from_title(title_action);
             if (flow == FD2_APP_FLOW_EXIT) break;

@@ -840,9 +840,8 @@ static int slots_run(prepare_ui *ui, int save_mode, int consumer) {
     int title_mode=consumer==PREPARE_SLOT_TITLE;
     int hotel_wait=consumer==PREPARE_SLOT_HOTEL;
     fd2_save_file save = {0};
-    int opened = save_mode ? fd2_save_file_open_for_update(&save, ui->save_path) :
-                            fd2_save_file_open(&save, ui->save_path);
-    if (opened != 0) return -1; /* 坏档绝不作空档；Load不新建。 */
+    /* 标题和旅馆读档均在缺档时显示四个空槽，只有确认保存才写盘。 */
+    if (fd2_save_file_open_for_update(&save, ui->save_path) != 0) return -1;
     uint8_t *background = malloc(VGA_W * VGA_H);
     fd2_vga *page = new_frame(ui->vga);
     if (!background || !page) { free(background); free(page); fd2_save_file_close(&save); return -1; }
@@ -894,13 +893,12 @@ static int slots_run(prepare_ui *ui, int save_mode, int consumer) {
             result = bottom_slide(ui, background, page->framebuffer, 0);
             if (result != 0) break;
             if (quit(ui)) { result = 1; break; }
-            fd2_save_manual_state loaded;
-            if (fd2_save_manual_state_load(ui->save_path, (size_t)selected, &loaded) != 0) {
-                /* 空槽是正常未提交，格式错误由严格后端拒绝而不改owner。 */
-                if (fd2_save_file_slot_valid(&save, (size_t)selected)) { result = -1; break; }
+            if (!fd2_save_file_slot_valid(&save, (size_t)selected)) {
                 memcpy(ui->vga->framebuffer, background, VGA_W * VGA_H);
                 continue;
             }
+            fd2_save_manual_state loaded;
+            if (fd2_save_manual_state_load(ui->save_path, (size_t)selected, &loaded) != 0) { result = -1; break; }
             if (fd2_field_game_validate_manual_state(&loaded) != 0 ||
                 (!title_mode && prepare_is_notown(loaded.stage_id))) {
                 if (title_mode) { result = -1; break; }
@@ -1310,7 +1308,7 @@ fd2_field_prepare_result fd2_field_prepare_load_title(fd2_vga *vga,
      * 容器与完整四行页面均先在局部预检，失败不动live VGA/准备owner。 */
     fd2_save_file checked_save = {0};
     fd2_vga *checked_page = new_frame(NULL);
-    int ready = checked_page && fd2_save_file_open(&checked_save, save_path) == 0 &&
+    int ready = checked_page && fd2_save_file_open_for_update(&checked_save, save_path) == 0 &&
         fd2_field_prepare_draw_slots(checked_page, assets, &checked_save, 0) == 0;
     free(checked_page); fd2_save_file_close(&checked_save);
     if (!ready) { fd2_field_prepare_assets_close(assets); free(assets); return FD2_FIELD_PREPARE_ERROR; }

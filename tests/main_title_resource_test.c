@@ -11,6 +11,7 @@
 #include "image.h"
 #include "input.h"
 #include "title.h"
+#include "test_temp.h"
 #include "vga.h"
 #include "scene.h"
 #include "bios_clock.h"
@@ -449,7 +450,7 @@ static int run_case(const char *name) {
         return 1;
     }
     fd2_vga vga = {0};
-    CHECK(boot_intro_title(&vga, NULL, NULL, 0, 1) == expected);
+    CHECK(boot_intro_title(&vga, NULL, NULL, 0, 3) == expected);
     CHECK(palette_reads == 1 && unexpected == 0 && image_live == 0);
     CHECK(archive_opens == archive_closes);
     if (palette_fault) {
@@ -515,7 +516,7 @@ static int run_intro_case(const intro_case *test) {
     intro_animation_code = test->animation_code;
     intro_skip_scroll = test->skip;
     fd2_vga vga = {0};
-    CHECK(boot_intro_title(&vga, NULL, NULL, 1, 1) == test->expected);
+    CHECK(boot_intro_title(&vga, NULL, NULL, 1, 3) == test->expected);
     CHECK(!unexpected && !image_live && archive_opens == archive_closes);
     if (test->expected != FD2_TITLE_ACTION_NEW_GAME) {
         CHECK(!title_reads && !base_decodes && !menu_decodes &&
@@ -616,10 +617,36 @@ static int test_app_chain(void) {
     return 0;
 }
 
+static int test_title_save_availability(void) {
+    char path[FD2_TEST_PATH_MAX];
+    CHECK(fd2_test_temp_path(path) == 0);
+    CHECK(title_menu_count(path) == 1); /* 已存在的截断文件。 */
+    CHECK(remove(path) == 0);
+    int count = title_menu_count(path);
+    CHECK(count == 1 && !SDL_GetPathInfo(path, NULL));
+    reset_test(); input_contract = 1;
+    fd2_vga vga = {0}; input_vga = &vga; fd2_input_init(&vga.input);
+    /* 只显示 START 时，Down 后的 Enter 仍选择新游戏。 */
+    CHECK(boot_intro_title(&vga, NULL, NULL, 0, count) == FD2_TITLE_ACTION_NEW_GAME);
+    CHECK(read_count == 2 && read_selections[1] == 0);
+
+    fd2_save_file save = {0};
+    fd2_save_battle_snapshot snapshot;
+    CHECK(fd2_save_file_open_for_update(&save, path) == 0);
+    CHECK(fd2_save_file_write(&save, path) == 0 && title_menu_count(path) == 2);
+    CHECK(fd2_save_file_get_battle_snapshot(&save, &snapshot) == 0);
+    snapshot.meta[FD2_SAVE_BATTLE_META_STAGE] = 0;
+    CHECK(fd2_save_file_update_battle_snapshot(&save, &snapshot) == 0);
+    CHECK(fd2_save_file_write(&save, path) == 0 && title_menu_count(path) == 3);
+    fd2_save_file_close(&save);
+    CHECK(remove(path) == 0);
+    return 0;
+}
+
 static int test_title_clear_and_two_ordered_keys(void) {
     reset_test();input_contract=1;
     fd2_vga vga={0};input_vga=&vga;fd2_input_init(&vga.input);
-    CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==FD2_TITLE_ACTION_LOAD);
+    CHECK(boot_intro_title(&vga,NULL,NULL,0,3)==FD2_TITLE_ACTION_LOAD);
     CHECK(input_clears==1 && clear_had_pending[0] && menu_queue_empty);
     CHECK(action_reads==2 && !fd2_input_has_any_key(&vga.input));
     CHECK(read_count==2 && read_frames[0]==1 && read_frames[1]==2 &&
@@ -628,13 +655,13 @@ static int test_title_clear_and_two_ordered_keys(void) {
     CHECK(!unexpected && !image_live && archive_opens==archive_closes);
     for(int skip=0;skip<2;skip++) {
         reset_test();intro_enabled=1;intro_skip_scroll=skip;
-        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_NEW_GAME);
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,3)==FD2_TITLE_ACTION_NEW_GAME);
         CHECK(input_clears==3); /* scroll入口、LABEL32的100ms后、title fade后。 */
     }
     for(int point=1;point<=3;point++) {
         reset_test();memset(&vga,0,sizeof(vga));fd2_input_init(&vga.input);
         intro_enabled=intro_skip_scroll=1;quit_on_clear=point;
-        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_HOST_QUIT);
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,3)==FD2_TITLE_ACTION_HOST_QUIT);
         CHECK(input_clears==point && presents==presents_at_clear[point-1] && !menu_frames && !action_reads);
         CHECK(!image_live && archive_opens==archive_closes && !unexpected);
     }
@@ -645,7 +672,7 @@ static int test_title_blocked_read_one(void) {
     for(int host=0;host<2;host++) {
         reset_test();input_contract=1;menu_deferred=host?2:1;
         fd2_vga vga={0};input_vga=&vga;fd2_input_init(&vga.input);
-        CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==
+        CHECK(boot_intro_title(&vga,NULL,NULL,0,3)==
             (host?FD2_TITLE_ACTION_HOST_QUIT:FD2_TITLE_ACTION_LOAD));
         CHECK(menu_idle_polls==1 && !menu_bad_delay && !unexpected && !image_live);
         CHECK(archive_opens==archive_closes && input_clears==1);
@@ -667,14 +694,14 @@ static int test_intro_fade_callers(void) {
     fd2_vga vga={0};
     reset_test();intro_enabled=1;
     vga.frame_deadline_ns=UINT64_C(999999999999);vga.frame_interval_ns=16000000;
-    CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==FD2_TITLE_ACTION_NEW_GAME);
+    CHECK(boot_intro_title(&vga,NULL,NULL,1,3)==FD2_TITLE_ACTION_NEW_GAME);
     CHECK(vga.frame_deadline_ns==UINT64_C(999999999999) && vga.frame_interval_ns==16000000);
     CHECK(fade_calls==(int)(sizeof(directions)/sizeof(directions[0])) &&
         !memcmp(fade_directions,directions,sizeof(directions)));
     for(int fault=1;fault<=26;fault++)for(int host=0;host<2;host++) {
         reset_test();memset(&vga,0,sizeof(vga));intro_enabled=1;
         fade_fail_call=fault;fade_fail_result=host?FD2_SCENE_RESULT_HOST_QUIT:FD2_SCENE_RESULT_ERROR;
-        CHECK(boot_intro_title(&vga,NULL,NULL,1,1)==
+        CHECK(boot_intro_title(&vga,NULL,NULL,1,3)==
             (host?FD2_TITLE_ACTION_HOST_QUIT:FD2_TITLE_ACTION_ERROR));
         CHECK(fade_calls==fault && !image_live && archive_opens==archive_closes && !unexpected);
         if(fault<26)CHECK(!menu_frames && !action_reads);
@@ -688,14 +715,14 @@ static int test_title_source_errors(void) {
     reset_test();fd2_vga vga={0};
     memset(vga.framebuffer,42,sizeof vga.framebuffer);fd2_vga before=vga;
     f5_bgm_fail=1;
-    CHECK(boot_intro_title(&vga,(fd2_bgm_player *)(void *)&vga,NULL,1,0)==FD2_TITLE_ACTION_ERROR);
+    CHECK(boot_intro_title(&vga,(fd2_bgm_player *)(void *)&vga,NULL,1,2)==FD2_TITLE_ACTION_ERROR);
     CHECK(f5_source_error==-66&&f5_bgm_calls==1&&!memcmp(&vga,&before,sizeof vga));
     CHECK(!palette_reads&&!title_reads&&!base_decodes&&!action_reads&&!image_live);
     /* 首tick、scroll首等待、title fade：失败立即停止且释放已借图像。 */
     for(int mode=0;mode<3;mode++) {
         reset_test();memset(&vga,0,sizeof vga);intro_enabled=mode!=2;
         f5_wait_fault_call=mode==1?3:1;
-        CHECK(boot_intro_title(&vga,NULL,NULL,mode!=2,1)==FD2_TITLE_ACTION_ERROR);
+        CHECK(boot_intro_title(&vga,NULL,NULL,mode!=2,3)==FD2_TITLE_ACTION_ERROR);
         CHECK(f5_source_error==-79&&f5_wait_calls==f5_wait_fault_call);
         CHECK(!image_live&&archive_opens==archive_closes&&!action_reads&&!menu_frames&&!unexpected);
         CHECK(!vga.input.quit_requested);
@@ -703,7 +730,7 @@ static int test_title_source_errors(void) {
     }
     reset_test();memset(&vga,0,sizeof vga);fd2_input_init(&vga.input);
     input_contract=menu_deferred=1;input_vga=&vga;f5_wait_fault_call=42;
-    CHECK(boot_intro_title(&vga,NULL,NULL,0,1)==FD2_TITLE_ACTION_ERROR);
+    CHECK(boot_intro_title(&vga,NULL,NULL,0,3)==FD2_TITLE_ACTION_ERROR);
     CHECK(f5_source_error==-79&&f5_wait_calls==42&&menu_frames==1&&read_count==0);
     CHECK(!image_live&&archive_opens==archive_closes&&!menu_idle_polls&&!vga.input.quit_requested);
     /* SOURCE首错不回滚已到色区；正常decode错/HOST仍沿原borrow合同。 */
@@ -730,7 +757,7 @@ static int test_title_upload_errors(void){
   fd2_pcm_player player={0};fd2_pcm_bank bank={0};fd2_title_audio audio={&player,&player,&bank,&bank};
   input_contract=1;input_vga=&vga; /* ANI替身已排入一个早到RETURN。 */
   f5_upload_fault_at=42+menu;f5_upload_host=host;f5_audio_at=999;
-  CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR);
+  CHECK(boot_intro_title(&vga,NULL,&audio,0,3)==FD2_TITLE_ACTION_ERROR);
   CHECK(f5_output_error==-91&&!f5_source_error&&presents==42+menu);
   CHECK(vga.input.quit_requested==host&&input_clears==menu);
   CHECK(vga.input.queued_count==(unsigned)f5_upload_queued&&f5_upload_queued==(menu?2:1));
@@ -753,18 +780,18 @@ static int test_title_audio_return_errors(void){
   vga.input.quit_requested=0;CHECK(!memcmp(&vga,&before,sizeof vga));
  }
  reset_test();memset(&vga,0xa7,sizeof vga);fd2_vga before=vga;f5_bgm_output=1;
- CHECK(boot_intro_title(&vga,(fd2_bgm_player *)&vga,NULL,1,0)==FD2_TITLE_ACTION_ERROR);
+ CHECK(boot_intro_title(&vga,(fd2_bgm_player *)&vga,NULL,1,2)==FD2_TITLE_ACTION_ERROR);
  CHECK(f5_bgm_calls==1&&!f5_source_error&&f5_output_error==-91&&!memcmp(&vga,&before,sizeof vga));
  CHECK(!palette_reads&&!title_reads&&!action_reads&&!image_live&&!presents);
  /* 原ANI0 cue→stop→ENTER为三个已达调用；第四次MOVE返回点失败：保已读方向，不改selection、不读后继确认。 */
  reset_test();memset(&vga,0,sizeof vga);fd2_input_init(&vga.input);
  input_contract=1;input_vga=&vga;f5_audio_at=4;f5_audio_fault=1;
- CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR);
+ CHECK(boot_intro_title(&vga,NULL,&audio,0,3)==FD2_TITLE_ACTION_ERROR);
  CHECK(f5_audio_calls==4&&!f5_source_error&&f5_output_error==-91&&read_count==1&&menu_frames==1&&menu_selected==0&&!menu_flash_delays);
  CHECK(vga.input.queued_count==1&&!image_live&&archive_opens==archive_closes&&!unexpected);
  /* 真实CONFIRM失败也不能进入8次确认flash；普通可选SFX资源失败仍非Source/OS。 */
  reset_test();memset(&vga,0,sizeof vga);f5_audio_at=4;f5_audio_fault=1;
- CHECK(boot_intro_title(&vga,NULL,&audio,0,1)==FD2_TITLE_ACTION_ERROR&&f5_audio_calls==4&&menu_frames==1&&action_reads==1);
+ CHECK(boot_intro_title(&vga,NULL,&audio,0,3)==FD2_TITLE_ACTION_ERROR&&f5_audio_calls==4&&menu_frames==1&&action_reads==1);
  CHECK(!image_live&&archive_opens==archive_closes);
  reset_test();memset(&vga,0,sizeof vga);f5_audio_at=1;f5_audio_status=-55;
  CHECK(title_audio_play(&vga,&audio,FD2_TITLE_SFX_MOVE)==-55&&!title_owner_failed(&vga));
@@ -796,6 +823,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < sizeof(intro_cases) / sizeof(intro_cases[0]); i++)
         if (run_intro_case(&intro_cases[i])) return 1;
     CHECK(test_app_chain()==0);
+    CHECK(test_title_save_availability()==0);
     CHECK(test_title_clear_and_two_ordered_keys()==0);
     CHECK(test_title_blocked_read_one()==0);
     CHECK(test_intro_fade_callers()==0);

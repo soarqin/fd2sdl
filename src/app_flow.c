@@ -3,13 +3,11 @@
 #include "app_flow.h"
 #include "field.h"
 
-fd2_title_action fd2_title_action_from_selection(int selection,
-                                                  int continue_available) {
+fd2_title_action fd2_title_action_from_selection(int selection, int menu_count) {
     if (selection == FD2_TITLE_ACTION_HOST_QUIT) return FD2_TITLE_ACTION_HOST_QUIT;
-    if (selection == 0) return FD2_TITLE_ACTION_NEW_GAME;
-    if (selection == 1) return FD2_TITLE_ACTION_LOAD;
-    if (selection == 2 && continue_available) return FD2_TITLE_ACTION_CONTINUE;
-    return FD2_TITLE_ACTION_ERROR;
+    if (selection < 0 || selection >= menu_count || menu_count > 3)
+        return FD2_TITLE_ACTION_ERROR;
+    return (fd2_title_action)selection;
 }
 
 fd2_app_flow fd2_app_flow_from_title(fd2_title_action action) {

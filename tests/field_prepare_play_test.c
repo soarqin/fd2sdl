@@ -603,7 +603,6 @@ static int title_cancel_and_load(fd2_archive *fdother,
     /* 26080/26088读原byte；25efa不写这两个App配置，不能bool化。 */
     fd2_save_manual_state raw_state=*state;raw_state.options[0]=0xfe;raw_state.options[1]=0x7b;state=&raw_state;
     char path[FD2_TEST_PATH_MAX]; CHECK(fd2_test_temp_path(path) == 0); CHECK(remove(path) == 0);
-    CHECK(fd2_save_manual_state_save(path, 0, state) == 0);
     fd2_field_play_context context = {0}; context.initialized = 1;
     context.experience_value = 631; context.message_number = 99;
     context.camera_option=0x93;context.effect_option=0x8e;
@@ -615,8 +614,10 @@ static int title_cancel_and_load(fd2_archive *fdother,
     memcpy(expected_title_palette, palette, VGA_PALETTE_SIZE);
     memset(vga->framebuffer, 0xa3, sizeof(vga->framebuffer));
     memset(vga->palette, 23, sizeof(vga->palette)); memset(vga->dac, 92, sizeof(vga->dac));
-    controls(vga); probe_title = 1; pulse(70, SDL_SCANCODE_ESCAPE);
+    controls(vga); probe_title = 1;
+    pulse(70, SDL_SCANCODE_DOWN); pulse(72, SDL_SCANCODE_RETURN); pulse(95, SDL_SCANCODE_ESCAPE);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_TITLE);
+    CHECK(frame_number >= 95 && state_save_calls == 0 && !SDL_GetPathInfo(path, NULL));
     CHECK(!context.has_preparation && memcmp(&before, &context.preparation, sizeof(before)) == 0);
     CHECK(context.camera_option==0x93 && context.effect_option==0x8e);
     CHECK(context.rng.state == 0x1234 && context.experience_value == 631);
@@ -624,6 +625,7 @@ static int title_cancel_and_load(fd2_archive *fdother,
     CHECK(option_sync_count==0 && music_count==0);
     CHECK(title_fade_calls==1u && title_fade_in==0 && title_fade_fast==0);
     for (size_t i = 0; i < sizeof(vga->framebuffer); i++) CHECK(vga->framebuffer[i] == 0);
+    CHECK(fd2_save_manual_state_save(path, 0, state) == 0);
     controls(vga); pulse(70, SDL_SCANCODE_RETURN);
     CHECK(fd2_field_prepare_load_title(vga, fdother, &context, path, NULL) == FD2_FIELD_PREPARE_DEPART);
     CHECK(context.has_preparation && context.preparation.stage_id == state->stage_id && context.preparation.unit_count == state->unit_count);
@@ -806,6 +808,9 @@ static int failure_and_cancel(fd2_archive *fdother, fd2_field_prepare_assets *a,
     controls(vga); pulse(6, SDL_SCANCODE_ESCAPE);
     CHECK(slots_run(&ui, 1, 0) == 0);
     FILE *probe = fopen(path, "rb"); CHECK(probe == NULL); /* save取消不新建磁盘。 */
+    controls(vga); pulse(6, SDL_SCANCODE_RETURN); pulse(20, SDL_SCANCODE_ESCAPE);
+    CHECK(slots_run(&ui, 0, PREPARE_SLOT_HOTEL) == 0);
+    CHECK(frame_number >= 20 && state_save_calls == 0 && !SDL_GetPathInfo(path, NULL));
     CHECK(memcmp(&context.preparation, state, sizeof(*state)) == 0);
     CHECK(fd2_save_manual_state_save(path, 0, state) == 0);
     uint8_t before[FD2_SAVE_FILE_SIZE], after[FD2_SAVE_FILE_SIZE];

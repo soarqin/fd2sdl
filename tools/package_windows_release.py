@@ -182,10 +182,10 @@ def _rebuild(config_dir: str, generator: str) -> bytes:
             "$ErrorActionPreference = 'Stop'\n"
             "$kit = $PSScriptRoot\n"
             "& cmake -S \"$kit/source\" -B \"$kit/rebuild\" -G '" + generator + "' -A x64 "
-            "-DBUILD_TESTING=OFF -DFD2SDL_USE_SYSTEM_SDL3=ON "
+            "-DBUILD_TESTING=OFF -DFD2SDL_USE_SYSTEM_SDL3=ON -DFETCHCONTENT_FULLY_DISCONNECTED=ON "
             '"-DSDL3_DIR=$kit/sdk/sdl/' + config_dir + '"\n'
             "if ($LASTEXITCODE) { exit $LASTEXITCODE }\n"
-            "& cmake --build \"$kit/rebuild\" --config Release --target fd2sdl -- /nodeReuse:false\n"
+            "& cmake --build \"$kit/rebuild\" --config Release --target fd2sdl --parallel 4 -- /nodeReuse:false\n"
             "exit $LASTEXITCODE\n").encode("utf-8-sig")
 
 
@@ -196,19 +196,16 @@ def _root_notices(data: bytes) -> bytes:
 
 
 def _player_readme() -> bytes:
-    resources = "\n".join(f"- `original_game/{name}`" for name in DOCUMENTED_RESOURCE_FILES)
-    return ("# Windows Release：启动与重建\n\n"
+    resources = "\n".join(f"- `{name}`" for name in DOCUMENTED_RESOURCE_FILES)
+    return ("# Windows 版启动与重建\n\n"
             "## 启动\n\n"
-            "运行前需要Windows x64及输入清单声明的官方Microsoft Visual C++ x64 Redistributable。"
-            "普通运行不需要Visual Studio或Windows SDK。\n\n"
-            "把合法取得的资源放到包根original_game目录，再双击play.cmd，或从PowerShell运行 "
-            "`./play.cmd`。启动器临时切换到包根、运行bin/fd2sdl.exe、转交参数并保留退出码，"
-            "之后恢复原工作目录；不修改系统策略或音频环境。\n\n"
-            "首次启动会显示设置窗口，可在「路径」页选择已有资源目录。选择「启动游戏」后进入片头。"
-            "用 `./play.cmd --setup` 重开设置，`./play.cmd --no-config` 以默认配置直接运行。"
-            "也可用 `./play.cmd --new-game-play` 直接进入新游戏引导。直接运行 bin/fd2sdl.exe 时请以包根为工作目录。"
-            "程序不会下载原版资源，不需要FD2.EXE或预置SAV。默认Save写包根FD2.SAV；验证旧档请用副本。\n\n"
-            "当前完整受支持流程使用以下12个资源（各入口实际检查的子集不同）：\n\n" + resources +
+            "运行需要 Windows x64 和 [Microsoft Visual C++ x64 运行库](https://aka.ms/vc14/vc_redist.x64.exe)。\n\n"
+            "把合法取得的原版资源放到与 `play.cmd` 同一层，然后双击 `play.cmd`，或从 PowerShell 运行 `./play.cmd`。"
+            "启动脚本以解压后的包根目录为工作目录，也支持在包根目录下的 `original_game/` 中存放资源。\n\n"
+            "首次启动会显示设置窗口。可在「路径」页编辑或粘贴已有的游戏数据目录，再选择「启动游戏」。"
+            "用 `./play.cmd --setup` 重开设置，或用 `./play.cmd --no-config` 按默认值直接运行。"
+            "默认存档写入包根的 `FD2.SAV`。验证旧档请使用副本。\n\n"
+            "游戏需要以下 12 个资源文件。\n\n" + resources +
             "\n\n本包不包含这些资源、SAV、截图、录音或dump。\n\n"
             "## 重建与许可\n\n自有代码使用MIT；第三方许可见THIRD_PARTY_NOTICES.md及source/src/third_party。"
             "完整App构建源码在source，实际SDL开发SDK在sdk/sdl。另安装清单记录的Visual Studio C/C++工具链、"
@@ -216,8 +213,7 @@ def _player_readme() -> bytes:
             "data/static中的冷定义和tools/static_data/generate.py随源码提供，构建期生成C数据；运行游戏无需Python。\n\n"
             "source/README.md保留仓库原文，但本包是App-only构建材料；必须使用BUILD_TESTING=OFF，"
             "不能照仓库默认测试命令构建未随包提供的tests。rebuild.ps1已设置该选项。\n\n"
-            "打包器不运行构建或游戏；离线重建、替换库重链接与发布验收须另留实际收据。"
-            "材料清单不代表这些验证已通过，不对外自动发布。\n").encode("utf-8")
+            "包内清单记录文件摘要、构建输入及实际运行依赖。\n").encode("utf-8")
 
 
 def package(source_root: Path, manifest_path: Path, output: Path) -> dict:

@@ -1,0 +1,148 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 30
+    outputs:
+      commit: ${{ steps.build.outputs.commit }}
+    steps:
+      - name: Check out fd2sdl
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check out the SDL SDK source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: libsdl-org/SDL
+          ref: f00dc919ca35b9756316e86c4777392de442f9b2 # release-3.4.20, see CMake/SDL3.cmake
+          path: build/windows-release/sdl-source
+          persist-credentials: false
+      - name: Test the release tools
+        run: python -B -m unittest discover -s tools/tests -p '*windows_release.py'
+      - name: Build and package Windows x64
+        id: build
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $source = (Get-Location).Path
+          $work = Join-Path $source 'build/windows-release'
+          $sdlSource = Join-Path $work 'sdl-source'
+          $sdlBuild = Join-Path $work 'sdl-build'
+          $sdk = Join-Path $work 'sdk'
+          $app = Join-Path $work 'app'
+          $generator = 'Visual Studio 18 2026'
+
+          cmake -S $sdlSource -B $sdlBuild -G $generator -A x64 -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TESTS=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_EXAMPLES=OFF -DSDL_INSTALL=ON
+          cmake --build $sdlBuild --config Release --parallel 4 -- /nodeReuse:false
+          cmake --install $sdlBuild --config Release --prefix $sdk
+
+          $sdkConfig = @(Get-ChildItem -LiteralPath $sdk -Recurse -File -Filter SDL3Config.cmake)
+          if ($sdkConfig.Count -ne 1) { throw 'Expected one installed SDL3 CMake package' }
+          python -B tools/record_windows_release.py snapshot --source-root $source --output "$work/source-before.json"
+          cmake -S . -B $app -G $generator -A x64 -DBUILD_TESTING=OFF -DFETCHCONTENT_FULLY_DISCONNECTED=ON "-DSDL3_DIR=$($sdkConfig[0].DirectoryName)"
+          cmake --build $app --config Release --target fd2sdl --parallel 4 -- /nodeReuse:false
+
+          $targetPath = Join-Path $app 'release-target-Release.json'
+          $target = Get-Content -LiteralPath $targetPath -Raw | ConvertFrom-Json
+          $dumpbin = Join-Path (Split-Path -Parent $target.compiler) 'dumpbin.exe'
+          cmake "-DFD2_RELEASE_EXE=$($target.executable)" "-DFD2_DUMPBIN=$dumpbin" "-DFD2_RELEASE_OUTPUT=$work/runtime.json" "-DFD2_DEPENDENCY_DIRECTORIES=$(Split-Path -Parent $target.sdl_target_file)" -P tools/inspect_windows_release.cmake
+          python -B tools/record_windows_release.py inputs --snapshot "$work/source-before.json" --target $targetPath --sdk-root $sdk --dependencies "$work/runtime.json" --forbidden-prefix $sdlSource --forbidden-prefix $sdlBuild --output "$work/inputs.json"
+
+          $banner = & $target.executable --no-config --version
+          if ($banner -notmatch '^fd2sdl ([0-9]+\.[0-9]+\.[0-9]+)$') { throw "Invalid version: $banner" }
+          $version = $Matches[1]
+          $tag = "v$version"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -cne $tag) {
+              throw "Tag $env:GITHUB_REF_NAME does not match $banner"
+          }
+          $changelog = Get-Content -LiteralPath CHANGELOG.md -Raw -Encoding utf8
+          $entry = [regex]::Match($changelog, "(?ms)^## \[$([regex]::Escape($version))\] - \d{4}-\d{2}-\d{2}\r?\n(.*?)(?=^## |^\[[^\]\r\n]+\]: |\z)")
+          if (!$entry.Success -or !$entry.Groups[1].Value.Trim()) { throw "Missing CHANGELOG.md entry for $version" }
+
+          $name = "fd2sdl-$tag-windows-x64"
+          python -B tools/package_windows_release.py --source-root $source --inputs "$work/inputs.json" --output "$work/$name"
+          $dist = (New-Item -ItemType Directory -Path "$work/dist").FullName
+          $archive = "$name.zip"
+          Push-Location -LiteralPath $work
+          try {
+              cmake -E tar cf "$dist/$archive" --format=zip -- $name
+          } finally {
+              Pop-Location
+          }
+
+          Expand-Archive -LiteralPath "$dist/$archive" -DestinationPath "$work/verify"
+          $kit = Join-Path $work "verify/$name"
+          $manifest = Get-Content -LiteralPath "$kit/PACKAGE-MANIFEST.json" -Raw | ConvertFrom-Json
+          $files = @(Get-ChildItem -LiteralPath $kit -Recurse -File -Force)
+          if ($files.Count -ne $manifest.files.Count + 1) { throw 'Unexpected files in the release archive' }
+          foreach ($file in $manifest.files) {
+              $hash = (Get-FileHash -LiteralPath "$kit/$($file.path)" -Algorithm SHA256).Hash
+              if ($hash -ine $file.sha256) { throw "Release archive integrity check failed: $($file.path)" }
+          }
+          if ((& "$kit/play.cmd" --no-config --version) -cne $banner) { throw 'Packaged launcher version mismatch' }
+          & "$kit/rebuild.ps1"
+          if ($LASTEXITCODE -ne 0) { throw 'Offline rebuild failed' }
+          if ((& "$kit/rebuild/Release/fd2sdl.exe" --no-config --version) -cne $banner) {
+              throw 'Rebuilt executable version mismatch'
+          }
+          $rebuilt = Get-Content -LiteralPath "$kit/rebuild/release-target-Release.json" -Raw | ConvertFrom-Json
+          $sdkPrefix = $kit.Replace('\', '/') + '/sdk/sdl/'
+          if (!$rebuilt.sdl_link_file.StartsWith($sdkPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+              (Get-FileHash -LiteralPath $rebuilt.sdl_link_file).Hash -ine $manifest.inputs.sdl.link_file.sha256) {
+              throw 'Offline rebuild did not use the packaged SDL SDK'
+          }
+
+          $hash = (Get-FileHash -LiteralPath "$dist/$archive" -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText("$dist/$archive.sha256", "$hash  $archive" + [char]10)
+          [IO.File]::WriteAllText("$dist/release-notes.md", $entry.Groups[1].Value.Trim() + [char]10)
+          "commit=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+      - name: Upload verified release files
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-x64
+          path: build/windows-release/dist/*
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release files
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-x64
+          path: dist
+      - name: Publish the GitHub Release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_COMMIT: ${{ needs.package.outputs.commit }}
+        run: |
+          archive="fd2sdl-${GITHUB_REF_NAME}-windows-x64.zip"
+          sha256sum --check "$archive.sha256"
+          tag_commit="$(gh api "repos/$GH_REPO/commits/$GITHUB_REF_NAME" --jq .sha)"
+          if [[ "$tag_commit" != "$BUILD_COMMIT" ]]; then
+            echo "Tag has moved since the package build: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "$archive" "$archive.sha256" \
+            --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md

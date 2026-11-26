@@ -4,6 +4,10 @@
 
 SDL 版在默认节奏与规则下沿用原版游戏流程，同时修正第 23 章罗德曼招募和 30 级经验归零。窗口、音量、路径、键位和手柄属于宿主项（H），可以自由调整。Nuked OPL3 保留原生音色与响度。[默认规则与设置](docs/user-guide.md#启动设置)
 
+## 下载
+
+下载 [Windows x64 发布包](https://github.com/soarqin/fd2sdl/releases/latest)，解压后运行 `play.cmd`。将合法取得的[原版数据文件](docs/user-guide.md#游戏资源和启动模式)放在 `play.cmd` 同一层，或在启动设置的「路径」页指定数据目录。[更新日志](CHANGELOG.md)
+
 ## 构建
 
 需要 CMake 3.21+、Python 3.9+ 和支持 C11／C++14 的编译器。Python 用于构建期生成数据。Windows 可使用 MSVC 19.28（v142）及以上，或 MSYS2 的 GCC／Clang。Linux 可使用 GCC／Clang。Web 使用 Emscripten 和 Ninja。
@@ -37,7 +41,7 @@ CMake 优先查找目标平台的 SDL3，未找到时联网下载并构建。Win
 
 Web 版通过 HTTP 或 HTTPS 提供 `build/wasm/web/` 中的文件。打开页面，选择含[必需资源](docs/user-guide.md#游戏资源和启动模式)的 ZIP，通过检查后点「开始游戏」。[本地预览和存档](docs/tools/platforms.md#web-构建与本地预览)
 
-Windows 和 Linux 版可在首次启动时选择已有的数据目录，也可将合法取得的原版数据放入仓库根目录的 `original_game/`。以仓库根目录为工作目录运行以下程序。
+Windows 和 Linux 版优先从工作目录读取原版数据。开发时也可以将原版数据放在仓库根目录的 `original_game/`，或在启动设置中编辑游戏数据目录。以仓库根目录为工作目录运行以下程序。
 
 - Windows：`./build/windows/Release/fd2sdl.exe`
 - Linux：`./build/linux/fd2sdl`

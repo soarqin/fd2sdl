@@ -1,6 +1,18 @@
-# Windows Release 本地包与重建材料
+# Windows x64 发布与离线重建
 
-本流程只生成本地隔离包，不上传或发布。项目自有代码使用 MIT；SDL、Nuked OPL3、OPL AIL model 等保留各自许可与通知，不能用项目 LICENSE 覆盖第三方许可。准确清单由根目录 `THIRD_PARTY_NOTICES.md`（或无扩展名的同名文件）及源码中的许可文件提供。
+项目自有代码使用 MIT。SDL、Nuked OPL3 和 OPL AIL model 等组件保留各自许可与通知，见根目录的 [第三方声明](../../THIRD_PARTY_NOTICES.md)。
+
+## GitHub 发布
+
+1. 在根 `CMakeLists.txt` 更新版本号，并在 [CHANGELOG.md](../../CHANGELOG.md) 增加对应的带日期版本条目。
+2. 在 GitHub Actions 手动运行 [Windows release](../../.github/workflows/release.yml) 验证候选。工作流构建 Windows x64 程序和匹配的 SDL SDK，检查 ZIP 的文件摘要，并从解包后的源码和 SDK 离线重建。通过后可从该次运行下载测试包。
+3. 验收后，将同版本的 `vX.Y.Z` 标签推送到 GitHub。标签必须和程序版本一致。检查该次工作流及 Release 页面上的 ZIP 和 SHA-256 文件。发布说明取自对应版本的变更日志。
+
+Windows x64 提供预编译包。Linux 和 Web 可按[跨平台构建说明](platforms.md)从源码构建。更新 SDL 版本时，同时更新工作流中固定的 SDL 源码提交。
+
+## 本地打包
+
+以下工具生成本地隔离包。GitHub 工作流使用同一组工具构建和验证发布包。
 
 App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/static_data/generate.py` 和 `tools/static_data/table_schema.py` 是离线重建所需的源码，均记录在白名单与摘要中。引导字体的字形子集、OFL 许可和 `tools/static_data/setup_font.py` 也随包提供。运行程序无需 Python。R1 包的验收结果对应当时的源码版本。
 
@@ -22,7 +34,7 @@ App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/sta
 
 当前 runtime 白名单限实际 typed SDL：静态目标不带 DLL，动态目标只接受其实际 target_file 同名／同 SHA256 的一个 SDL DLL；其它非系统 DLL 即使被扫描到也先拒绝，须另行明确支持，不能顺手混入。包根通知只把相对 `src/third_party/` 链接改为 `source/src/third_party/`，`source/` 内的原通知保持逐字不变。
 
-运行 `play.cmd` 后，用户可以在首次启动的设置窗口选取已有的合法数据目录，也可以把数据放在包根 `original_game/`。`play.cmd --setup` 可重开设置。生成的根说明列出实际路径使用的 12 个文件：ANI.DAT、BG.DAT、DATO.DAT、FDFIELD.DAT、FDICON.B24、FDMUS.DAT、FDOTHER.DAT、FDSHAP.DAT、FDTXT.DAT、FIGANI.DAT、SAMPLE.AD、TAI.DAT；各入口检查子集不同，不需要 FD2.EXE 或预置 SAV。SDL 直接使用 FDICON.B24，不需要 FD2.TMP；本轮不生成可供 DOS 原版读取的 TMP，也不声明这种互操作已通过。普通运行只需 Windows／VC++ 运行库前置，重建才另需编译器／Windows SDK。仓库 README 在源码材料中保留原文，本包必须按 `rebuild.ps1` 的 `BUILD_TESTING=OFF` 配置，不把未随包提供的测试源码当作完整仓库开发环境。
+将原版数据放在 `play.cmd` 同一层，或在首次启动的「路径」页指定自选目录。原有的包根 `original_game/` 布局也可使用。`play.cmd --setup` 可重开设置。包内说明列出实际所需的 12 个文件。普通运行需要 Windows 和 VC++ 运行库。重建还需要编译器、Windows SDK、CMake 和 Python，随包脚本关闭依赖下载与测试构建。
 
 完整 App 源码和准确 SDL SDK 是静态 Nuked 的可替换重建材料，不是仅附 LGPL 文本或以后提供源码的承诺。最终接受这条路线前，必须从包的独立副本实际离线重建；打包成功本身不能记为重链接验证通过。项目许可证、通知与外部分发条件另经 R1 审核。
 

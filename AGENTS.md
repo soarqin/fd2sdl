@@ -54,6 +54,7 @@ Start with the documented commands. For past work, use the recorded revision and
 
 ## Artifacts and Git
 
+- Maintain [CHANGELOG.md](CHANGELOG.md) in Keep a Changelog style. Keep `Unreleased` first and list releases newest first with ISO dates. Group player-visible changes under standard headings. Record internal changes separately under `Internal` at the end of each version, and keep implementation details brief.
 - Keep original resources out of Git and releases. Keep build output, captures, test reports, local LE images, `tools/ida-out/`, databases, large intermediate exports and agent caches local. Apply the [MIT license](LICENSE) to project-owned code and preserve [third-party notices](THIRD_PARTY_NOTICES.md) and component licenses.
 - Maintain tracked IDA evidence in `docs/generated/ida-canonical/` through the generators. Preserve LF bytes and refresh and verify `SHA256SUMS` after all outputs are written. Checksums verify file identity.
 - Stage, commit, rewrite history, push or publish only when explicitly requested.

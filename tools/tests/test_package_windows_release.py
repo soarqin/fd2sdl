@@ -100,6 +100,7 @@ class ReleasePackageTest(unittest.TestCase):
         rebuild = (self.output / "rebuild.ps1").read_text(encoding="utf-8-sig")
         self.assertIn('cmake -S "$kit/source"', rebuild)
         self.assertIn("-DBUILD_TESTING=OFF", rebuild)
+        self.assertIn("-DFETCHCONTENT_FULLY_DISCONNECTED=ON", rebuild)
         self.assertIn("$kit/sdk/sdl/lib/cmake/SDL3", rebuild)
         self.assertFalse(result["offline_rebuild_verified_by_packager"])
         self.assertFalse(result["published"])
@@ -112,7 +113,7 @@ class ReleasePackageTest(unittest.TestCase):
         self.assertIn("endlocal & exit /b %fd2_exit%", launcher)
         readme = (self.output / "README-REBUILD.md").read_text(encoding="utf-8")
         self.assertIn("BUILD_TESTING=OFF", readme)
-        self.assertEqual(set(re.findall(r"- `original_game/([^`]+)`", readme)), {
+        self.assertEqual(set(re.findall(r"- `([^`]+)`", readme)), {
             "ANI.DAT", "BG.DAT", "DATO.DAT", "FDFIELD.DAT", "FDICON.B24", "FDMUS.DAT",
             "FDOTHER.DAT", "FDSHAP.DAT", "FDTXT.DAT", "FIGANI.DAT", "SAMPLE.AD", "TAI.DAT"})
 

@@ -955,8 +955,7 @@ static int check_startup_resources(unsigned mode, const char *directory,
             fprintf(errors, u8"  无法读取或格式损坏：%s/%s\n", directory, files[i].name);
     }
     if (failed) {
-        fprintf(errors, u8"请将合法取得的原版游戏数据放入 %s/，并从其上级目录启动。\n",
-                directory);
+        fputs(u8"请核对上列文件，或用 --setup 在启动设置中指定游戏数据目录。\n", errors);
         fputs("不需要 FD2.EXE；程序不会下载或修改原版数据。\n", errors);
     }
     return failed ? -1 : 0;

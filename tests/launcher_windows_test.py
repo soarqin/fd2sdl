@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import time
@@ -12,6 +13,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+from package_windows_release import DOCUMENTED_RESOURCE_FILES
 from run_original_comparison import Capture, driver_call, running
 
 
@@ -59,10 +61,15 @@ def run(game, driver, artifacts):
             x += width
         report["checkpoints"][-1].setdefault("labels", []).append(label)
 
-    def launch(name, args, settings, locale="zh_CN"):
-        return running([str(game), *args], ROOT, dict(env, SDL_PREFERRED_LOCALES=locale),
+    def launch(name, args, settings, locale="zh_CN", cwd=ROOT):
+        return running([str(game), *args], cwd, dict(env, SDL_PREFERRED_LOCALES=locale),
                        work / (name + ".log"), driver,
                        report["processes"], settings=settings)
+
+    def copy_assets(directory):
+        directory.mkdir(parents=True)
+        for name in DOCUMENTED_RESOURCE_FILES:
+            shutil.copyfile(ROOT / "original_game" / name, directory / name)
 
     try:
         with launch("first", [], config) as p:
@@ -177,9 +184,35 @@ def run(game, driver, artifacts):
             glyphs(frame(p, "show-on-start"), 206, 93, "路径")
             Capture(driver, p, work).key("ESC")
             assert p.wait(timeout=5) == 0
-        with launch("no-config", [], None) as p:
+        default_dir = work / "working-directory"
+        copy_assets(default_dir)
+        with launch("no-config", [], None, cwd=default_dir) as p:
             frame(p, "default-game", (960, 600))
         assert "config=none gameplay=default" in (work / "no-config.log").read_text(encoding="utf-8")
+
+        custom_root = work / "custom-directory"
+        custom_dir = custom_root / "data"
+        copy_assets(custom_dir)
+        custom = work / "custom.cfg"
+        custom.write_text("[paths]\ngame_dir=xdata\n", encoding="utf-8")
+        with launch("custom", ["--setup", "--map-preview", "0"], custom, cwd=custom_root) as p:
+            controls = Capture(driver, p, work)
+            glyphs(frame(p, "custom-missing"), 206, 380, "已找到 0/12")
+            for key in ("ENTER", "ENTER", "HOME", "DELETE", "ENTER"):
+                controls.key(key)
+            image = frame(p, "custom-ready")
+            glyphs(image, 464, 135, "data")
+            glyphs(image, 206, 380, "资源齐全")
+            controls.key("TAB")
+            controls.key("ENTER")
+            image = frame(p, "custom-game", (960, 600))
+            assert len(image.getcolors(960 * 600)) >= 32
+        assert "map preview: stage=0" in (work / "custom.log").read_text(encoding="utf-8")
+        values.read(custom, encoding="utf-8")
+        assert values["paths"]["game_dir"] == "data"
+        for name in DOCUMENTED_RESOURCE_FILES:
+            assert (default_dir / name).read_bytes() == (custom_dir / name).read_bytes() == (
+                ROOT / "original_game" / name).read_bytes()
         report["passed"] = True
     finally:
         (work / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

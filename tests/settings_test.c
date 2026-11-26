@@ -12,6 +12,7 @@ static fd2_config_file load(int argc, char **argv) {
 
 int main(void) {
     const fd2_settings *s = fd2_get_settings();
+    assert(!strcmp(s->game_dir, ".") && !strcmp(fd2_asset_path(FD2_FDOTHER), "./FDOTHER.DAT"));
     assert(fd2_settings_gameplay_is_default() && s->level_up_growth == FD2_GROWTH_RANDOM);
     assert(s->rodman_recruitment == FD2_RODMAN_WITHOUT_MITTY && s->fix_level_30_experience &&
            !s->ai_attack_high_defense && !s->disable_rest_healing);
@@ -84,6 +85,7 @@ int main(void) {
     assert(fd2_replace_file("alias/new", "bad", 3, "resources") < 0);
     assert(fd2_replace_file("alias/keep", "bad", 3, "resources") < 0);
     assert(fd2_replace_file("original_game/new", "bad", 3, "resources") < 0);
+    assert(fd2_replace_file("original_game/new", "bad", 3, ".") < 0);
     char *kept = SDL_LoadFile("resources/keep", NULL);
     assert(kept && !strcmp(kept, "original"));
     SDL_free(kept);
@@ -103,5 +105,18 @@ int main(void) {
     assert(fd2_replace_file("用户.cfg", "second", 6, "resources") == 0);
     FILE *unicode = fd2_open_read("用户.cfg");
     assert(unicode && fgetc(unicode) == 's' && fclose(unicode) == 0);
+
+    assert(SDL_SaveFile("original_game/FDOTHER.DAT", "legacy", 6));
+    fd2_settings_defaults();
+    assert(!strcmp(s->game_dir, "original_game"));
+    assert(SDL_SaveFile("ANI.DAT", "local", 5));
+    fd2_settings_defaults();
+    assert(!strcmp(s->game_dir, ".") && !SDL_GetPathInfo(fd2_asset_path(FD2_FDOTHER), NULL));
+    assert(fd2_replace_file(fd2_asset_path(FD2_ANI), "bad", 3, s->game_dir) < 0);
+    kept = SDL_LoadFile("ANI.DAT", NULL);
+    assert(kept && !strcmp(kept, "local"));
+    SDL_free(kept);
+    assert(SDL_unsetenv_unsafe("FD2SDL_SAVE_PATH") == 0);
+    assert(fd2_replace_file(fd2_save_path(), "save", 4, s->game_dir) == 0);
     return 0;
 }

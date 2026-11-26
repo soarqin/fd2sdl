@@ -254,13 +254,15 @@ int main(void) {
     CHECK(remove_data("DATO.DAT") == 0 && remove_data("FDTXT.DAT") == 0 &&
           remove_data("FDICON.B24") == 0 && check_output(STARTUP_MAP, output) == 0);
 
-    /* 真main缺数据分支必须先返回，替身SDL_Init也不应被调用。 */
+    /* 真 main 默认在工作目录找资源。缺文件时先返回，齐全时进入 SDL 初始化。 */
     CHECK(TEST_GETCWD(original_directory, sizeof(original_directory)) != NULL);
     CHECK(TEST_CHDIR(fixture) == 0);
     changed_directory = 1;
     char *args[] = {"fd2sdl", "--field-play-once", NULL};
     CHECK(startup_test_app_main(2, args) == 1 && sdl_init_calls == 0);
     CHECK(!g_fdother.data && !g_ani.data);
+    char *map_args[] = {"fd2sdl", "--no-config", "--map-preview-once", NULL};
+    CHECK(startup_test_app_main(3, map_args) == 1 && sdl_init_calls == 1);
 
 done:
     if (changed_directory && TEST_CHDIR(original_directory) != 0) result = 1;

@@ -13,7 +13,7 @@ static bool initialized;
 #define STR(group, name, def, simplified, traditional) \
     {group, #name, simplified, traditional, 'H', 0, 0, NULL, def, current.name, sizeof(current.name)}
 static const fd2_setting items[] = {
-    STR("paths", game_dir, "original_game", "游戏数据目录", "遊戲資料目錄"),
+    STR("paths", game_dir, ".", "游戏数据目录", "遊戲資料目錄"),
     STR("paths", save_path, "FD2.SAV", "存档路径", "存檔路徑"),
     INT("launcher", show_on_start, "off", 0, 1, "off|on", 'H', "每次启动时显示设置", "每次啟動時顯示設定"),
     INT("video", window_scale, "3", 1, 8, NULL, 'H', "窗口倍数", "視窗倍數"),
@@ -79,11 +79,21 @@ static bool assign(const fd2_setting *item, const char *value) {
     return true;
 }
 
+static const char *default_value(const fd2_setting *item) {
+    if (item->value != current.game_dir || !SDL_GetPathInfo("original_game/FDOTHER.DAT", NULL))
+        return item->initial;
+    /* 当前目录只要有游戏文件，就从这里检查整套资源，不跨目录拼接。 */
+    for (size_t i = 0; i < FD2_ASSET_COUNT; ++i)
+        if (SDL_GetPathInfo(fd2_asset_names[i], NULL)) return item->initial;
+    return "original_game";
+}
+
 bool fd2_setting_set(const fd2_setting *item, const char *value) {
     if (assign(item, value)) return true;
+    const char *fallback = default_value(item);
     SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "[%s] %s: invalid value, using '%s'",
-                item->section, item->key, item->initial);
-    assign(item, item->initial);
+                item->section, item->key, fallback);
+    assign(item, fallback);
     return false;
 }
 
@@ -99,7 +109,7 @@ const char *fd2_setting_text(const fd2_setting *item, char number[32]) {
 }
 
 void fd2_settings_defaults(void) {
-    for (size_t i = 0; i < SDL_arraysize(items); ++i) assign(&items[i], items[i].initial);
+    for (size_t i = 0; i < SDL_arraysize(items); ++i) assign(&items[i], default_value(&items[i]));
     fd2_keyboard_defaults();
     fd2_pad_defaults();
     initialized = true;

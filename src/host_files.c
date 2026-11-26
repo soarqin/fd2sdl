@@ -3,6 +3,7 @@
 #define _XOPEN_SOURCE 700
 #endif
 #include "host_files.h"
+#include "settings.h"
 #include <SDL3/SDL.h>
 #include <errno.h>
 #include <stdint.h>
@@ -84,21 +85,42 @@ static bool within(const char *path, const char *root) {
 #endif
 }
 
-static char *parent_directory(const char *path) {
+static const char *filename(const char *path) {
     const char *slash = strrchr(path, '/');
 #ifdef _WIN32
     const char *back = strrchr(path, '\\');
     if (back && (!slash || back > slash)) slash = back;
 #endif
-    return slash ? SDL_strndup(path, (size_t)(slash - path) + 1) : SDL_strdup(".");
+    return slash ? slash + 1 : path;
 }
 
-static bool outside_game(const char *directory, const char *existing, const char *game_dir) {
+static char *parent_directory(const char *path) {
+    const char *name = filename(path);
+    return name != path ? SDL_strndup(path, (size_t)(name - path)) : SDL_strdup(".");
+}
+
+static bool game_asset(const char *path) {
+    if (!path) return false;
+    const char *name = filename(path);
+    for (size_t i = 0; i < FD2_ASSET_COUNT; ++i)
+        if (SDL_strcasecmp(name, fd2_asset_names[i]) == 0) return true;
+    return false;
+}
+
+static bool outside_game(const char *directory, const char *existing, const char *game_dir,
+                         const char *output) {
     const char *roots[] = {"original_game", game_dir};
     for (size_t i = 0; i < SDL_arraysize(roots); ++i) {
         bool missing;
         char *root = resolved(roots[i], &missing);
         bool ok = root ? !within(directory, root) && (!existing || !within(existing, root)) : missing;
+        if (!ok && root && i == 1) {
+            /* 数据放在工作目录时，配置、存档和取证仍能写入，游戏资源保持只读。 */
+            char *cwd = resolved(".", &missing);
+            ok = cwd && within(root, cwd) && within(cwd, root) &&
+                !game_asset(output) && !game_asset(existing);
+            free(cwd);
+        }
         free(root);
         if (!ok) return false;
     }
@@ -115,7 +137,7 @@ char *fd2_capture_directory(const char *path, const char *game_dir) {
 #else
     const char *separators = "/";
 #endif
-    bool ok = outside_game(dir, NULL, game_dir);
+    bool ok = outside_game(dir, NULL, game_dir, NULL);
     for (const char *at = dir; ok && *at;) {
         at += strspn(at, separators);
         size_t n = strcspn(at, separators);
@@ -146,7 +168,7 @@ static bool writable_destination(const char *path, const char *game_dir) {
     char *directory = parent ? resolved(parent, &missing) : NULL;
     SDL_free(parent);
     char *existing = resolved(path, &missing);
-    bool ok = directory && (existing || missing) && outside_game(directory, existing, game_dir);
+    bool ok = directory && (existing || missing) && outside_game(directory, existing, game_dir, path);
     free(directory);
     free(existing);
     if (!ok) SDL_SetError("protected or inaccessible output path: %s", path);

@@ -40,7 +40,11 @@ int main(void) {
     edit_key(&ui, SDL_SCANCODE_BACKSPACE, 0);
     assert(!strcmp(ui.edit, "路径/资"));
     edit_key(&ui, SDL_SCANCODE_ESCAPE, 0);
-    assert(!ui.editing && !strcmp(fd2_get_settings()->game_dir, "original_game"));
+    assert(!ui.editing && !strcmp(fd2_get_settings()->game_dir, "."));
+    mouse_click(&ui, 490, ROW_Y + 8);
+    insert_text(&ui, "路径/资料");
+    edit_key(&ui, SDL_SCANCODE_RETURN, 0);
+    assert(!ui.editing && !strcmp(fd2_get_settings()->game_dir, "路径/资料"));
     mouse_click(&ui, 40, 88 + VIDEO * 43 + 10);
     mouse_click(&ui, 755, ROW_Y + 10);
     assert(ui.page == VIDEO && fd2_get_settings()->window_scale == 4 && fd2_settings_gameplay_is_default());

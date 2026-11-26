@@ -65,7 +65,7 @@ App 构建需要 Python 3.9+ 标准库。`data/static/` 中的 JSON、`tools/sta
 
 ## 记录实际构建并打包
 
-以下从项目根目录的 Visual Studio x64 Developer PowerShell 执行，需要 CMake 3.24+、Python 3.9+ 和 `dumpbin.exe`。先安装本次实际使用的 Release SDL 开发 SDK，记录源码实际 Git commit／tag 及安装库摘要。SDK 必须由对应源码／构建的 `cmake --install ... --config Release --prefix ...` 生成，不能用现成 Debug 库替代。将下面 SDL 源码／构建路径换成实际值，保留其构建、安装命令和摘要。
+以下从项目根目录的 Visual Studio x64 Developer PowerShell 执行。依赖扫描需要 CMake 3.24+、Python 3.9+ 和 `dumpbin.exe`。示例使用 Visual Studio 2026，需要 [CMake 4.2 或更新版本](https://cmake.org/cmake/help/v4.2/generator/Visual%20Studio%2018%202026.html)。先用实际 SDL 源码构建 Release 版，再用 `cmake --install ... --config Release --prefix ...` 安装开发 SDK。记录实际 SDL 源码的提交、构建目录和安装库摘要。
 
 2026-11-09 的 SD3 离线重建核实：本地 SDL 源码缓存目录名为 `2813f2630904ea29806fcfaeeb3287ed555e42e2`，实际 Git HEAD 为 `5ac37a8ffcf89da390404c1016833d56e2d67ae4`，对应 tag `release-3.2.12`。前者只是缓存目录名，不能作为 Git 来源身份。本次核查不倒推确认旧 R1 当时未查证的 Git HEAD；旧 R1 的实际 SDK／库摘要、包和验收范围继续以原收据为准，不改写历史身份。本次仅完成当前源码的本地离线重建，未生成新发布包或完成其原生运行验收，详见[阶段记录](https://github.com/soarqin/fd2sdl/blob/373e5c0bd21454793a20fc62ecb8addb18055dba/docs/plans/stage-log.md)。
 

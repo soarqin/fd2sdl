@@ -208,9 +208,10 @@ def _player_readme() -> bytes:
             "游戏需要以下 12 个资源文件。\n\n" + resources +
             "\n\n本包不包含这些资源、SAV、截图、录音或dump。\n\n"
             "## 重建与许可\n\n自有代码使用MIT；第三方许可见THIRD_PARTY_NOTICES.md及source/src/third_party。"
-            "完整App构建源码在source，实际SDL开发SDK在sdk/sdl。另安装清单记录的Visual Studio C/C++工具链、"
-            "Windows SDK、CMake和Python 3.9+后，可替换Nuked源码，再执行`./rebuild.ps1`；无需下载SDL或Python包。"
-            "data/static中的冷定义和tools/static_data/generate.py随源码提供，构建期生成C数据；运行游戏无需Python。\n\n"
+            "完整应用源码位于 `source/`，匹配的 SDL SDK 位于 `sdk/sdl/`。"
+            "请安装清单记录的 Visual Studio C/C++ 工具链、Windows SDK、CMake 和 Python 3.9+。"
+            "使用 Visual Studio 2026 时，CMake 需要 4.2 或更新版本。"
+            "可以修改 Nuked 源码后执行 `./rebuild.ps1`，构建使用随包提供的 SDK。\n\n"
             "source/README.md保留仓库原文，但本包是App-only构建材料；必须使用BUILD_TESTING=OFF，"
             "不能照仓库默认测试命令构建未随包提供的tests。rebuild.ps1已设置该选项。\n\n"
             "包内清单记录文件摘要、构建输入及实际运行依赖。\n").encode("utf-8")
@@ -240,7 +241,9 @@ def package(source_root: Path, manifest_path: Path, output: Path) -> dict:
         _, data = _external(sdl[key])
         if sha256(data) not in {row["sha256"] for row in sdk_files}:
             raise ValueError("installed SDK differs from the SDL binary actually linked")
-    forbidden = [str(root), str(sdk)] + sdl.get("forbidden_prefixes", [])
+    # CMake 记录可能保留调用方所用的 Windows 短路径或目录别名。
+    forbidden = [str(source_root.absolute()), str(root), sdl["sdk_root"], str(sdk)]
+    forbidden += sdl.get("forbidden_prefixes", [])
     for row in sdk_files:
         if row["path"].endswith(".cmake"):
             text = _read(sdk / row["path"]).decode("utf-8-sig").replace("\\", "/").casefold()

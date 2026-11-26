@@ -223,7 +223,9 @@ class ReleaseRecorderTest(unittest.TestCase):
         """只替代junction那次系统解析；其余路径/文件I/O仍走真实临时目录。"""
         actual = self.root / "FD2-assets"
         actual.mkdir()
-        alias = self.source / "original_game"
+        # 运行器可能通过 Windows 8.3 短路径提供 TEMP。
+        actual = actual.resolve(strict=True)
+        alias = self.source.resolve(strict=True) / "original_game"
         original_resolve = Path.resolve
         def resolve(path, *args, **kwargs):
             return actual if path == alias else original_resolve(path, *args, **kwargs)

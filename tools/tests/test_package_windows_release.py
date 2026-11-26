@@ -162,6 +162,21 @@ class ReleasePackageTest(unittest.TestCase):
         self.manifest["sdl"]["sdk_files"] = release.sdk_inventory(self.sdk)
         self.rejected()
 
+    def test_reject_absolute_source_alias_in_cmake_reference(self):
+        alias = self.base / "source-alias"
+        if os.name == "nt":
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(alias), str(self.source)],
+                           check=True, capture_output=True)
+        else:
+            alias.symlink_to(self.source, target_is_directory=True)
+        self.put(self.sdk / "lib/cmake/SDL3/SDL3Config.cmake",
+                 ('set(include "' + alias.as_posix() + '/include")').encode())
+        self.manifest["sdl"]["sdk_files"] = release.sdk_inventory(self.sdk)
+        self.inputs.write_text(json.dumps(self.manifest), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "build-tree/absolute SDL CMake reference"):
+            release.package(alias, self.inputs, self.output)
+        self.assertFalse(self.output.exists())
+
     def test_reject_unresolved_or_missing_dependency_scan(self):
         self.manifest["unresolved_dependencies"] = ["missing.dll"]
         self.rejected()
